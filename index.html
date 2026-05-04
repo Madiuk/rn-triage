@@ -19,12 +19,15 @@
     --purple: #7c3aed; --purple-light: #f5f3ff; --purple-mid: #ddd6fe;
     --teal: #0d9488; --teal-light: #f0fdfa; --teal-mid: #99f6e4;
     --slate: #475569; --slate-light: #f8fafc; --slate-mid: #cbd5e1;
+    --orange: #ea580c; --orange-light: #fff7ed; --orange-mid: #fed7aa;
     --sans: 'DM Sans', sans-serif;
   }
   body { background: var(--gray-100); color: var(--gray-900); font-family: var(--sans); font-size: 15px; min-height: 100vh; }
+
+  /* MODAL */
   .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; display: flex; align-items: center; justify-content: center; }
   .modal-overlay.hidden { display: none; }
-  .modal-box { background: var(--white); border-radius: 16px; padding: 32px; max-width: 420px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
+  .modal-box { background: var(--white); border-radius: 16px; padding: 32px; max-width: 460px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
   .modal-box h2 { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
   .modal-box p { font-size: 14px; color: var(--gray-600); margin-bottom: 20px; line-height: 1.6; }
   .nurse-btns { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
@@ -36,6 +39,8 @@
   .modal-input { flex: 1; padding: 10px 14px; border: 1.5px solid var(--gray-200); border-radius: 8px; font-family: var(--sans); font-size: 14px; outline: none; }
   .modal-input:focus { border-color: var(--blue); }
   .modal-confirm-btn { padding: 10px 18px; background: var(--blue); border: none; border-radius: 8px; color: white; font-family: var(--sans); font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+
+  /* TOPBAR */
   .topbar { background: var(--white); border-bottom: 1px solid var(--gray-200); padding: 0 24px; height: 60px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
   .topbar-brand { display: flex; align-items: center; gap: 10px; }
   .brand-icon { width: 34px; height: 34px; border-radius: 8px; background: var(--blue); display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700; color: white; }
@@ -55,6 +60,8 @@
   .status-badge.error { border-color: var(--red-mid); color: var(--red); background: var(--red-light); }
   .tab-panel { display: none; }
   .tab-panel.active { display: block; }
+
+  /* TRIAGE */
   .triage-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 20px 24px; max-width: 1400px; margin: 0 auto; }
   .card { background: var(--white); border-radius: 14px; border: 1px solid var(--gray-200); box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
   .card-header { padding: 16px 20px 14px; border-bottom: 1px solid var(--gray-100); display: flex; align-items: center; justify-content: space-between; }
@@ -70,6 +77,8 @@
   .spinner { width: 16px; height: 16px; border: 2.5px solid rgba(255,255,255,0.4); border-top-color: white; border-radius: 50%; animation: spin 0.7s linear infinite; display: none; }
   .spinner.active { display: block; }
   @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* RESULTS */
   .results { display: flex; flex-direction: column; gap: 14px; }
   .result-card { background: var(--white); border-radius: 14px; border: 1.5px solid var(--gray-200); overflow: hidden; animation: fadeUp 0.2s ease forwards; opacity: 0; }
   @keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
@@ -83,7 +92,6 @@
   .rc-body { padding: 14px 16px; }
   .pill { font-size: 12px; font-weight: 700; padding: 4px 12px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap; }
   .pill-green { background: var(--green-light); color: var(--green); border: 1.5px solid var(--green-mid); }
-  .pill-amber { background: var(--amber-light); color: var(--amber); border: 1.5px solid var(--amber-mid); }
   .pill-purple { background: var(--purple-light); color: var(--purple); border: 1.5px solid var(--purple-mid); }
   .pill-teal { background: var(--teal-light); color: var(--teal); border: 1.5px solid var(--teal-mid); }
   .dept-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -125,6 +133,36 @@
   .placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px 20px; gap: 10px; color: var(--gray-400); }
   .placeholder-icon { font-size: 36px; opacity: 0.4; }
   .placeholder-text { font-size: 14px; }
+
+  /* FEEDBACK ROW */
+  .feedback-row { display: flex; align-items: center; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--gray-100); }
+  .downvote-btn { display: flex; align-items: center; gap: 5px; padding: 7px 12px; background: var(--white); border: 1.5px solid var(--gray-200); border-radius: 8px; color: var(--gray-500); font-family: var(--sans); font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s; }
+  .downvote-btn:hover { border-color: var(--red-mid); color: var(--red); background: var(--red-light); }
+  .downvote-btn.active { border-color: var(--red-mid); color: var(--red); background: var(--red-light); }
+  .feedback-label { font-size: 12px; color: var(--gray-400); flex: 1; }
+
+  /* DOWNVOTE PANEL */
+  .downvote-panel { display: none; background: var(--red-light); border: 1.5px solid var(--red-mid); border-radius: 10px; padding: 12px 14px; margin-top: 8px; }
+  .downvote-panel.open { display: block; }
+  .downvote-panel-label { font-size: 12px; font-weight: 700; color: var(--red); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
+  .downvote-reasons { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+  .downvote-reason-btn { padding: 5px 12px; border-radius: 20px; border: 1.5px solid var(--red-mid); background: var(--white); color: var(--red); font-family: var(--sans); font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.15s; }
+  .downvote-reason-btn:hover, .downvote-reason-btn.selected { background: var(--red); color: white; border-color: var(--red); }
+  .downvote-submit { padding: 7px 16px; background: var(--red); border: none; border-radius: 8px; color: white; font-family: var(--sans); font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+  .downvote-submit:hover { background: #b91c1c; }
+
+  /* ACTUAL RESPONSE PANEL */
+  .actual-response-card { border-color: var(--orange-mid) !important; }
+  .actual-textarea { min-height: 120px; font-size: 14px; }
+  .actual-submit-row { display: flex; gap: 8px; margin-top: 10px; align-items: flex-start; }
+  .actual-submit-btn { padding: 10px 18px; background: var(--orange); border: none; border-radius: 8px; color: white; font-family: var(--sans); font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: all 0.15s; display: flex; align-items: center; gap: 6px; }
+  .actual-submit-btn:hover { background: #c2410c; }
+  .actual-submit-btn:disabled { background: var(--gray-300); cursor: not-allowed; }
+  .learn-status { font-size: 12px; color: var(--gray-500); line-height: 1.5; flex: 1; }
+  .learn-status.success { color: var(--green); }
+  .learn-status.error { color: var(--red); }
+
+  /* KB TAB */
   .kb-layout { max-width: 900px; margin: 0 auto; padding: 24px; }
   .kb-header { margin-bottom: 20px; }
   .kb-header h2 { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
@@ -153,9 +191,10 @@
   .kb-section-body { padding: 12px 16px; }
   .kb-entry { border: 1.5px solid var(--gray-200); border-radius: 10px; margin-bottom: 12px; overflow: hidden; }
   .kb-entry:last-child { margin-bottom: 0; }
-  .kb-entry-header { padding: 8px 12px; background: var(--gray-50); border-bottom: 1px solid var(--gray-200); display: flex; align-items: center; gap: 8px; }
-  .kb-entry-name { flex: 1; font-size: 13px; font-weight: 600; color: var(--gray-700); background: transparent; border: none; outline: none; font-family: var(--sans); padding: 2px 0; }
+  .kb-entry-header { padding: 8px 12px; background: var(--gray-50); border-bottom: 1px solid var(--gray-200); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .kb-entry-name { flex: 1; min-width: 120px; font-size: 13px; font-weight: 600; color: var(--gray-700); background: transparent; border: none; outline: none; font-family: var(--sans); padding: 2px 0; }
   .kb-entry-name:focus { background: var(--white); border-radius: 4px; padding: 2px 6px; }
+  .kb-entry-author { font-size: 11px; color: var(--gray-400); white-space: nowrap; background: var(--gray-100); padding: 2px 8px; border-radius: 10px; }
   .kb-entry-content { width: 100%; min-height: 100px; padding: 12px 14px; border: none; border-radius: 0; font-family: var(--sans); font-size: 14px; line-height: 1.7; color: var(--gray-800); resize: vertical; outline: none; background: var(--white); }
   .kb-entry-content:focus { background: #fffdf5; }
   .kb-entry-footer { padding: 6px 12px; background: var(--gray-50); border-top: 1px solid var(--gray-100); display: flex; justify-content: flex-end; gap: 6px; }
@@ -245,7 +284,7 @@
   <div class="kb-layout">
     <div class="kb-header">
       <h2>Clinical Knowledge Base</h2>
-      <p>Add clinical protocols, response guides, URLs, and routing rules. Syncs to the team automatically. Write in plain English — the AI reads this directly when processing patient messages.</p>
+      <p>Add clinical protocols, response guides, URLs, and routing rules. Syncs to the team automatically. The AI reads this directly when processing patient messages.</p>
     </div>
     <div class="kb-sync-bar" id="syncBar"><span id="syncMsg">Loading...</span></div>
     <div class="entry-add-box">
@@ -299,15 +338,6 @@
 <div class="save-toast" id="saveToast">Synced to team</div>
 
 <script>
-// ── SYSTEM PROMPT (optimized — KB is the sole source of clinical detail) ──────
-// Techniques applied:
-//   1. Removed all duplicated protocol content — KB carries it, not the prompt
-//   2. Collapsed verbose JSON field descriptions into terse labels
-//   3. Removed redundant phrasing ("Your job is to...", "Make sure to...", etc.)
-//   4. Urgency rules expressed as compact key=value pairs
-//   5. Voice/style rules collapsed to a single line
-//   Result: ~580 tokens vs ~1320 previously (~56% reduction)
-
 const BASE_SYSTEM_PROMPT = `GLP-1 telehealth triage AI. Output ONLY valid JSON, no markdown, no prose outside JSON.
 
 JSON schema:
@@ -316,13 +346,12 @@ JSON schema:
 RULES:
 non_clinical_flag: true if billing/shipping/payment/account content present.
 routing_language: 1-2 sentences routing non-clinical items to support; empty if not needed.
-internal_note: 2-3 sentence directive for support staff added to Bask chat; empty if no handoff needed. State what patient needs, what nursing handled, what support must do.
-clinical_category: pick closest match.
+internal_note: 2-3 sentence directive for support staff added to Bask chat; empty if no handoff. State what patient needs, what nursing handled, what support must do.
 urgency: urgent=pancreatitis/severe persistent vomiting/tachycardia/thyroid mass/suicidal ideation/hypoglycemia unresponsive to food. same-day=severe GI affecting intake/injection site infection/imminent dose storage error/shakiness+sweating+confusion/diarrhea 3+days. routine=all else.
 clinical_facts: extract medication, dose in mg+units, therapy week, symptoms, duration, history, treatments tried.
-missing_info: list gaps needed for good advice. ALWAYS flag missing dose (mg+units) for any side effect message.
-follow_up_questions: one question per missing_info item. Always include: "Can you confirm your current dose in mg and units? This helps us verify correct dosing." if dose missing.
-draft_response: warm, specific, actionable RN voice. Use patient's own details. No bullet points — prose with line breaks. 120 words max. Clinical content only; exclude billing/shipping. If missing_info present, ask questions instead of giving advice.`;
+missing_info: list gaps. ALWAYS flag missing dose (mg+units) for any side effect message.
+follow_up_questions: one per missing_info item. Include "Can you confirm your current dose in mg and units? This helps us verify correct dosing." if dose missing.
+draft_response: warm, specific, actionable RN voice. Patient's own details. No bullet points — prose with line breaks. 120 words max. Clinical only. If missing_info present, ask questions instead of advice.`;
 
 const TIMEFRAME_OPTIONS = [
   {value:'routine',label:'Routine — Next Available',cls:'routine'},
@@ -335,30 +364,30 @@ const TIMEFRAME_OPTIONS = [
 
 const DEFAULT_KB = {
   protocols:[
-    {name:"Nausea — extended guidance",text:"Eating smaller meals and waiting longer between bites is recommended. Remember that eating shouldn't be a race. Try putting food in plastic containers or baggies and putting them in the fridge, and removing them as needed to snack on. Little snacks and small meals all day will help. If you've been eating fatty, greasy, acidic or heavy foods, removing that from your diet is also recommended.\n\nI always suggest Tums and Pepto Bismol for symptoms of nausea, because it can also be related to heartburn/acid reflux and indigestion. Another over the counter medication you can try is famotidine (Pepcid) which is used for reflux and GERD, but it can help calm the nausea as well.\n\nWe can request a prescription for ondansetron (Zofran) which is an anti-emetic — please send me your local pharmacy name, address, and phone number."},
-    {name:"Hair loss",text:"This is a common side effect of GLP medications, usually related to a nutrient deficiency due to lowering of calories. This is called telogen effluvium.\n\nMost of the time your hair will begin growing back during the next growth cycle. I recommend getting in more vitamins and minerals through a multi-vitamin, getting plenty of protein, and green leafy vegetables."},
-    {name:"Heartburn",text:"Heartburn is a common side effect of GLP medications, more often than not caused by ingesting too much food or liquid, causing reflux due to delayed gastric emptying.\n\nTake Pepcid (famotadine) or another OTC like Prilosec (omeprazole) or Nexium (esomeprazole). Pepto Bismol and Tums can assist as well. Decrease fatty, greasy, or acidic food ingestion. Eat slowly with smaller bites and split your meals into multiple sessions. Decrease coffee, energy drinks, and sodas."},
-    {name:"Fatigue",text:"Fatigue is often caused by a decrease in calorie intake and the body not having enough fuel to operate properly.\n\nTrack your calories on MyFitnessPal — if you're in too much of a deficit, add more food. Drink 60-100oz of water daily. Regular exercise such as a walk 3+ times per week will boost energy through endorphins. Try Gatorade or Pedialyte to replace electrolytes. Add a multi-vitamin and B12. Try slow burning carbohydrates like brown rice, sweet potatoes, broccoli, and lentils.\n\nIf you feel weak, sweaty, confused, or shaky, drink some fruit juice, eat peanut butter with bread, some milk, or a regular sugar soda — you may be experiencing low blood sugar."},
-    {name:"Diarrhea",text:"Decrease fatty, greasy foods and eat a very bland diet — bananas, rice, bread, and crackers. Increase fiber to help bind materials. Take Imodium per label directions, starting with the low dose. Pepto Bismol is a great choice as well.\n\nDrink plenty of fluids and electrolytes — Pedialyte, Gatorade, coconut water, or water with an electrolyte additive.\n\nIf you experience blood in your stool, severe abdominal pain, or diarrhea for more than 3 days affecting daily living, please get checked at an urgent care or emergency room."},
-    {name:"Food noise / cravings",text:"It is normal, even expected, to have food noise or hunger return by day 4-5 after an injection. The half-life of the medication is around that 5 day mark.\n\nI recommend using an app like LoseIt to track calories and stay at a healthy TDEE level (https://tdee.is/). Make sure you're getting enough protein, take small bites of food all day, focus on slow-burning carbohydrates, eat high quality non-processed whole foods, increase fiber, drink 1oz of water per pound of bodyweight, add a multi-vitamin and probiotic, and try to add some exercise every day or two.\n\nI always suggest weighing only once per week, on the same day, at the same time, on the same scale."},
-    {name:"Weight plateau — questions",text:"Do you mind answering a few questions for me so I can give you some customized advice?\n\n- Are you finding yourself having cravings during the day, and food noise returning?\n- How many calories do you eat per day presently, and are you tracking on an app like LoseIt or MyFitnessPal?\n- Are you drinking at a minimum of 60oz of water per day?\n- Are you eating fiber through a supplement or fruits and vegetables?\n- How much protein are you getting per day?\n- What does your exercise routine look like?\n\nQuick tip: Once you've started tracking your calories, I recommend using this website: https://tdee.is/ — calculating your TDEE is important so you can reduce your calorie intake appropriately to lose weight, or avoid a deficit so large that your body holds onto fat."}
+    {name:"Nausea — extended guidance",nurse_name:"System",text:"Eating smaller meals and waiting longer between bites is recommended. Remember that eating shouldn't be a race. Try putting food in plastic containers or baggies and putting them in the fridge, and removing them as needed to snack on. Little snacks and small meals all day will help. If you've been eating fatty, greasy, acidic or heavy foods, removing that from your diet is also recommended.\n\nI always suggest Tums and Pepto Bismol for symptoms of nausea, because it can also be related to heartburn/acid reflux and indigestion. Another over the counter medication you can try is famotidine (Pepcid) which is used for reflux and GERD, but it can help calm the nausea as well.\n\nWe can request a prescription for ondansetron (Zofran) which is an anti-emetic — please send me your local pharmacy name, address, and phone number."},
+    {name:"Hair loss",nurse_name:"System",text:"This is a common side effect of GLP medications, usually related to a nutrient deficiency due to lowering of calories. This is called telogen effluvium.\n\nMost of the time your hair will begin growing back during the next growth cycle. I recommend getting in more vitamins and minerals through a multi-vitamin, getting plenty of protein, and green leafy vegetables."},
+    {name:"Heartburn",nurse_name:"System",text:"Heartburn is a common side effect of GLP medications, more often than not caused by ingesting too much food or liquid, causing reflux due to delayed gastric emptying.\n\nTake Pepcid (famotadine) or another OTC like Prilosec (omeprazole) or Nexium (esomeprazole). Pepto Bismol and Tums can assist as well. Decrease fatty, greasy, or acidic food ingestion. Eat slowly with smaller bites and split your meals into multiple sessions. Decrease coffee, energy drinks, and sodas."},
+    {name:"Fatigue",nurse_name:"System",text:"Fatigue is often caused by a decrease in calorie intake and the body not having enough fuel to operate properly.\n\nTrack your calories on MyFitnessPal — if you're in too much of a deficit, add more food. Drink 60-100oz of water daily. Regular exercise such as a walk 3+ times per week will boost energy through endorphins. Try Gatorade or Pedialyte to replace electrolytes. Add a multi-vitamin and B12. Try slow burning carbohydrates like brown rice, sweet potatoes, broccoli, and lentils.\n\nIf you feel weak, sweaty, confused, or shaky, drink some fruit juice, eat peanut butter with bread, some milk, or a regular sugar soda — you may be experiencing low blood sugar."},
+    {name:"Diarrhea",nurse_name:"System",text:"Decrease fatty, greasy foods and eat a very bland diet — bananas, rice, bread, and crackers. Increase fiber to help bind materials. Take Imodium per label directions, starting with the low dose. Pepto Bismol is a great choice as well.\n\nDrink plenty of fluids and electrolytes — Pedialyte, Gatorade, coconut water, or water with an electrolyte additive.\n\nIf you experience blood in your stool, severe abdominal pain, or diarrhea for more than 3 days affecting daily living, please get checked at an urgent care or emergency room."},
+    {name:"Food noise / cravings",nurse_name:"System",text:"It is normal, even expected, to have food noise or hunger return by day 4-5 after an injection. The half-life of the medication is around that 5 day mark.\n\nI recommend using an app like LoseIt to track calories and stay at a healthy TDEE level (https://tdee.is/). Make sure you're getting enough protein, take small bites of food all day, focus on slow-burning carbohydrates, eat high quality non-processed whole foods, increase fiber, drink 1oz of water per pound of bodyweight, add a multi-vitamin and probiotic, and try to add some exercise every day or two.\n\nI always suggest weighing only once per week, on the same day, at the same time, on the same scale."},
+    {name:"Weight plateau — questions",nurse_name:"System",text:"Do you mind answering a few questions for me so I can give you some customized advice?\n\n- Are you finding yourself having cravings during the day, and food noise returning?\n- How many calories do you eat per day presently, and are you tracking on an app like LoseIt or MyFitnessPal?\n- Are you drinking at a minimum of 60oz of water per day?\n- Are you eating fiber through a supplement or fruits and vegetables?\n- How much protein are you getting per day?\n- What does your exercise routine look like?\n\nQuick tip: Once you've started tracking your calories, I recommend using this website: https://tdee.is/ — calculating your TDEE is important so you can reduce your calorie intake appropriately."}
   ],
-  urls:[{name:"TDEE Calculator",text:"https://tdee.is/ — reference for all weight loss, plateau, and calorie discussions"}],
-  routing:[{name:"Non-clinical routing message",text:"Thank you for reaching out — I've flagged your billing/shipping question and am routing it to our support team who will follow up with you directly. I'll address your clinical question separately below."}],
-  notes:[{name:"Dose verification",text:"Always ask for dose in mg and units if not provided in a side effect message. This helps verify the patient is dosing correctly and has not accidentally doubled or halved their dose."}]
+  urls:[{name:"TDEE Calculator",nurse_name:"System",text:"https://tdee.is/ — reference for all weight loss, plateau, and calorie discussions"}],
+  routing:[{name:"Non-clinical routing message",nurse_name:"System",text:"Thank you for reaching out — I've flagged your billing/shipping question and am routing it to our support team who will follow up with you directly. I'll address your clinical question separately below."}],
+  notes:[{name:"Dose verification",nurse_name:"System",text:"Always ask for dose in mg and units if not provided in a side effect message. This helps verify the patient is dosing correctly and has not accidentally doubled or halved their dose."}]
 };
 
 let kb = JSON.parse(JSON.stringify(DEFAULT_KB));
 let currentHistoryId = null;
 let currentNurse = localStorage.getItem('rn_triage_current_nurse') || '';
+let selectedDownvoteReason = '';
 
-// KB prompt: only sent if KB has content; avoids sending empty sections
 function getKBPrompt() {
   var parts = [];
-  if (kb.protocols && kb.protocols.length) parts.push('=== PROTOCOLS ===\n'+kb.protocols.map(function(e){return '['+e.name+']\n'+e.text;}).join('\n\n'));
-  if (kb.urls && kb.urls.length) parts.push('=== URLS ===\n'+kb.urls.map(function(e){return e.name+': '+e.text;}).join('\n'));
-  if (kb.routing && kb.routing.length) parts.push('=== ROUTING ===\n'+kb.routing.map(function(e){return '['+e.name+']\n'+e.text;}).join('\n\n'));
-  if (kb.notes && kb.notes.length) parts.push('=== NOTES ===\n'+kb.notes.map(function(e){return '['+e.name+']\n'+e.text;}).join('\n\n'));
+  if(kb.protocols&&kb.protocols.length) parts.push('=== PROTOCOLS ===\n'+kb.protocols.map(function(e){return '['+e.name+']\n'+e.text;}).join('\n\n'));
+  if(kb.urls&&kb.urls.length) parts.push('=== URLS ===\n'+kb.urls.map(function(e){return e.name+': '+e.text;}).join('\n'));
+  if(kb.routing&&kb.routing.length) parts.push('=== ROUTING ===\n'+kb.routing.map(function(e){return '['+e.name+']\n'+e.text;}).join('\n\n'));
+  if(kb.notes&&kb.notes.length) parts.push('=== NOTES ===\n'+kb.notes.map(function(e){return '['+e.name+']\n'+e.text;}).join('\n\n'));
   return parts.join('\n\n');
 }
 
@@ -406,7 +435,7 @@ async function loadKBFromServer(){
       var newKB={protocols:[],urls:[],routing:[],notes:[]};
       rows.forEach(function(row){
         var s=newKB[row.section]?row.section:(row.section==='snippets'?'notes':null);
-        if(s)newKB[s].push({name:row.name,text:row.content});
+        if(s)newKB[s].push({name:row.name,text:row.content,nurse_name:row.nurse_name||'Unknown'});
       });
       kb=newKB;
     }
@@ -430,7 +459,7 @@ function buildEntries(){
   var entries=[],pos=0;
   ['protocols','urls','routing','notes'].forEach(function(section){
     (kb[section]||[]).forEach(function(entry){
-      entries.push({section:section,name:entry.name,content:entry.text,position:pos++,nurse_name:currentNurse||'Unknown',updated_at:new Date().toISOString()});
+      entries.push({section:section,name:entry.name,content:entry.text,position:pos++,nurse_name:entry.nurse_name||currentNurse||'Unknown',updated_at:new Date().toISOString()});
     });
   });
   return entries;
@@ -451,7 +480,7 @@ async function submitEntry(){
   btn.disabled=true;txt.textContent='Saving...';spin.className='spinner active';
   try{
     if(!kb[section])kb[section]=[];
-    kb[section].push({name:title,text:content});
+    kb[section].push({name:title,text:content,nurse_name:currentNurse});
     await saveKBSilent();
     document.getElementById('entryTitle').value='';
     document.getElementById('entryContent').value='';
@@ -512,8 +541,12 @@ function renderKB(){
 function makeEntryEl(section,i,entry){
   var div=document.createElement('div');
   div.className='kb-entry';
+  var authorLabel=entry.nurse_name?entry.nurse_name:'Unknown';
   div.innerHTML=
-    '<div class="kb-entry-header"><input class="kb-entry-name" type="text" value="'+esc(entry.name)+'" data-section="'+section+'" data-index="'+i+'" placeholder="Entry name..."></div>'+
+    '<div class="kb-entry-header">'+
+      '<input class="kb-entry-name" type="text" value="'+esc(entry.name)+'" data-section="'+section+'" data-index="'+i+'" placeholder="Entry name...">'+
+      '<span class="kb-entry-author">&#128100; '+esc(authorLabel)+'</span>'+
+    '</div>'+
     '<textarea class="kb-entry-content" data-section="'+section+'" data-index="'+i+'">'+esc(entry.text)+'</textarea>'+
     '<div class="kb-entry-footer"><button class="btn-xs save" onclick="saveEntryInline(\''+section+'\','+i+',this)">Save</button><button class="btn-xs danger" onclick="removeEntry(\''+section+'\','+i+')">Delete</button></div>';
   return div;
@@ -521,11 +554,16 @@ function makeEntryEl(section,i,entry){
 
 async function saveEntryInline(section,i,btn){
   syncKBFromDOM();btn.textContent='Saving...';btn.disabled=true;
+  // Preserve existing author, update only if current nurse is set
+  if(currentNurse&&kb[section]&&kb[section][i]){
+    kb[section][i].nurse_name=currentNurse;
+  }
   try{
     await saveKBSilent();
     btn.textContent='Saved';btn.className='btn-xs saved';
     setTimeout(function(){btn.textContent='Save';btn.className='btn-xs save';btn.disabled=false;},2000);
     setSyncBar('synced','Synced · '+new Date().toLocaleTimeString());
+    renderKB();
   }catch(e){btn.textContent='Save';btn.disabled=false;}
 }
 
@@ -543,7 +581,7 @@ function importKB(e){
   var file=e.target.files[0];if(!file)return;
   var reader=new FileReader();
   reader.onload=function(ev){
-    try{var data=JSON.parse(ev.target.result);if(data.kb)kb=data.kb;renderKB();setSyncBar('','Backup imported — click Save & Sync to share');}
+    try{var data=JSON.parse(ev.target.result);if(data.kb)kb=data.kb;renderKB();setSyncBar('','Backup imported — click Save & Sync');}
     catch(err){alert('Invalid backup file.');}
   };
   reader.readAsText(file);
@@ -564,7 +602,6 @@ function setStatus(s){
   el.textContent=s==='ready'?'Ready':s==='processing'?'Processing...':s==='complete'?'Complete':'Error';
   el.className='status-badge'+(s!=='ready'?' '+s:'');
 }
-
 function setLoading(on){
   document.getElementById('btnText').textContent=on?'Analyzing...':'Run Triage';
   document.getElementById('btnSpinner').className=on?'spinner active':'spinner';
@@ -575,29 +612,21 @@ async function runTriage(){
   var msg=document.getElementById('msgInput').value.trim();
   if(!msg)return;
   if(!currentNurse){showNurseModal();return;}
-  setLoading(true);setStatus('processing');currentHistoryId=null;
+  setLoading(true);setStatus('processing');currentHistoryId=null;selectedDownvoteReason='';
   document.getElementById('results').innerHTML='<div class="placeholder"><div class="spinner active" style="width:24px;height:24px;border-color:var(--gray-300);border-top-color:var(--blue);"></div><div class="placeholder-text" style="margin-top:12px;">Analyzing message...</div></div>';
-
   var kbContent=getKBPrompt();
-  // Only append KB section if it has content — avoids sending empty string
   var systemPrompt=kbContent?BASE_SYSTEM_PROMPT+'\n\n'+kbContent:BASE_SYSTEM_PROMPT;
-
   try{
     var response=await fetch('/.netlify/functions/triage',{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        model:'claude-haiku-4-5',   // Haiku: ~10x cheaper than Sonnet, fully capable for structured JSON triage
-        max_tokens:900,             // Reduced from 1600 — output rarely needs more
-        system:systemPrompt,
-        messages:[{role:'user',content:msg}]  // No "Patient message:\n\n" wrapper — saves ~5 tokens per call
-      })
+      body:JSON.stringify({model:'claude-haiku-4-5',max_tokens:900,system:systemPrompt,messages:[{role:'user',content:msg}]})
     });
     var data=await response.json();
     if(data.error)throw new Error(typeof data.error==='string'?data.error:(data.error.message||JSON.stringify(data.error)));
     var rawText=(data.content||[]).map(function(b){return b.text||'';}).join('');
     if(!rawText)throw new Error('Empty response from API.');
     var parsed=JSON.parse(rawText.replace(/```json|```/g,'').trim());
-    renderResults(parsed);
+    renderResults(parsed,msg);
     setStatus('complete');
     saveHistoryRecord(parsed,msg).then(function(id){currentHistoryId=id;});
   }catch(err){
@@ -628,7 +657,97 @@ async function saveTimeframe(){
   btn.textContent='Saved';btn.className='timeframe-save-btn saved';btn.disabled=false;
 }
 
-function renderResults(d){
+// ── DOWNVOTE ──────────────────────────────────────────────────────────────────
+function toggleDownvote(){
+  var btn=document.getElementById('downvoteBtn');
+  var panel=document.getElementById('downvotePanel');
+  btn.classList.toggle('active');
+  panel.classList.toggle('open');
+}
+
+function selectDownvoteReason(reason,el){
+  selectedDownvoteReason=reason;
+  document.querySelectorAll('.downvote-reason-btn').forEach(function(b){b.classList.remove('selected');});
+  el.classList.add('selected');
+}
+
+async function submitDownvote(){
+  if(!selectedDownvoteReason){alert('Please select a reason.');return;}
+  if(!currentHistoryId){
+    showToast('Save a triage first before downvoting');return;
+  }
+  try{
+    await api('/history','POST',{action:'downvote',id:currentHistoryId,reason:selectedDownvoteReason});
+    var btn=document.getElementById('downvoteBtn');
+    btn.innerHTML='&#128078; Downvoted';btn.style.background='var(--red-light)';btn.style.color='var(--red)';btn.disabled=true;
+    document.getElementById('downvotePanel').classList.remove('open');
+    showToast('Feedback saved — thank you');
+  }catch(e){showToast('Error saving feedback');}
+}
+
+// ── ACTUAL RESPONSE + LEARNING ────────────────────────────────────────────────
+async function submitActualResponse(){
+  var actual=document.getElementById('actualResponseInput').value.trim();
+  if(!actual){alert('Please paste the response you actually sent.');return;}
+  var btn=document.getElementById('actualSubmitBtn');
+  var status=document.getElementById('learnStatus');
+  btn.disabled=true;btn.querySelector('span').textContent='Analyzing...';
+  status.textContent='';status.className='learn-status';
+
+  try{
+    // Step 1: Save actual response to DB
+    if(currentHistoryId){
+      await api('/history','POST',{
+        action:'save_actual',
+        id:currentHistoryId,
+        actual_response:actual,
+        correction_note:''
+      });
+    }
+
+    // Step 2: Use AI to analyze the difference and generate a learning note
+    var aiDraft=document.getElementById('aiDraftText').textContent;
+    var analyzeRes=await fetch('/.netlify/functions/kb/analyze',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        model:'claude-haiku-4-5',
+        max_tokens:300,
+        system:'You are a clinical AI learning assistant. Compare an AI-generated draft response with the actual response sent by a nurse. Identify the key differences and produce a concise learning note (2-4 sentences max) that can be added to the AI knowledge base to improve future responses. Focus on: tone differences, advice additions or removals, specific clinical details added, or structural changes. Output only the learning note as plain text — no labels, no preamble.',
+        messages:[{role:'user',content:'AI draft:\n'+aiDraft+'\n\nActual response sent by nurse:\n'+actual}]
+      })
+    });
+    var analyzeData=await analyzeRes.json();
+    var learningNote=(analyzeData.content||[]).map(function(b){return b.text||'';}).join('').trim();
+
+    if(learningNote){
+      // Step 3: Save learning note to DB record
+      if(currentHistoryId){
+        await api('/history','POST',{action:'save_actual',id:currentHistoryId,actual_response:actual,correction_note:learningNote});
+      }
+
+      // Step 4: Auto-add to KB General Notes so it influences future responses
+      var noteTitle='Response correction — '+new Date().toLocaleDateString();
+      if(!kb.notes)kb.notes=[];
+      kb.notes.push({name:noteTitle,text:learningNote,nurse_name:currentNurse});
+      await saveKBSilent();
+
+      status.textContent='✓ Saved and added to knowledge base: "'+learningNote.substring(0,80)+(learningNote.length>80?'...':'')+'"';
+      status.className='learn-status success';
+    }else{
+      status.textContent='✓ Response saved.';
+      status.className='learn-status success';
+    }
+    document.getElementById('actualResponseInput').value='';
+  }catch(e){
+    status.textContent='Error: '+e.message;
+    status.className='learn-status error';
+  }finally{
+    btn.disabled=false;btn.querySelector('span').textContent='Submit & Learn';
+  }
+}
+
+// ── RENDER RESULTS ────────────────────────────────────────────────────────────
+function renderResults(d,originalMsg){
   var html='';
 
   // Departments
@@ -666,9 +785,54 @@ function renderResults(d){
     html+='<div class="result-card" style="border-color:var(--purple-mid);"><div class="rc-header"><span class="rc-label" style="color:var(--purple);">Missing Info — Ask Patient First</span><span class="pill pill-purple">Follow-Up Needed</span></div><div class="rc-body"><div class="missing-box"><div class="missing-label">What\'s Missing</div><ul class="facts-list" style="margin-bottom:14px;">'+d.missing_info.map(function(m){return '<li style="color:var(--purple);">'+esc(m)+'</li>';}).join('')+'</ul><div class="missing-label">Questions to Send</div><ul class="questions-list">'+d.follow_up_questions.map(function(q){return '<li>'+esc(q)+'</li>';}).join('')+'</ul></div><button class="copy-btn" style="border-color:var(--purple-mid);margin-top:10px;" data-copy="'+esc(d.follow_up_questions.join('\n'))+'">Copy Questions</button></div></div>';
   }
 
-  // Draft response
+  // Draft response + feedback
   var hasMissing=d.missing_info&&d.missing_info.length>0;
-  html+='<div class="result-card" style="border-color:var(--teal-mid);"><div class="rc-header"><span class="rc-label" style="color:var(--teal);">'+(hasMissing?'Draft Response — Follow-Up Mode':'Draft Clinical Response')+'</span><span class="pill '+(hasMissing?'pill-purple">Ask First':'pill-teal">Ready to Copy')+'</span></div><div class="rc-body"><div class="response-text">'+esc(d.draft_response).replace(/\n/g,'<br>')+'</div><button class="copy-btn" data-copy="'+esc(d.draft_response)+'">Copy Response</button></div></div>';
+  var draftText=d.draft_response||'';
+  html+='<div class="result-card" style="border-color:var(--teal-mid);">'+
+    '<div class="rc-header">'+
+      '<span class="rc-label" style="color:var(--teal);">'+(hasMissing?'Draft Response — Follow-Up Mode':'Draft Clinical Response')+'</span>'+
+      '<span class="pill '+(hasMissing?'pill-purple">Ask First':'pill-teal">Ready to Copy')+'</span>'+
+    '</div>'+
+    '<div class="rc-body">'+
+      '<div class="response-text" id="aiDraftText">'+esc(draftText).replace(/\n/g,'<br>')+'</div>'+
+      '<button class="copy-btn" data-copy="'+esc(draftText)+'">Copy Response</button>'+
+      '<div class="feedback-row">'+
+        '<button class="downvote-btn" id="downvoteBtn" onclick="toggleDownvote()">&#128078; Flag this response</button>'+
+        '<span class="feedback-label">Not quite right? Flag it and tell us why.</span>'+
+      '</div>'+
+      '<div class="downvote-panel" id="downvotePanel">'+
+        '<div class="downvote-panel-label">What was wrong with this response?</div>'+
+        '<div class="downvote-reasons">'+
+          '<button class="downvote-reason-btn" onclick="selectDownvoteReason(\'Wrong category\',this)">Wrong category</button>'+
+          '<button class="downvote-reason-btn" onclick="selectDownvoteReason(\'Wrong clinical advice\',this)">Wrong clinical advice</button>'+
+          '<button class="downvote-reason-btn" onclick="selectDownvoteReason(\'Wrong tone\',this)">Wrong tone</button>'+
+          '<button class="downvote-reason-btn" onclick="selectDownvoteReason(\'Missing key info\',this)">Missing key info</button>'+
+          '<button class="downvote-reason-btn" onclick="selectDownvoteReason(\'Incorrect urgency\',this)">Incorrect urgency</button>'+
+          '<button class="downvote-reason-btn" onclick="selectDownvoteReason(\'Other\',this)">Other</button>'+
+        '</div>'+
+        '<button class="downvote-submit" onclick="submitDownvote()">Submit Feedback</button>'+
+      '</div>'+
+    '</div>'+
+  '</div>';
+
+  // What was actually sent box
+  html+='<div class="result-card actual-response-card">'+
+    '<div class="rc-header">'+
+      '<span class="rc-label" style="color:var(--orange);">What Did You Actually Send?</span>'+
+      '<span class="pill" style="background:var(--orange-light);color:var(--orange);border:1.5px solid var(--orange-mid);">Optional — Teaches AI</span>'+
+    '</div>'+
+    '<div class="rc-body">'+
+      '<p style="font-size:13px;color:var(--gray-500);margin-bottom:10px;">Paste the response you actually sent to the patient. The AI will compare it to the draft, identify what you changed, and automatically add a learning note to the knowledge base to improve future responses.</p>'+
+      '<textarea class="actual-textarea" id="actualResponseInput" placeholder="Paste the exact message you sent to the patient..."></textarea>'+
+      '<div class="actual-submit-row">'+
+        '<button class="actual-submit-btn" id="actualSubmitBtn" onclick="submitActualResponse()">'+
+          '<span>Submit &amp; Learn</span>'+
+          '<div class="spinner" id="actualSpinner"></div>'+
+        '</button>'+
+        '<div class="learn-status" id="learnStatus"></div>'+
+      '</div>'+
+    '</div>'+
+  '</div>';
 
   var el=document.getElementById('results');
   el.innerHTML=html;
