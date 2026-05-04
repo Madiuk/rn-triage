@@ -1,231 +1,740 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>RN Triage · GLP-1 Telehealth</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=DM+Sans:wght@400;500;600&display=swap');
+
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
   :root {
-    --bg: #0d0f12; --surface: #161a1f; --surface2: #1e2329;
-    --border: rgba(255,255,255,0.08); --border2: rgba(255,255,255,0.14);
-    --text: #e8eaed; --muted: #7a8290; --accent: #3b8bff;
-    --accent-dim: rgba(59,139,255,0.12); --green: #2ecc71;
-    --green-dim: rgba(46,204,113,0.12); --amber: #f59e0b;
-    --amber-dim: rgba(245,158,11,0.12); --red: #ef4444;
-    --red-dim: rgba(239,68,68,0.12); --teal: #14b8a6;
-    --teal-dim: rgba(20,184,166,0.12); --purple: #a78bfa;
-    --purple-dim: rgba(167,139,250,0.12);
-    --mono: 'IBM Plex Mono', monospace; --sans: 'IBM Plex Sans', sans-serif;
+    --white: #ffffff;
+    --gray-50: #f8f9fa;
+    --gray-100: #f1f3f5;
+    --gray-200: #e9ecef;
+    --gray-300: #dee2e6;
+    --gray-400: #ced4da;
+    --gray-500: #adb5bd;
+    --gray-600: #6c757d;
+    --gray-700: #495057;
+    --gray-800: #343a40;
+    --gray-900: #212529;
+    --blue: #2563eb;
+    --blue-light: #eff6ff;
+    --blue-mid: #bfdbfe;
+    --green: #16a34a;
+    --green-light: #f0fdf4;
+    --green-mid: #bbf7d0;
+    --amber: #d97706;
+    --amber-light: #fffbeb;
+    --amber-mid: #fde68a;
+    --red: #dc2626;
+    --red-light: #fef2f2;
+    --red-mid: #fecaca;
+    --purple: #7c3aed;
+    --purple-light: #f5f3ff;
+    --purple-mid: #ddd6fe;
+    --teal: #0d9488;
+    --teal-light: #f0fdfa;
+    --teal-mid: #99f6e4;
+    --sans: 'DM Sans', 'Inter', sans-serif;
   }
-  body { background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 14px; min-height: 100vh; }
-  .app { display: flex; flex-direction: column; min-height: 100vh; }
-  .topbar { display: flex; align-items: center; justify-content: space-between; padding: 12px 20px; border-bottom: 1px solid var(--border); background: var(--surface); position: sticky; top: 0; z-index: 10; }
-  .topbar-left { display: flex; align-items: center; gap: 10px; }
-  .logo-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 8px var(--accent); }
-  .logo-text { font-family: var(--mono); font-size: 13px; font-weight: 500; color: var(--text); letter-spacing: 0.04em; }
-  .logo-sub { font-family: var(--mono); font-size: 11px; color: var(--muted); }
-  .status-pill { font-family: var(--mono); font-size: 11px; padding: 3px 10px; border-radius: 20px; border: 1px solid var(--border2); color: var(--muted); }
-  .main { display: grid; grid-template-columns: 1fr 1fr; gap: 0; flex: 1; }
-  .panel { padding: 20px; }
-  .panel-left { border-right: 1px solid var(--border); }
-  .panel-label { font-family: var(--mono); font-size: 10px; font-weight: 500; letter-spacing: 0.1em; color: var(--muted); text-transform: uppercase; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
-  .panel-label::before { content: '//'; color: var(--border2); }
-  textarea { width: 100%; height: 220px; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-family: var(--sans); font-size: 13px; line-height: 1.6; padding: 12px; resize: vertical; outline: none; transition: border-color 0.15s; }
-  textarea:focus { border-color: var(--border2); }
-  textarea::placeholder { color: var(--muted); }
-  .btn-row { display: flex; gap: 8px; margin-top: 10px; }
-  .btn-primary { flex: 1; padding: 10px 16px; background: var(--accent); border: none; border-radius: 6px; color: #fff; font-family: var(--sans); font-size: 13px; font-weight: 600; cursor: pointer; transition: opacity 0.15s, transform 0.1s; display: flex; align-items: center; justify-content: center; gap: 6px; }
-  .btn-primary:hover { opacity: 0.88; }
-  .btn-primary:active { transform: scale(0.98); }
-  .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
-  .btn-ghost { padding: 10px 14px; background: transparent; border: 1px solid var(--border2); border-radius: 6px; color: var(--muted); font-family: var(--sans); font-size: 13px; cursor: pointer; transition: all 0.15s; }
-  .btn-ghost:hover { color: var(--text); border-color: var(--border2); background: var(--surface2); }
-  .spinner { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; display: none; }
+
+  body {
+    background: var(--gray-100);
+    color: var(--gray-900);
+    font-family: var(--sans);
+    font-size: 15px;
+    min-height: 100vh;
+  }
+
+  /* TOPBAR */
+  .topbar {
+    background: var(--white);
+    border-bottom: 1px solid var(--gray-200);
+    padding: 0 24px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+  .topbar-brand { display: flex; align-items: center; gap: 10px; }
+  .brand-icon {
+    width: 34px; height: 34px; border-radius: 8px;
+    background: var(--blue); display: flex; align-items: center;
+    justify-content: center; font-size: 16px; font-weight: 700; color: white;
+  }
+  .brand-name { font-size: 17px; font-weight: 700; color: var(--gray-900); letter-spacing: -0.3px; }
+  .brand-sub { font-size: 12px; color: var(--gray-500); margin-top: 1px; }
+  .tab-nav { display: flex; gap: 4px; }
+  .tab-btn {
+    padding: 7px 16px; border-radius: 8px; border: none;
+    font-family: var(--sans); font-size: 14px; font-weight: 500;
+    cursor: pointer; transition: all 0.15s; color: var(--gray-600);
+    background: transparent;
+  }
+  .tab-btn:hover { background: var(--gray-100); color: var(--gray-800); }
+  .tab-btn.active { background: var(--blue); color: white; }
+  .status-badge {
+    font-size: 12px; font-weight: 600; padding: 4px 12px;
+    border-radius: 20px; border: 1.5px solid var(--gray-200);
+    color: var(--gray-600); background: var(--gray-50);
+    text-transform: uppercase; letter-spacing: 0.05em;
+  }
+  .status-badge.processing { border-color: var(--blue-mid); color: var(--blue); background: var(--blue-light); }
+  .status-badge.complete { border-color: var(--green-mid); color: var(--green); background: var(--green-light); }
+  .status-badge.error { border-color: var(--red-mid); color: var(--red); background: var(--red-light); }
+
+  /* TABS */
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* TRIAGE TAB */
+  .triage-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    padding: 20px 24px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  .card {
+    background: var(--white);
+    border-radius: 14px;
+    border: 1px solid var(--gray-200);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+  }
+  .card-header {
+    padding: 16px 20px 14px;
+    border-bottom: 1px solid var(--gray-100);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .card-title {
+    font-size: 13px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.07em; color: var(--gray-500);
+  }
+  .card-body { padding: 18px 20px; }
+
+  textarea {
+    width: 100%; min-height: 200px;
+    border: 1.5px solid var(--gray-200); border-radius: 10px;
+    font-family: var(--sans); font-size: 15px; line-height: 1.65;
+    color: var(--gray-800); padding: 14px 16px;
+    resize: vertical; outline: none; transition: border-color 0.15s;
+    background: var(--gray-50);
+  }
+  textarea:focus { border-color: var(--blue); background: var(--white); }
+  textarea::placeholder { color: var(--gray-400); }
+
+  .btn-primary {
+    width: 100%; margin-top: 12px; padding: 13px 20px;
+    background: var(--blue); border: none; border-radius: 10px;
+    color: white; font-family: var(--sans); font-size: 15px; font-weight: 600;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    gap: 8px; transition: all 0.15s; letter-spacing: -0.2px;
+  }
+  .btn-primary:hover { background: #1d4ed8; }
+  .btn-primary:active { transform: scale(0.99); }
+  .btn-primary:disabled { background: var(--gray-300); cursor: not-allowed; }
+
+  .btn-secondary {
+    width: 100%; margin-top: 8px; padding: 10px 20px;
+    background: transparent; border: 1.5px solid var(--gray-200); border-radius: 10px;
+    color: var(--gray-600); font-family: var(--sans); font-size: 14px; font-weight: 500;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .btn-secondary:hover { border-color: var(--gray-300); color: var(--gray-800); background: var(--gray-50); }
+
+  .spinner {
+    width: 16px; height: 16px;
+    border: 2.5px solid rgba(255,255,255,0.4);
+    border-top-color: white; border-radius: 50%;
+    animation: spin 0.7s linear infinite; display: none;
+  }
   .spinner.active { display: block; }
   @keyframes spin { to { transform: rotate(360deg); } }
-  .results { display: flex; flex-direction: column; gap: 12px; }
-  .placeholder-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 260px; gap: 10px; color: var(--muted); }
-  .placeholder-icon { font-size: 28px; opacity: 0.3; }
-  .placeholder-text { font-family: var(--mono); font-size: 12px; }
-  .result-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; animation: fadeUp 0.25s ease forwards; opacity: 0; }
-  @keyframes fadeUp { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+
+  /* RESULT CARDS */
+  .results { display: flex; flex-direction: column; gap: 14px; }
+
+  .result-card {
+    background: var(--white);
+    border-radius: 14px;
+    border: 1.5px solid var(--gray-200);
+    overflow: hidden;
+    animation: fadeUp 0.2s ease forwards;
+    opacity: 0;
+  }
+  @keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
   .result-card:nth-child(2) { animation-delay: 0.06s; }
-  .result-card:nth-child(3) { animation-delay: 0.12s; }
-  .result-card:nth-child(4) { animation-delay: 0.18s; }
-  .result-card:nth-child(5) { animation-delay: 0.22s; }
-  .card-header { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid var(--border); }
-  .card-title { font-family: var(--mono); font-size: 10px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; }
-  .card-badge { font-family: var(--mono); font-size: 10px; font-weight: 500; padding: 2px 8px; border-radius: 4px; }
-  .badge-clear { background: var(--green-dim); color: var(--green); }
-  .badge-flag { background: var(--amber-dim); color: var(--amber); }
-  .badge-urgent { background: var(--red-dim); color: var(--red); }
-  .badge-cat { background: var(--accent-dim); color: var(--accent); }
-  .badge-teal { background: var(--teal-dim); color: var(--teal); }
-  .badge-purple { background: var(--purple-dim); color: var(--purple); }
-  .card-body { padding: 12px; }
-  .card-body p { font-size: 13px; line-height: 1.65; color: var(--text); }
-  .facts-list { list-style: none; display: flex; flex-direction: column; gap: 5px; }
-  .facts-list li { font-size: 13px; line-height: 1.5; color: var(--text); padding-left: 14px; position: relative; }
-  .facts-list li::before { content: '›'; position: absolute; left: 0; color: var(--accent); font-weight: 600; }
-  .questions-list { list-style: none; display: flex; flex-direction: column; gap: 5px; }
-  .questions-list li { font-size: 13px; line-height: 1.5; color: var(--purple); padding-left: 14px; position: relative; }
-  .questions-list li::before { content: '?'; position: absolute; left: 0; color: var(--purple); font-weight: 600; font-family: var(--mono); font-size: 11px; top: 1px; }
-  .routing-box { background: var(--amber-dim); border: 1px solid rgba(245,158,11,0.2); border-radius: 6px; padding: 10px 12px; margin-top: 8px; }
-  .routing-box .rb-label { font-family: var(--mono); font-size: 10px; color: var(--amber); letter-spacing: 0.06em; margin-bottom: 5px; }
-  .routing-box p { font-size: 12px; line-height: 1.6; color: rgba(245,158,11,0.85); font-style: italic; }
-  .response-area { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 12px; font-size: 13px; line-height: 1.7; color: var(--text); white-space: pre-wrap; font-family: var(--sans); min-height: 80px; }
-  .copy-btn { margin-top: 8px; width: 100%; padding: 8px; background: transparent; border: 1px solid var(--border2); border-radius: 6px; color: var(--muted); font-family: var(--mono); font-size: 11px; cursor: pointer; transition: all 0.15s; letter-spacing: 0.05em; }
-  .copy-btn:hover { background: var(--surface); color: var(--text); border-color: var(--accent); }
-  .copy-btn.copied { color: var(--green); border-color: var(--green); }
-  .error-state { background: var(--red-dim); border: 1px solid rgba(239,68,68,0.2); border-radius: 6px; padding: 12px; font-size: 13px; color: var(--red); line-height: 1.6; }
-  @media (max-width: 680px) { .main { grid-template-columns: 1fr; } .panel-left { border-right: none; border-bottom: 1px solid var(--border); } }
+  .result-card:nth-child(3) { animation-delay: 0.11s; }
+  .result-card:nth-child(4) { animation-delay: 0.16s; }
+  .result-card:nth-child(5) { animation-delay: 0.21s; }
+
+  .rc-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--gray-100);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .rc-label {
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--gray-500);
+  }
+  .rc-body { padding: 14px 16px; }
+
+  /* PILL BADGES */
+  .pill {
+    font-size: 12px; font-weight: 700; padding: 4px 12px;
+    border-radius: 20px; text-transform: uppercase; letter-spacing: 0.05em;
+  }
+  .pill-green { background: var(--green-light); color: var(--green); border: 1.5px solid var(--green-mid); }
+  .pill-amber { background: var(--amber-light); color: var(--amber); border: 1.5px solid var(--amber-mid); }
+  .pill-red { background: var(--red-light); color: var(--red); border: 1.5px solid var(--red-mid); }
+  .pill-blue { background: var(--blue-light); color: var(--blue); border: 1.5px solid var(--blue-mid); }
+  .pill-purple { background: var(--purple-light); color: var(--purple); border: 1.5px solid var(--purple-mid); }
+  .pill-teal { background: var(--teal-light); color: var(--teal); border: 1.5px solid var(--teal-mid); }
+
+  /* CATEGORY ROW */
+  .meta-row {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+  }
+  .meta-box {
+    background: var(--gray-50); border-radius: 10px;
+    border: 1px solid var(--gray-200); padding: 12px 14px;
+  }
+  .meta-box-label {
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.07em; color: var(--gray-500); margin-bottom: 6px;
+  }
+  .meta-box-value {
+    font-size: 15px; font-weight: 600; color: var(--gray-800);
+  }
+  .urgency-routine { color: var(--green); }
+  .urgency-same-day { color: var(--amber); }
+  .urgency-urgent { color: var(--red); }
+
+  /* FACTS */
+  .facts-list { list-style: none; display: flex; flex-direction: column; gap: 7px; margin-top: 4px; }
+  .facts-list li {
+    font-size: 15px; line-height: 1.55; color: var(--gray-700);
+    padding-left: 18px; position: relative;
+  }
+  .facts-list li::before { content: '›'; position: absolute; left: 0; color: var(--blue); font-weight: 700; font-size: 16px; top: -1px; }
+
+  /* QUESTIONS */
+  .questions-list { list-style: disc; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+  .questions-list li { font-size: 15px; line-height: 1.55; color: var(--gray-700); }
+
+  /* ROUTING BOX */
+  .routing-box {
+    background: var(--amber-light); border: 1.5px solid var(--amber-mid);
+    border-radius: 10px; padding: 12px 14px; margin-top: 12px;
+  }
+  .routing-box-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--amber); margin-bottom: 6px; }
+  .routing-box p { font-size: 14px; line-height: 1.65; color: #92400e; font-style: italic; }
+
+  /* RESPONSE AREA */
+  .response-text {
+    background: var(--gray-50); border: 1.5px solid var(--gray-200);
+    border-radius: 10px; padding: 16px; font-size: 15px;
+    line-height: 1.75; color: var(--gray-800); white-space: pre-wrap;
+    font-family: var(--sans);
+  }
+
+  /* COPY BUTTON */
+  .copy-btn {
+    margin-top: 10px; width: 100%; padding: 10px;
+    background: var(--white); border: 1.5px solid var(--gray-200);
+    border-radius: 8px; color: var(--gray-600); font-family: var(--sans);
+    font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s;
+    letter-spacing: 0.03em;
+  }
+  .copy-btn:hover { border-color: var(--blue); color: var(--blue); background: var(--blue-light); }
+  .copy-btn.copied { border-color: var(--green); color: var(--green); background: var(--green-light); }
+
+  /* MISSING INFO */
+  .missing-box {
+    background: var(--purple-light); border: 1.5px solid var(--purple-mid);
+    border-radius: 10px; padding: 14px 16px; margin-top: 2px;
+  }
+  .missing-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--purple); margin-bottom: 8px; }
+
+  /* ERROR */
+  .error-box {
+    background: var(--red-light); border: 1.5px solid var(--red-mid);
+    border-radius: 12px; padding: 16px; font-size: 15px;
+    color: var(--red); line-height: 1.6;
+  }
+
+  /* PLACEHOLDER */
+  .placeholder {
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; padding: 60px 20px; gap: 10px; color: var(--gray-400);
+  }
+  .placeholder-icon { font-size: 36px; opacity: 0.4; }
+  .placeholder-text { font-size: 14px; color: var(--gray-400); }
+
+  /* KNOWLEDGE BASE TAB */
+  .kb-layout { max-width: 900px; margin: 0 auto; padding: 24px; }
+  .kb-header { margin-bottom: 20px; }
+  .kb-header h2 { font-size: 22px; font-weight: 700; color: var(--gray-900); margin-bottom: 6px; }
+  .kb-header p { font-size: 15px; color: var(--gray-600); line-height: 1.6; }
+
+  .kb-section {
+    background: var(--white); border-radius: 14px; border: 1px solid var(--gray-200);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05); margin-bottom: 16px; overflow: hidden;
+  }
+  .kb-section-header {
+    padding: 14px 20px; background: var(--gray-50);
+    border-bottom: 1px solid var(--gray-200);
+    display: flex; align-items: center; justify-content: space-between;
+    cursor: pointer;
+  }
+  .kb-section-title { font-size: 15px; font-weight: 600; color: var(--gray-800); }
+  .kb-section-body { padding: 16px 20px; }
+
+  .kb-entry {
+    border: 1.5px solid var(--gray-200); border-radius: 10px;
+    margin-bottom: 12px; overflow: hidden;
+  }
+  .kb-entry-header {
+    padding: 10px 14px; background: var(--gray-50);
+    border-bottom: 1px solid var(--gray-200);
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  }
+  .kb-entry-name {
+    font-size: 13px; font-weight: 600; color: var(--gray-700);
+    background: transparent; border: none; outline: none;
+    font-family: var(--sans); flex: 1;
+  }
+  .kb-entry-body { padding: 0; }
+  .kb-entry textarea {
+    border: none; border-radius: 0; background: var(--white);
+    font-size: 14px; min-height: 100px; resize: vertical;
+  }
+  .kb-entry textarea:focus { border: none; background: #fffdf5; }
+
+  .btn-sm {
+    padding: 5px 12px; font-size: 12px; font-weight: 600;
+    border-radius: 6px; border: 1.5px solid var(--gray-200);
+    background: var(--white); color: var(--gray-600);
+    cursor: pointer; transition: all 0.15s; font-family: var(--sans);
+  }
+  .btn-sm:hover { border-color: var(--gray-300); color: var(--gray-800); }
+  .btn-sm.danger:hover { border-color: var(--red-mid); color: var(--red); background: var(--red-light); }
+  .btn-add {
+    width: 100%; padding: 10px; margin-top: 4px;
+    background: var(--white); border: 1.5px dashed var(--gray-300);
+    border-radius: 10px; color: var(--gray-500); font-family: var(--sans);
+    font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.15s;
+  }
+  .btn-add:hover { border-color: var(--blue); color: var(--blue); background: var(--blue-light); }
+
+  .kb-actions {
+    display: flex; gap: 10px; margin-top: 20px; padding-top: 20px;
+    border-top: 1px solid var(--gray-200);
+  }
+  .kb-save-btn {
+    flex: 1; padding: 12px; background: var(--blue); border: none;
+    border-radius: 10px; color: white; font-family: var(--sans);
+    font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.15s;
+  }
+  .kb-save-btn:hover { background: #1d4ed8; }
+  .kb-export-btn {
+    padding: 12px 20px; background: var(--white);
+    border: 1.5px solid var(--gray-200); border-radius: 10px;
+    color: var(--gray-700); font-family: var(--sans);
+    font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.15s;
+  }
+  .kb-export-btn:hover { border-color: var(--gray-300); background: var(--gray-50); }
+  .kb-import-btn {
+    padding: 12px 20px; background: var(--white);
+    border: 1.5px solid var(--gray-200); border-radius: 10px;
+    color: var(--gray-700); font-family: var(--sans);
+    font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.15s;
+  }
+  .kb-import-btn:hover { border-color: var(--gray-300); background: var(--gray-50); }
+
+  .save-toast {
+    position: fixed; bottom: 24px; right: 24px;
+    background: var(--green); color: white; padding: 12px 20px;
+    border-radius: 10px; font-size: 14px; font-weight: 600;
+    opacity: 0; transition: opacity 0.2s; pointer-events: none;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  }
+  .save-toast.show { opacity: 1; }
+
+  @media (max-width: 768px) {
+    .triage-layout { grid-template-columns: 1fr; }
+    .tab-nav { display: none; }
+  }
 </style>
 </head>
 <body>
-<div class="app">
-  <div class="topbar">
-    <div class="topbar-left">
-      <div class="logo-dot"></div>
-      <div>
-        <div class="logo-text">RN TRIAGE</div>
-        <div class="logo-sub">GLP-1 Telehealth · Clinical Message Processor</div>
-      </div>
+
+<div class="topbar">
+  <div class="topbar-brand">
+    <div class="brand-icon">R</div>
+    <div>
+      <div class="brand-name">RN Triage</div>
+      <div class="brand-sub">GLP-1 Telehealth · Clinical Message Processor</div>
     </div>
-    <div class="status-pill" id="statusPill">ready</div>
   </div>
-  <div class="main">
-    <div class="panel panel-left">
-      <div class="panel-label">Patient message input</div>
-      <textarea id="msgInput" placeholder="Paste the patient's message here — the full thing, however long.&#10;&#10;Examples:&#10;· GI side effects + billing question in same message&#10;· Weight plateau concerns&#10;· Injection site questions&#10;· Missed dose / dose timing&#10;· 'I haven't lost anything yet' messages"></textarea>
-      <div class="btn-row">
-        <button class="btn-primary" id="triageBtn" onclick="runTriage()">
-          <span id="btnText">Run triage</span>
-          <div class="spinner" id="btnSpinner"></div>
-        </button>
-        <button class="btn-ghost" onclick="clearAll()">Clear</button>
-      </div>
-      <div style="margin-top: 16px;">
-        <div class="panel-label">Quick inserts</div>
-        <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px;">
-          <button class="btn-ghost" style="font-size: 11px; padding: 5px 10px;" onclick="insertSample('gi')">GI side effects</button>
-          <button class="btn-ghost" style="font-size: 11px; padding: 5px 10px;" onclick="insertSample('plateau')">Weight plateau</button>
-          <button class="btn-ghost" style="font-size: 11px; padding: 5px 10px;" onclick="insertSample('mixed')">Mixed (billing+clinical)</button>
-          <button class="btn-ghost" style="font-size: 11px; padding: 5px 10px;" onclick="insertSample('injection')">Injection concern</button>
-          <button class="btn-ghost" style="font-size: 11px; padding: 5px 10px;" onclick="insertSample('hair')">Hair loss</button>
-          <button class="btn-ghost" style="font-size: 11px; padding: 5px 10px;" onclick="insertSample('fatigue')">Fatigue</button>
+  <div class="tab-nav">
+    <button class="tab-btn active" onclick="switchTab('triage', this)">Triage</button>
+    <button class="tab-btn" onclick="switchTab('kb', this)">Knowledge Base</button>
+  </div>
+  <div class="status-badge" id="statusBadge">Ready</div>
+</div>
+
+<!-- TRIAGE TAB -->
+<div class="tab-panel active" id="tab-triage">
+  <div class="triage-layout">
+    <!-- LEFT: INPUT -->
+    <div>
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Patient Message</span>
+        </div>
+        <div class="card-body">
+          <textarea id="msgInput" placeholder="Paste the patient's full message here. Include everything — the tool will handle triage, routing, categorization, and drafting your response."></textarea>
+          <button class="btn-primary" id="triageBtn" onclick="runTriage()">
+            <span id="btnText">Run Triage</span>
+            <div class="spinner" id="btnSpinner"></div>
+          </button>
+          <button class="btn-secondary" onclick="clearAll()">Clear</button>
         </div>
       </div>
     </div>
-    <div class="panel">
-      <div class="panel-label">Triage output</div>
+
+    <!-- RIGHT: OUTPUT -->
+    <div>
       <div class="results" id="results">
-        <div class="placeholder-state">
-          <div class="placeholder-icon">&#8961;</div>
-          <div class="placeholder-text">awaiting message input</div>
+        <div class="placeholder">
+          <div class="placeholder-icon">&#9889;</div>
+          <div class="placeholder-text">Paste a patient message and click Run Triage</div>
         </div>
       </div>
     </div>
   </div>
 </div>
 
-<script>
-const SAMPLES = {
-  gi: "Hi, I'm on week 3 of tirzepatide 5mg. The nausea is really bad, especially in the mornings. I feel like I can't eat anything without feeling sick. I've been trying to eat small meals but even a few crackers make me nauseous. I also have really bad constipation, like I haven't gone in 5 days. I'm drinking water but it's not helping. I did lose 4 lbs in the first two weeks which was exciting but the side effects are making me want to quit. Should I drop back to 2.5mg? Also I'm not sure if my next shipment is supposed to come this week or next, can you check on that?",
-  plateau: "I started my GLP-1 journey 6 weeks ago and the first 3 weeks I lost 8 pounds which was amazing. But for the past 2.5 weeks I haven't lost a single pound. The scale hasn't moved at all. I'm eating between 1200-1400 calories a day, tracking everything in MyFitnessPal, doing 3x weekly walks. I'm still on 2.5mg and haven't gone up yet. Is the medication even still working? My friend started at the same time and she's already down 18 pounds. I'm getting really discouraged and wondering if I should just stop. My clothes do fit differently but the number on the scale is exactly the same. What am I doing wrong?",
-  mixed: "Good morning! I have a few things. First the clinical stuff — I've been getting really bad acid reflux since starting semaglutide last month, way worse than before. I take it Sunday mornings and by Monday afternoon I'm getting this burning in my chest that lasts most of the day. I'm already on omeprazole 20mg once daily. Should I take that differently? I also have been really tired, like way more than normal, not sure if that's the medication. Second thing — my credit card got declined when you tried to charge me this month, I updated my payment info in the portal but I'm not sure it went through. Can an RN confirm that? And my package from 3 weeks ago still shows label created in the tracking, is that normal?",
-  injection: "I've been doing my semaglutide injections in my stomach but I'm getting these hard bumps that last like a week after each shot. The last one got a little red too, not hot just kind of pink. I've been rotating sites but staying in the same general stomach area. Does this mean I'm doing it wrong? Should I switch to my thigh? Also I accidentally left my pen out of the fridge for about 14 hours yesterday, is it still okay to use? I'm supposed to inject tomorrow.",
-  hair: "I've been on semaglutide for about 3 months now and I've lost 18 pounds which is great. But for the last few weeks I've noticed a LOT more hair coming out in the shower and when I brush my hair. I'm kind of freaking out. Is this from the medication? Is it going to stop? Should I stop taking it?",
-  fatigue: "I've been on tirzepatide for 6 weeks, currently at 5mg. I feel exhausted all the time. Like I can barely get through the day. I'm sleeping 8 hours but still feel like I haven't slept. I've also noticed I feel a little shaky sometimes, especially in the afternoons. I've cut my calories way down, probably eating around 800 calories a day because I'm just not hungry. Is the fatigue from the medication?"
-};
+<!-- KNOWLEDGE BASE TAB -->
+<div class="tab-panel" id="tab-kb">
+  <div class="kb-layout">
+    <div class="kb-header">
+      <h2>Knowledge Base</h2>
+      <p>Add your text-expanders, protocols, URLs, and clinical notes here. The triage AI reads all of this automatically. Use plain English — write it exactly how you'd want the AI to understand it. For example: "Change the TDEE URL to: https://newurl.com" or paste a full side-effect protocol.</p>
+    </div>
 
-const SYSTEM_PROMPT = `You are a clinical triage assistant for an experienced RN working at a GLP-1 telehealth platform. You draft responses in the RN's established clinical voice — warm, practical, specific, and never generic. You have deep knowledge of this RN's protocols and preferred recommendations.
+    <div class="kb-section">
+      <div class="kb-section-header">
+        <span class="kb-section-title">Clinical Protocols & Text Expanders</span>
+        <span style="font-size:12px;color:var(--gray-500);">Used when drafting responses</span>
+      </div>
+      <div class="kb-section-body" id="protocols-list">
+        <!-- populated by JS -->
+      </div>
+      <div style="padding: 0 20px 16px;">
+        <button class="btn-add" onclick="addEntry('protocols')">+ Add Protocol or Text Expander</button>
+      </div>
+    </div>
+
+    <div class="kb-section">
+      <div class="kb-section-header">
+        <span class="kb-section-title">URLs & Resources</span>
+        <span style="font-size:12px;color:var(--gray-500);">Links referenced in responses</span>
+      </div>
+      <div class="kb-section-body" id="urls-list">
+        <!-- populated by JS -->
+      </div>
+      <div style="padding: 0 20px 16px;">
+        <button class="btn-add" onclick="addEntry('urls')">+ Add URL or Resource</button>
+      </div>
+    </div>
+
+    <div class="kb-section">
+      <div class="kb-section-header">
+        <span class="kb-section-title">Routing & Non-Clinical Rules</span>
+        <span style="font-size:12px;color:var(--gray-500);">How to handle billing, shipping, etc.</span>
+      </div>
+      <div class="kb-section-body" id="routing-list">
+        <!-- populated by JS -->
+      </div>
+      <div style="padding: 0 20px 16px;">
+        <button class="btn-add" onclick="addEntry('routing')">+ Add Routing Rule</button>
+      </div>
+    </div>
+
+    <div class="kb-section">
+      <div class="kb-section-header">
+        <span class="kb-section-title">General Notes & Updates</span>
+        <span style="font-size:12px;color:var(--gray-500);">Anything else for the AI to know</span>
+      </div>
+      <div class="kb-section-body" id="notes-list">
+        <!-- populated by JS -->
+      </div>
+      <div style="padding: 0 20px 16px;">
+        <button class="btn-add" onclick="addEntry('notes')">+ Add Note</button>
+      </div>
+    </div>
+
+    <div class="kb-actions">
+      <button class="kb-save-btn" onclick="saveKB()">Save Knowledge Base</button>
+      <button class="kb-export-btn" onclick="exportKB()">Export Backup</button>
+      <label class="kb-import-btn" style="display:inline-flex;align-items:center;cursor:pointer;">
+        Import Backup
+        <input type="file" accept=".json" style="display:none;" onchange="importKB(event)">
+      </label>
+    </div>
+  </div>
+</div>
+
+<div class="save-toast" id="saveToast">Knowledge base saved</div>
+
+<script>
+// ─── CORE SYSTEM PROMPT ───────────────────────────────────────────────────────
+const BASE_SYSTEM_PROMPT = `You are a clinical triage assistant for an experienced RN at a GLP-1 telehealth platform. Draft responses in the RN's clinical voice — warm, practical, specific, never generic.
 
 OUTPUT: Return ONLY a valid JSON object. No markdown, no prose outside the JSON, no code fences.
 
 JSON structure:
 {
   "non_clinical_flag": boolean,
-  "non_clinical_items": ["list of billing/shipping/payment/account items found, empty array if none"],
-  "routing_language": "If non_clinical_flag true: 1-2 sentence message routing non-clinical content to support team, acknowledging it separately from clinical care. If false: empty string.",
+  "non_clinical_items": ["list of billing/shipping/payment/account items, empty array if none"],
+  "routing_language": "1-2 sentence routing message if non_clinical_flag is true, empty string if false",
   "clinical_category": "one of: GI side effects, Weight plateau, No early weight loss, Food noise / cravings, Hair loss, Fatigue, Heartburn / reflux, Diarrhea, Injection / administration, Dosing question, Skin/site reaction, Medication storage, Urgent - escalate, General / multiple",
   "urgency": "one of: routine, same-day, urgent",
-  "clinical_facts": ["3-6 concise strings: medication name, dose, week of therapy, specific symptoms, duration, relevant history, anything already tried"],
-  "missing_info": ["list of critical missing details needed to give good advice. Empty array if message has enough info."],
-  "follow_up_questions": ["list of specific questions to ask patient if missing_info is not empty. Use the RN voice style. Empty array if not needed."],
-  "draft_response": "Full response in the RN voice using clinical protocols. Personalized with patient details. If missing_info is not empty, draft asks follow-up questions instead of giving full advice. If all info present, give complete actionable advice. 150 words max. No bullet points — write in flowing sentences with natural paragraph breaks using newline characters."
+  "clinical_facts": ["3-6 concise strings covering: medication name, dose in mg and units if stated, week of therapy, specific symptoms, duration, relevant history, anything already tried"],
+  "missing_info": ["list of critical missing info needed before giving good advice. ALWAYS include dose in mg and units if not stated for any side effect question. Empty array if sufficient info present."],
+  "follow_up_questions": ["list of specific questions to ask patient if missing_info is not empty. Empty array if not needed."],
+  "draft_response": "Full response in RN voice using clinical protocols. Personalized with patient details. If missing_info is not empty, draft asks follow-up questions. If all info present, give complete actionable advice. 150 words max. No bullet points — flowing prose with paragraph breaks using newline characters."
 }
 
-=== RN CLINICAL PROTOCOLS ===
-
-NAUSEA: Caused by delayed gastric emptying. Recommend smaller meals, slower eating, food in containers/baggies in fridge to graze throughout day, avoid fatty/greasy/acidic/heavy foods. OTC: Tums, Pepto Bismol, Famotadine/Pepcid. Rx option: Ondansetron/Zofran — if recommending, ALWAYS ask for local pharmacy name, address, and phone number. Missing info triggers: severity affecting intake, duration, current foods.
-
-HEARTBURN/REFLUX: Caused by delayed gastric emptying and overeating relative to stomach capacity. OTC: Pepcid/famotadine, Prilosec/omeprazole, Nexium/esomeprazole, Pepto Bismol, Tums. Dietary: decrease fatty/greasy/acidic foods, coffee/energy drinks/sodas. Eat slowly, smaller bites, split meals into sessions.
-
-DIARRHEA: Bland diet (bananas, rice, bread, crackers). Increase fiber. Imodium per label starting low dose. Pepto Bismol. Hydration critical: Pedialyte, Gatorade, coconut water, electrolyte water. RED FLAGS requiring ER/urgent care: blood in stool, severe abdominal pain, diarrhea more than 3 days affecting daily living.
-
-FATIGUE: Usually caused by too-low calorie intake. RED FLAG: shakiness, sweating, confusion = possible hypoglycemia — immediate action: fruit juice, peanut butter and bread, milk, regular soda. Recommendations: calorie tracking on MyFitnessPal, hydration 60-100oz/day, electrolytes (Gatorade/Pedialyte/coconut water), multivitamin plus B12, slow-burning carbs (brown rice, sweet potatoes, broccoli, lentils), light exercise like walks for endorphins. Missing info: daily calorie intake, water intake, whether tracking on app.
-
-HAIR LOSS: Telogen effluvium — reassure it is common, expected, and usually temporary. Hair regrows in next growth cycle. Recommendations: multivitamin, adequate protein, green leafy vegetables.
-
-WEIGHT PLATEAU: Normalize weight fluctuations. Metabolism can slow and retain water causing temporary scale increases. Recommend once-weekly weigh-ins only, same day/time/scale. TDEE calculator at https://tdee.is/ — important to avoid starvation mode from too large a deficit. Suggest tape measure and how clothes fit as additional metrics. ALWAYS ask these questions if patient has not answered them: Are you experiencing food noise or cravings returning during the day? How many calories per day and are you tracking on LoseIt or MyFitnessPal? Are you drinking at minimum 60oz of water per day? Are you eating fiber through supplement or fruits and vegetables? How much protein per day? What does your exercise routine look like?
-
-NO EARLY WEIGHT LOSS / FOOD NOISE: Half-life explanation — medication peaks then wanes, food noise returns around day 4-5 post-injection, this is normal. Recommendations: adequate protein, small snacks all day (nuts, seeds, protein bites), slow-burning carbs, whole non-processed foods, fiber, 1oz water per pound bodyweight, multivitamin plus probiotic, exercise including 15-30 min walks. TDEE: https://tdee.is/. Weigh once per week only.
-
-INJECTION/SITE REACTIONS: Rotate sites between abdomen, thigh, back of upper arm. Hard bumps = lipohypertrophy from insufficient rotation. Pink/red without warmth = local reaction, usually benign, monitor. Warmth plus spreading redness plus fever = possible infection, escalate same-day.
-
-MEDICATION STORAGE: Refrigerate pens, do not freeze. 14 hours out of fridge generally within acceptable range for most GLP-1 pens but flag for same-day if next dose is imminent.
+DOSE CHECK RULE: For ANY message involving side effects, ALWAYS check whether the patient has stated their current dose in mg and units (e.g. 0.5mg, 2.5mg, 5mg, 10mg). If not stated, add it to missing_info and add the question: "Could you confirm what dose you are currently on, in mg and units? This helps us verify you are dosing correctly."
 
 URGENCY: urgent = pancreatitis symptoms (severe upper abdominal pain radiating to back), persistent severe vomiting, tachycardia, thyroid symptoms (neck mass/hoarseness/dysphagia), suicidal ideation, severe hypoglycemia unresponsive to food. same-day = moderate-severe GI affecting intake, injection site with warmth/spreading redness/fever, storage error for imminent dose, shakiness/sweating/confusion, diarrhea more than 3 days. routine = weight concerns, mild side effects, hair loss, general questions, food noise.
 
-VOICE: Warm but efficient. Specific and actionable. Use brand names alongside generic names. Normalize common side effects without dismissing them. Reference TDEE calculator https://tdee.is/ for weight discussions. Never use bullet points in draft_response.`;
+=== CORE CLINICAL PROTOCOLS ===
 
-function insertSample(key) { document.getElementById('msgInput').value = SAMPLES[key]; }
+NAUSEA: Caused by delayed gastric emptying. Recommend smaller meals, slower eating, food in containers/baggies in fridge to graze throughout day, avoid fatty/greasy/acidic/heavy foods. OTC: Tums, Pepto Bismol, Famotadine/Pepcid. Rx option: Ondansetron/Zofran — if recommending, ALWAYS ask for local pharmacy name, address, and phone number. Missing info triggers: severity affecting intake, duration, current foods, dose in mg and units.
 
+HEARTBURN/REFLUX: Caused by delayed gastric emptying and overeating relative to stomach capacity. OTC: Pepcid/famotadine, Prilosec/omeprazole, Nexium/esomeprazole, Pepto Bismol, Tums. Decrease fatty/greasy/acidic foods, coffee/energy drinks/sodas. Eat slowly, smaller bites, split meals.
+
+DIARRHEA: Bland diet (bananas, rice, bread, crackers). Increase fiber. Imodium per label starting low dose. Pepto Bismol. Hydration critical: Pedialyte, Gatorade, coconut water, electrolyte water. RED FLAGS for ER/urgent care: blood in stool, severe abdominal pain, diarrhea more than 3 days affecting daily living.
+
+FATIGUE: Usually from too-low calorie intake. RED FLAG: shakiness, sweating, confusion = possible hypoglycemia — immediate action: fruit juice, peanut butter and bread, milk, regular soda. Recommendations: calorie tracking on MyFitnessPal, 60-100oz water/day, electrolytes, multivitamin plus B12, slow-burning carbs (brown rice, sweet potatoes, broccoli, lentils), light exercise for endorphins. Missing info triggers: daily calorie intake, water intake, tracking app use.
+
+HAIR LOSS: Telogen effluvium — common, expected, usually temporary. Hair regrows in next growth cycle. Recommendations: multivitamin, adequate protein, green leafy vegetables.
+
+WEIGHT PLATEAU: Normalize weight fluctuations. Recommend once-weekly weigh-ins, same day/time/scale. TDEE calculator at https://tdee.is/ to avoid starvation mode. Suggest tape measure and clothing fit as metrics. ALWAYS ask if patient has not answered: Are you experiencing food noise or cravings returning? How many calories per day and are you tracking on LoseIt or MyFitnessPal? Are you drinking at minimum 60oz of water per day? Are you eating fiber through supplement or fruits and vegetables? How much protein per day? What does your exercise routine look like?
+
+NO EARLY WEIGHT LOSS / FOOD NOISE: Half-life explanation — food noise returns around day 4-5 post-injection, this is normal. Recommendations: adequate protein, small snacks all day (nuts, seeds, protein bites), slow-burning carbs, whole non-processed foods, fiber, 1oz water per pound bodyweight, multivitamin plus probiotic, 15-30 min walks. TDEE: https://tdee.is/. Weigh once per week only.
+
+INJECTION/SITE REACTIONS: Rotate sites between abdomen, thigh, back of upper arm. Hard bumps = lipohypertrophy from insufficient rotation. Pink/red without warmth = local reaction, usually benign, monitor. Warmth plus spreading redness plus fever = possible infection, escalate same-day.
+
+MEDICATION STORAGE: Refrigerate pens, do not freeze. 14 hours out of fridge generally acceptable for most GLP-1 pens. Flag same-day if next dose is imminent.
+
+VOICE: Warm but efficient. Specific and actionable. Use brand names alongside generic. Normalize common side effects without dismissing. Reference TDEE calculator https://tdee.is/ for weight discussions. Never use bullet points in draft_response.`;
+
+// ─── KNOWLEDGE BASE ───────────────────────────────────────────────────────────
+const DEFAULT_KB = {
+  protocols: [
+    { name: "Nausea — extended advice", text: "Eating smaller meals and waiting longer between bites is recommended. Remember that eating shouldn't be a race. Try putting food in plastic containers or baggies and putting them in the fridge, and removing them as needed to snack on. Little snacks and small meals all day will help. If you've been eating fatty, greasy, acidic or heavy foods, removing that from your diet is also recommended. I always suggest Tums and Pepto Bismol for symptoms of nausea, because it can also be related to heartburn/acid reflux and indigestion. Another over the counter medication you can try is famotidine (Pepcid) which is used for reflux and GERD, but it can help calm the nausea as well. We can request a prescription for ondansetron (Zofran) which is an anti-emetic — please send me your local pharmacy name, address, and phone number." },
+    { name: "Hair loss", text: "This is a common side effect of GLP medications, usually related to a nutrient deficiency due to lowering of calories. This is called telogen effluvium. Most of the time your hair will begin growing back during the next growth cycle. I recommend getting in more vitamins and minerals through a multi-vitamin, getting plenty of protein, and green leafy vegetables." },
+    { name: "Weight plateau — questions", text: "Do you mind answering a few questions for me so I can give you some customized advice? Are you finding yourself having cravings during the day, and food noise returning? How many calories do you eat per day presently, and are you tracking on an app like LoseIt or MyFitnessPal? Are you drinking at a minimum of 60oz of water per day? Are you eating fiber through a supplement or fruits and vegetables? How much protein are you getting per day? What does your exercise routine look like? Quick tip: Once you've started tracking your calories, I recommend using this website: https://tdee.is/ — calculating your TDEE is important so you can reduce your calorie intake appropriately to lose weight." },
+    { name: "Heartburn", text: "Heartburn is a common side effect of GLP medications, more often than not caused by ingesting too much food or liquid, causing reflux due to delayed gastric emptying. Take Pepcid (famotadine) or another OTC like Prilosec (omeprazole) or Nexium (esomeprazole). Pepto Bismol and Tums can assist as well. Decrease fatty, greasy, or acidic food ingestion. Eat slowly with smaller bites. Decrease coffee, energy drinks, and sodas." },
+    { name: "Fatigue", text: "Fatigue is often caused by a decrease in calorie intake and the body not having enough fuel. Track your calories on MyFitnessPal — if you're in too much of a deficit, add more food. Drink 60-100oz of water daily. Regular exercise such as a walk 3+ times per week will boost energy through endorphins. Try Gatorade or Pedialyte to replace electrolytes. Add a multi-vitamin and B12. Try slow burning carbohydrates like brown rice, sweet potatoes, broccoli, and lentils. If you feel weak, sweaty, confused, or shaky, drink some fruit juice, eat peanut butter with bread, some milk, or a regular sugar soda — you may be experiencing low blood sugar." },
+    { name: "Diarrhea", text: "Decrease fatty, greasy foods and eat a very bland diet — bananas, rice, bread, and crackers. Increase fiber to help bind materials. Take Imodium per label directions, starting with the low dose. Pepto Bismol is a great choice as well. Drink plenty of fluids and electrolytes — Pedialyte, Gatorade, coconut water, or water with an electrolyte additive. If you experience blood in your stool, severe abdominal pain, or diarrhea for more than 3 days affecting daily living, this could be a medical emergency — please get checked at an urgent care or emergency room." },
+    { name: "Food noise / cravings", text: "It is normal, even expected, to have food noise or hunger return by day 4-5 after an injection. The half-life of the medication is around that 5 day mark. Some patients experience it more frequently — typically from a significant calorie deficit causing a slowed metabolism. I recommend using an app like LoseIt to track calories and stay at a healthy TDEE level (https://tdee.is/). Make sure you're getting enough protein, take small bites of food all day, focus on slow-burning carbohydrates like brown bread and sweet potatoes, eat high quality non-processed whole foods, increase fiber, drink 1oz of water per pound of bodyweight, add a multi-vitamin and probiotic, and try to add some exercise every day or two. I always suggest weighing only once per week, on the same day, at the same time, on the same scale." }
+  ],
+  urls: [
+    { name: "TDEE Calculator", text: "https://tdee.is/ — use for all weight loss, plateau, and calorie discussions" }
+  ],
+  routing: [
+    { name: "Non-clinical routing message", text: "Thank you for reaching out — I've flagged your billing/shipping question and am routing it to our support team who will follow up with you directly. I'll address your clinical question separately below." }
+  ],
+  notes: [
+    { name: "Dose verification note", text: "Always ask for dose in mg and units if not provided in a side effect message. This helps verify the patient is dosing correctly and has not accidentally doubled or halved their dose." }
+  ]
+};
+
+let kb = JSON.parse(localStorage.getItem('rn_triage_kb') || 'null') || DEFAULT_KB;
+
+function getKBPrompt() {
+  let sections = [];
+  if (kb.protocols && kb.protocols.length) {
+    sections.push('=== ADDITIONAL PROTOCOLS & TEXT EXPANDERS ===\n' + kb.protocols.map(e => '[' + e.name + ']\n' + e.text).join('\n\n'));
+  }
+  if (kb.urls && kb.urls.length) {
+    sections.push('=== URLS & RESOURCES ===\n' + kb.urls.map(e => e.name + ': ' + e.text).join('\n'));
+  }
+  if (kb.routing && kb.routing.length) {
+    sections.push('=== ROUTING RULES ===\n' + kb.routing.map(e => '[' + e.name + ']\n' + e.text).join('\n\n'));
+  }
+  if (kb.notes && kb.notes.length) {
+    sections.push('=== GENERAL NOTES ===\n' + kb.notes.map(e => '[' + e.name + ']\n' + e.text).join('\n\n'));
+  }
+  return sections.join('\n\n');
+}
+
+// ─── KNOWLEDGE BASE UI ────────────────────────────────────────────────────────
+function renderKB() {
+  ['protocols','urls','routing','notes'].forEach(function(section) {
+    var list = document.getElementById(section + '-list');
+    if (!list) return;
+    list.innerHTML = '';
+    (kb[section] || []).forEach(function(entry, i) {
+      list.appendChild(makeEntryEl(section, i, entry));
+    });
+  });
+}
+
+function makeEntryEl(section, i, entry) {
+  var div = document.createElement('div');
+  div.className = 'kb-entry';
+  div.innerHTML =
+    '<div class="kb-entry-header">' +
+      '<input class="kb-entry-name" type="text" value="' + esc(entry.name) + '" placeholder="Entry name..." data-section="' + section + '" data-index="' + i + '" onchange="updateEntry(this)">' +
+      '<button class="btn-sm danger" onclick="removeEntry(\'' + section + '\',' + i + ')">Remove</button>' +
+    '</div>' +
+    '<div class="kb-entry-body">' +
+      '<textarea data-section="' + section + '" data-index="' + i + '" onchange="updateEntryText(this)" style="min-height:90px;">' + esc(entry.text) + '</textarea>' +
+    '</div>';
+  return div;
+}
+
+function addEntry(section) {
+  if (!kb[section]) kb[section] = [];
+  kb[section].push({ name: 'New entry', text: '' });
+  renderKB();
+}
+
+function removeEntry(section, i) {
+  kb[section].splice(i, 1);
+  renderKB();
+}
+
+function updateEntry(input) {
+  var s = input.getAttribute('data-section');
+  var i = parseInt(input.getAttribute('data-index'));
+  kb[s][i].name = input.value;
+}
+
+function updateEntryText(ta) {
+  var s = ta.getAttribute('data-section');
+  var i = parseInt(ta.getAttribute('data-index'));
+  kb[s][i].text = ta.value;
+}
+
+function saveKB() {
+  // sync any unsaved textarea values
+  document.querySelectorAll('.kb-entry textarea').forEach(function(ta) {
+    var s = ta.getAttribute('data-section');
+    var i = parseInt(ta.getAttribute('data-index'));
+    if (kb[s] && kb[s][i]) kb[s][i].text = ta.value;
+  });
+  document.querySelectorAll('.kb-entry-name').forEach(function(input) {
+    var s = input.getAttribute('data-section');
+    var i = parseInt(input.getAttribute('data-index'));
+    if (kb[s] && kb[s][i]) kb[s][i].name = input.value;
+  });
+  localStorage.setItem('rn_triage_kb', JSON.stringify(kb));
+  var toast = document.getElementById('saveToast');
+  toast.classList.add('show');
+  setTimeout(function() { toast.classList.remove('show'); }, 2500);
+}
+
+function exportKB() {
+  var blob = new Blob([JSON.stringify(kb, null, 2)], { type: 'application/json' });
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'rn-triage-kb-backup.json';
+  a.click();
+}
+
+function importKB(e) {
+  var file = e.target.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(ev) {
+    try {
+      kb = JSON.parse(ev.target.result);
+      renderKB();
+      saveKB();
+    } catch(err) {
+      alert('Invalid backup file.');
+    }
+  };
+  reader.readAsText(file);
+}
+
+// ─── TABS ─────────────────────────────────────────────────────────────────────
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.remove('active'); });
+  document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
+  document.getElementById('tab-' + name).classList.add('active');
+  btn.classList.add('active');
+  if (name === 'kb') renderKB();
+}
+
+// ─── TRIAGE ───────────────────────────────────────────────────────────────────
 function clearAll() {
   document.getElementById('msgInput').value = '';
-  document.getElementById('results').innerHTML = '<div class="placeholder-state"><div class="placeholder-icon">&#8961;</div><div class="placeholder-text">awaiting message input</div></div>';
+  document.getElementById('results').innerHTML = '<div class="placeholder"><div class="placeholder-icon">&#9889;</div><div class="placeholder-text">Paste a patient message and click Run Triage</div></div>';
   setStatus('ready');
 }
 
-function setStatus(text) { document.getElementById('statusPill').textContent = text; }
+function setStatus(s) {
+  var el = document.getElementById('statusBadge');
+  el.textContent = s === 'ready' ? 'Ready' : s === 'processing' ? 'Processing...' : s === 'complete' ? 'Complete' : 'Error';
+  el.className = 'status-badge' + (s !== 'ready' ? ' ' + s : '');
+}
 
 function setLoading(on) {
-  document.getElementById('btnText').textContent = on ? 'Processing...' : 'Run triage';
+  document.getElementById('btnText').textContent = on ? 'Analyzing...' : 'Run Triage';
   document.getElementById('btnSpinner').className = on ? 'spinner active' : 'spinner';
   document.getElementById('triageBtn').disabled = on;
 }
 
 async function runTriage() {
-  const msg = document.getElementById('msgInput').value.trim();
+  var msg = document.getElementById('msgInput').value.trim();
   if (!msg) return;
   setLoading(true);
   setStatus('processing');
-  const results = document.getElementById('results');
-  results.innerHTML = '<div style="display:flex;align-items:center;gap:10px;color:var(--muted);font-family:var(--mono);font-size:12px;padding:20px 0;"><div class="spinner active"></div>Analyzing message...</div>';
+  document.getElementById('results').innerHTML = '<div class="placeholder"><div class="spinner active" style="width:24px;height:24px;border-color:var(--gray-300);border-top-color:var(--blue);"></div><div class="placeholder-text" style="margin-top:12px;">Analyzing message...</div></div>';
+
+  var kbSection = getKBPrompt();
+  var fullPrompt = BASE_SYSTEM_PROMPT + (kbSection ? '\n\n' + kbSection : '');
 
   try {
-    const response = await fetch('/.netlify/functions/triage', {
+    var response = await fetch('/.netlify/functions/triage', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: 'claude-sonnet-4-5',
-        max_tokens: 1200,
-        system: SYSTEM_PROMPT,
+        max_tokens: 1400,
+        system: fullPrompt,
         messages: [{ role: 'user', content: 'Patient message:\n\n' + msg }]
       })
     });
 
-    const data = await response.json();
+    var data = await response.json();
     if (data.error) throw new Error(typeof data.error === 'string' ? data.error : (data.error.message || JSON.stringify(data.error)));
-    const rawText = (data.content || []).map(function(b) { return b.text || ''; }).join('');
+    var rawText = (data.content || []).map(function(b) { return b.text || ''; }).join('');
     if (!rawText) throw new Error('Empty response from API.');
-    const parsed = JSON.parse(rawText.replace(/```json|```/g, '').trim());
+    var parsed = JSON.parse(rawText.replace(/```json|```/g, '').trim());
     renderResults(parsed);
     setStatus('complete');
-  } catch (err) {
-    results.innerHTML = '<div class="error-state"><strong>Error:</strong> ' + err.message + '</div>';
+  } catch(err) {
+    document.getElementById('results').innerHTML = '<div class="error-box"><strong>Error:</strong> ' + esc(err.message) + '</div>';
     setStatus('error');
   } finally {
     setLoading(false);
@@ -233,49 +742,117 @@ async function runTriage() {
 }
 
 function urgencyClass(u) {
-  if (u === 'urgent') return 'badge-urgent';
-  if (u === 'same-day') return 'badge-flag';
-  return 'badge-clear';
+  return u === 'urgent' ? 'urgency-urgent' : u === 'same-day' ? 'urgency-same-day' : 'urgency-routine';
 }
-
-function esc(str) {
-  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+function urgencyLabel(u) {
+  return u === 'urgent' ? 'URGENT — Escalate Now' : u === 'same-day' ? 'Same-Day Response Needed' : 'Routine — Next Available';
 }
 
 function renderResults(d) {
-  var nonClinical = d.non_clinical_flag
-    ? '<div class="result-card" style="border-color:rgba(245,158,11,0.25);"><div class="card-header"><div class="card-title" style="color:var(--amber);">Non-clinical content flagged</div><span class="card-badge badge-flag">ROUTE AWAY</span></div><div class="card-body"><ul class="facts-list" style="margin-bottom:10px;">' + d.non_clinical_items.map(function(i){return '<li style="color:var(--amber);">'+esc(i)+'</li>';}).join('') + '</ul><div class="routing-box"><div class="rb-label">SUGGESTED ROUTING MESSAGE</div><p>' + esc(d.routing_language) + '</p></div><button class="copy-btn" data-copy="' + esc(d.routing_language) + '">COPY ROUTING MESSAGE</button></div></div>'
-    : '<div class="result-card" style="border-color:rgba(46,204,113,0.2);"><div class="card-header"><div class="card-title" style="color:var(--green);">No non-clinical content</div><span class="card-badge badge-clear">CLINICAL ONLY</span></div><div class="card-body"><p style="color:var(--muted);font-size:12px;">All content is clinical. No routing needed.</p></div></div>';
+  var html = '';
 
-  var category = '<div class="result-card"><div class="card-header"><div class="card-title">Category & urgency</div><div style="display:flex;gap:6px;"><span class="card-badge badge-cat">' + esc(d.clinical_category) + '</span><span class="card-badge ' + urgencyClass(d.urgency) + '">' + esc(d.urgency.toUpperCase()) + '</span></div></div><div class="card-body"><div class="panel-label" style="margin-bottom:8px;">Key clinical facts</div><ul class="facts-list">' + d.clinical_facts.map(function(f){return '<li>'+esc(f)+'</li>';}).join('') + '</ul></div></div>';
-
-  var followUp = '';
-  if (d.missing_info && d.missing_info.length > 0) {
-    followUp = '<div class="result-card" style="border-color:rgba(167,139,250,0.25);"><div class="card-header"><div class="card-title" style="color:var(--purple);">Missing info — ask patient first</div><span class="card-badge badge-purple">FOLLOW-UP NEEDED</span></div><div class="card-body"><div class="panel-label" style="margin-bottom:8px;color:var(--purple);">What\'s missing</div><ul class="facts-list" style="margin-bottom:12px;">' + d.missing_info.map(function(m){return '<li style="color:var(--purple);">'+esc(m)+'</li>';}).join('') + '</ul><div class="panel-label" style="margin-bottom:8px;color:var(--purple);">Questions to send</div><ul class="questions-list">' + d.follow_up_questions.map(function(q){return '<li>'+esc(q)+'</li>';}).join('') + '</ul><button class="copy-btn" style="border-color:rgba(167,139,250,0.3);margin-top:10px;" data-copy="' + esc(d.follow_up_questions.join('\n')) + '">COPY QUESTIONS</button></div></div>';
+  // Non-clinical card
+  if (d.non_clinical_flag) {
+    html += '<div class="result-card" style="border-color:var(--amber-mid);">' +
+      '<div class="rc-header">' +
+        '<span class="rc-label" style="color:var(--amber);">Non-Clinical Content Flagged</span>' +
+        '<span class="pill pill-amber">Route Away</span>' +
+      '</div>' +
+      '<div class="rc-body">' +
+        '<ul class="facts-list" style="margin-bottom:12px;">' +
+          d.non_clinical_items.map(function(i){return '<li style="color:var(--amber);">'+esc(i)+'</li>';}).join('') +
+        '</ul>' +
+        '<div class="routing-box">' +
+          '<div class="routing-box-label">Suggested Routing Message</div>' +
+          '<p>' + esc(d.routing_language) + '</p>' +
+        '</div>' +
+        '<button class="copy-btn" data-copy="' + esc(d.routing_language) + '">Copy Routing Message</button>' +
+      '</div>' +
+    '</div>';
+  } else {
+    html += '<div class="result-card" style="border-color:var(--green-mid);">' +
+      '<div class="rc-header">' +
+        '<span class="rc-label" style="color:var(--green);">No Non-Clinical Content</span>' +
+        '<span class="pill pill-green">Clinical Only</span>' +
+      '</div>' +
+      '<div class="rc-body"><p style="color:var(--gray-500);font-size:14px;">All content is clinical. No routing needed.</p></div>' +
+    '</div>';
   }
 
-  var hasMissing = d.missing_info && d.missing_info.length > 0;
-  var draftTitle = hasMissing ? 'Draft response (asks follow-up questions)' : 'Draft clinical response';
-  var draftBadge = hasMissing ? '<span class="card-badge badge-purple">ASK FIRST</span>' : '<span class="card-badge badge-teal">READY TO COPY</span>';
-  var draftHtml = esc(d.draft_response).replace(/\n/g, '<br>');
+  // Category + urgency card
+  html += '<div class="result-card">' +
+    '<div class="rc-header"><span class="rc-label">Classification</span></div>' +
+    '<div class="rc-body">' +
+      '<div class="meta-row">' +
+        '<div class="meta-box">' +
+          '<div class="meta-box-label">Clinical Category</div>' +
+          '<div class="meta-box-value">' + esc(d.clinical_category) + '</div>' +
+        '</div>' +
+        '<div class="meta-box">' +
+          '<div class="meta-box-label">Response Timeframe</div>' +
+          '<div class="meta-box-value ' + urgencyClass(d.urgency) + '">' + urgencyLabel(d.urgency) + '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div style="margin-top:14px;">' +
+        '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--gray-500);margin-bottom:8px;">Key Clinical Facts</div>' +
+        '<ul class="facts-list">' + d.clinical_facts.map(function(f){return '<li>'+esc(f)+'</li>';}).join('') + '</ul>' +
+      '</div>' +
+    '</div>' +
+  '</div>';
 
-  var draft = '<div class="result-card"><div class="card-header"><div class="card-title" style="color:var(--teal);">' + draftTitle + '</div>' + draftBadge + '</div><div class="card-body"><div class="response-area">' + draftHtml + '</div><button class="copy-btn" data-copy="' + esc(d.draft_response) + '">COPY RESPONSE</button></div></div>';
+  // Missing info card
+  if (d.missing_info && d.missing_info.length > 0) {
+    html += '<div class="result-card" style="border-color:var(--purple-mid);">' +
+      '<div class="rc-header">' +
+        '<span class="rc-label" style="color:var(--purple);">Missing Info — Ask Patient First</span>' +
+        '<span class="pill pill-purple">Follow-Up Needed</span>' +
+      '</div>' +
+      '<div class="rc-body">' +
+        '<div class="missing-box">' +
+          '<div class="missing-label">What\'s Missing</div>' +
+          '<ul class="facts-list" style="margin-bottom:14px;">' + d.missing_info.map(function(m){return '<li style="color:var(--purple);">'+esc(m)+'</li>';}).join('') + '</ul>' +
+          '<div class="missing-label">Questions to Send</div>' +
+          '<ul class="questions-list">' + d.follow_up_questions.map(function(q){return '<li>'+esc(q)+'</li>';}).join('') + '</ul>' +
+        '</div>' +
+        '<button class="copy-btn" style="border-color:var(--purple-mid);" data-copy="' + esc(d.follow_up_questions.join('\n')) + '">Copy Questions</button>' +
+      '</div>' +
+    '</div>';
+  }
+
+  // Draft response card
+  var hasMissing = d.missing_info && d.missing_info.length > 0;
+  html += '<div class="result-card" style="border-color:var(--teal-mid);">' +
+    '<div class="rc-header">' +
+      '<span class="rc-label" style="color:var(--teal);">' + (hasMissing ? 'Draft Response — Follow-Up Mode' : 'Draft Clinical Response') + '</span>' +
+      '<span class="pill ' + (hasMissing ? 'pill-purple">Ask First' : 'pill-teal">Ready to Copy') + '</span>' +
+    '</div>' +
+    '<div class="rc-body">' +
+      '<div class="response-text">' + esc(d.draft_response).replace(/\n/g,'<br>') + '</div>' +
+      '<button class="copy-btn" data-copy="' + esc(d.draft_response) + '">Copy Response</button>' +
+    '</div>' +
+  '</div>';
 
   var el = document.getElementById('results');
-  el.innerHTML = nonClinical + category + followUp + draft;
+  el.innerHTML = html;
 
   el.querySelectorAll('.copy-btn').forEach(function(btn) {
     btn.addEventListener('click', function() {
-      var text = btn.getAttribute('data-copy');
-      navigator.clipboard.writeText(text).then(function() {
-        var original = btn.textContent;
-        btn.textContent = 'COPIED';
+      navigator.clipboard.writeText(btn.getAttribute('data-copy')).then(function() {
+        var orig = btn.textContent;
+        btn.textContent = '✓ Copied!';
         btn.classList.add('copied');
-        setTimeout(function() { btn.textContent = original; btn.classList.remove('copied'); }, 2000);
+        setTimeout(function() { btn.textContent = orig; btn.classList.remove('copied'); }, 2000);
       });
     });
   });
 }
+
+function esc(str) {
+  return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// init
+renderKB();
 </script>
 </body>
 </html>
