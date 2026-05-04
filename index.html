@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>RN Triage · GLP-1 Telehealth</title>
+<title>GLP-1 Clinical Triage</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap');
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -18,15 +18,14 @@
     --red: #dc2626; --red-light: #fef2f2; --red-mid: #fecaca;
     --purple: #7c3aed; --purple-light: #f5f3ff; --purple-mid: #ddd6fe;
     --teal: #0d9488; --teal-light: #f0fdfa; --teal-mid: #99f6e4;
+    --slate: #475569; --slate-light: #f8fafc; --slate-mid: #cbd5e1;
     --sans: 'DM Sans', sans-serif;
   }
   body { background: var(--gray-100); color: var(--gray-900); font-family: var(--sans); font-size: 15px; min-height: 100vh; }
-
-  /* MODAL */
   .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; display: flex; align-items: center; justify-content: center; }
   .modal-overlay.hidden { display: none; }
   .modal-box { background: var(--white); border-radius: 16px; padding: 32px; max-width: 420px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
-  .modal-box h2 { font-size: 20px; font-weight: 700; color: var(--gray-900); margin-bottom: 6px; }
+  .modal-box h2 { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
   .modal-box p { font-size: 14px; color: var(--gray-600); margin-bottom: 20px; line-height: 1.6; }
   .nurse-btns { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
   .nurse-btn { padding: 12px 16px; border-radius: 10px; border: 1.5px solid var(--gray-200); background: var(--gray-50); font-family: var(--sans); font-size: 15px; font-weight: 500; color: var(--gray-800); cursor: pointer; text-align: left; transition: all 0.15s; }
@@ -37,12 +36,10 @@
   .modal-input { flex: 1; padding: 10px 14px; border: 1.5px solid var(--gray-200); border-radius: 8px; font-family: var(--sans); font-size: 14px; outline: none; }
   .modal-input:focus { border-color: var(--blue); }
   .modal-confirm-btn { padding: 10px 18px; background: var(--blue); border: none; border-radius: 8px; color: white; font-family: var(--sans); font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap; }
-
-  /* TOPBAR */
   .topbar { background: var(--white); border-bottom: 1px solid var(--gray-200); padding: 0 24px; height: 60px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
   .topbar-brand { display: flex; align-items: center; gap: 10px; }
   .brand-icon { width: 34px; height: 34px; border-radius: 8px; background: var(--blue); display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700; color: white; }
-  .brand-name { font-size: 17px; font-weight: 700; color: var(--gray-900); letter-spacing: -0.3px; }
+  .brand-name { font-size: 17px; font-weight: 700; letter-spacing: -0.3px; }
   .brand-sub { font-size: 12px; color: var(--gray-500); margin-top: 1px; }
   .topbar-right { display: flex; align-items: center; gap: 12px; }
   .nurse-chip { display: flex; align-items: center; gap: 7px; padding: 5px 12px; background: var(--blue-light); border: 1.5px solid var(--blue-mid); border-radius: 20px; font-size: 13px; font-weight: 600; color: var(--blue); cursor: pointer; }
@@ -56,11 +53,8 @@
   .status-badge.processing { border-color: var(--blue-mid); color: var(--blue); background: var(--blue-light); }
   .status-badge.complete { border-color: var(--green-mid); color: var(--green); background: var(--green-light); }
   .status-badge.error { border-color: var(--red-mid); color: var(--red); background: var(--red-light); }
-
   .tab-panel { display: none; }
   .tab-panel.active { display: block; }
-
-  /* TRIAGE */
   .triage-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 20px 24px; max-width: 1400px; margin: 0 auto; }
   .card { background: var(--white); border-radius: 14px; border: 1px solid var(--gray-200); box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
   .card-header { padding: 16px 20px 14px; border-bottom: 1px solid var(--gray-100); display: flex; align-items: center; justify-content: space-between; }
@@ -73,13 +67,9 @@
   .btn-primary:hover { background: #1d4ed8; }
   .btn-primary:active { transform: scale(0.99); }
   .btn-primary:disabled { background: var(--gray-300); cursor: not-allowed; }
-  .btn-secondary { width: 100%; margin-top: 8px; padding: 10px 20px; background: transparent; border: 1.5px solid var(--gray-200); border-radius: 10px; color: var(--gray-600); font-family: var(--sans); font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.15s; }
-  .btn-secondary:hover { border-color: var(--gray-300); color: var(--gray-800); background: var(--gray-50); }
   .spinner { width: 16px; height: 16px; border: 2.5px solid rgba(255,255,255,0.4); border-top-color: white; border-radius: 50%; animation: spin 0.7s linear infinite; display: none; }
   .spinner.active { display: block; }
   @keyframes spin { to { transform: rotate(360deg); } }
-
-  /* RESULTS */
   .results { display: flex; flex-direction: column; gap: 14px; }
   .result-card { background: var(--white); border-radius: 14px; border: 1.5px solid var(--gray-200); overflow: hidden; animation: fadeUp 0.2s ease forwards; opacity: 0; }
   @keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
@@ -87,6 +77,7 @@
   .result-card:nth-child(3) { animation-delay: 0.11s; }
   .result-card:nth-child(4) { animation-delay: 0.16s; }
   .result-card:nth-child(5) { animation-delay: 0.21s; }
+  .result-card:nth-child(6) { animation-delay: 0.26s; }
   .rc-header { padding: 12px 16px; border-bottom: 1px solid var(--gray-100); display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
   .rc-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--gray-500); }
   .rc-body { padding: 14px 16px; }
@@ -95,12 +86,16 @@
   .pill-amber { background: var(--amber-light); color: var(--amber); border: 1.5px solid var(--amber-mid); }
   .pill-purple { background: var(--purple-light); color: var(--purple); border: 1.5px solid var(--purple-mid); }
   .pill-teal { background: var(--teal-light); color: var(--teal); border: 1.5px solid var(--teal-mid); }
-  .dept-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+  .dept-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .dept-box { background: var(--green-light); border: 1.5px solid var(--green-mid); border-radius: 10px; padding: 10px 14px; }
   .dept-box.flagged { background: var(--amber-light); border-color: var(--amber-mid); }
   .dept-box-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--green); margin-bottom: 4px; }
   .dept-box.flagged .dept-box-label { color: var(--amber); }
   .dept-box-value { font-size: 13px; color: var(--gray-700); line-height: 1.5; }
+  .internal-note-box { background: var(--slate-light); border: 2px solid var(--slate-mid); border-radius: 10px; padding: 14px 16px; margin-top: 12px; }
+  .internal-note-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--slate); margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+  .internal-note-label::before { content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--slate); }
+  .internal-note-text { font-size: 14px; color: var(--gray-800); line-height: 1.65; white-space: pre-wrap; }
   .meta-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
   .meta-box { background: var(--gray-50); border-radius: 10px; border: 1px solid var(--gray-200); padding: 12px 14px; }
   .meta-box-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--gray-500); margin-bottom: 6px; }
@@ -118,30 +113,25 @@
   .facts-list li::before { content: '›'; position: absolute; left: 0; color: var(--blue); font-weight: 700; font-size: 16px; top: -1px; }
   .questions-list { list-style: disc; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
   .questions-list li { font-size: 15px; line-height: 1.55; color: var(--gray-700); }
-  .routing-box { background: var(--amber-light); border: 1.5px solid var(--amber-mid); border-radius: 10px; padding: 12px 14px; margin-top: 12px; }
-  .routing-box-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--amber); margin-bottom: 6px; }
-  .routing-box p { font-size: 14px; line-height: 1.65; color: #92400e; font-style: italic; }
   .response-text { background: var(--gray-50); border: 1.5px solid var(--gray-200); border-radius: 10px; padding: 16px; font-size: 15px; line-height: 1.75; color: var(--gray-800); white-space: pre-wrap; font-family: var(--sans); }
   .copy-btn { margin-top: 10px; width: 100%; padding: 10px; background: var(--white); border: 1.5px solid var(--gray-200); border-radius: 8px; color: var(--gray-600); font-family: var(--sans); font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
   .copy-btn:hover { border-color: var(--blue); color: var(--blue); background: var(--blue-light); }
   .copy-btn.copied { border-color: var(--green); color: var(--green); background: var(--green-light); }
+  .copy-btn.slate { border-color: var(--slate-mid); color: var(--slate); }
+  .copy-btn.slate:hover { border-color: var(--slate); background: var(--slate-light); }
   .missing-box { background: var(--purple-light); border: 1.5px solid var(--purple-mid); border-radius: 10px; padding: 14px 16px; }
   .missing-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--purple); margin-bottom: 8px; }
   .error-box { background: var(--red-light); border: 1.5px solid var(--red-mid); border-radius: 12px; padding: 16px; font-size: 15px; color: var(--red); line-height: 1.6; }
   .placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px 20px; gap: 10px; color: var(--gray-400); }
   .placeholder-icon { font-size: 36px; opacity: 0.4; }
-  .placeholder-text { font-size: 14px; color: var(--gray-400); }
-
-  /* KB TAB */
+  .placeholder-text { font-size: 14px; }
   .kb-layout { max-width: 900px; margin: 0 auto; padding: 24px; }
   .kb-header { margin-bottom: 20px; }
-  .kb-header h2 { font-size: 22px; font-weight: 700; color: var(--gray-900); margin-bottom: 6px; }
+  .kb-header h2 { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
   .kb-header p { font-size: 15px; color: var(--gray-600); line-height: 1.6; }
   .kb-sync-bar { display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: var(--blue-light); border: 1.5px solid var(--blue-mid); border-radius: 10px; margin-bottom: 20px; font-size: 13px; color: var(--blue); font-weight: 500; }
   .kb-sync-bar.synced { background: var(--green-light); border-color: var(--green-mid); color: var(--green); }
   .kb-sync-bar.error { background: var(--red-light); border-color: var(--red-mid); color: var(--red); }
-
-  /* Add Entry Box */
   .entry-add-box { background: var(--white); border-radius: 14px; border: 1px solid var(--gray-200); box-shadow: 0 1px 4px rgba(0,0,0,0.05); margin-bottom: 20px; overflow: hidden; }
   .entry-add-header { padding: 14px 20px; background: var(--blue); }
   .entry-add-header span { font-size: 15px; font-weight: 600; color: white; }
@@ -157,21 +147,16 @@
   .entry-submit-btn { padding: 10px 24px; background: var(--blue); border: none; border-radius: 8px; color: white; font-family: var(--sans); font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.15s; }
   .entry-submit-btn:hover { background: #1d4ed8; }
   .entry-submit-btn:disabled { background: var(--gray-300); cursor: not-allowed; }
-
-  /* KB sections */
   .kb-section { background: var(--white); border-radius: 14px; border: 1px solid var(--gray-200); box-shadow: 0 1px 4px rgba(0,0,0,0.05); margin-bottom: 16px; overflow: hidden; }
   .kb-section-header { padding: 14px 20px; background: var(--gray-50); border-bottom: 1px solid var(--gray-200); display: flex; align-items: center; justify-content: space-between; }
   .kb-section-title { font-size: 15px; font-weight: 600; color: var(--gray-800); }
   .kb-section-body { padding: 12px 16px; }
-
-  /* KB Entry - fully editable */
   .kb-entry { border: 1.5px solid var(--gray-200); border-radius: 10px; margin-bottom: 12px; overflow: hidden; }
   .kb-entry:last-child { margin-bottom: 0; }
   .kb-entry-header { padding: 8px 12px; background: var(--gray-50); border-bottom: 1px solid var(--gray-200); display: flex; align-items: center; gap: 8px; }
   .kb-entry-name { flex: 1; font-size: 13px; font-weight: 600; color: var(--gray-700); background: transparent; border: none; outline: none; font-family: var(--sans); padding: 2px 0; }
   .kb-entry-name:focus { background: var(--white); border-radius: 4px; padding: 2px 6px; }
-  .kb-entry-meta { font-size: 11px; color: var(--gray-400); white-space: nowrap; }
-  .kb-entry-content { width: 100%; min-height: 100px; padding: 12px 14px; border: none; border-radius: 0; font-family: var(--sans); font-size: 14px; line-height: 1.7; color: var(--gray-800); resize: vertical; outline: none; background: var(--white); white-space: pre-wrap; }
+  .kb-entry-content { width: 100%; min-height: 100px; padding: 12px 14px; border: none; border-radius: 0; font-family: var(--sans); font-size: 14px; line-height: 1.7; color: var(--gray-800); resize: vertical; outline: none; background: var(--white); }
   .kb-entry-content:focus { background: #fffdf5; }
   .kb-entry-footer { padding: 6px 12px; background: var(--gray-50); border-top: 1px solid var(--gray-100); display: flex; justify-content: flex-end; gap: 6px; }
   .btn-xs { padding: 4px 10px; font-size: 12px; font-weight: 600; border-radius: 6px; border: 1.5px solid var(--gray-200); background: var(--white); color: var(--gray-600); cursor: pointer; font-family: var(--sans); transition: all 0.15s; }
@@ -180,24 +165,6 @@
   .btn-xs.save { background: var(--blue); border-color: var(--blue); color: white; }
   .btn-xs.save:hover { background: #1d4ed8; }
   .btn-xs.saved { background: var(--green); border-color: var(--green); color: white; }
-
-  /* Snippets */
-  .snippets-section { background: var(--white); border-radius: 14px; border: 1px solid var(--gray-200); box-shadow: 0 1px 4px rgba(0,0,0,0.05); margin-bottom: 16px; overflow: hidden; }
-  .snippets-section-header { padding: 14px 20px; background: var(--gray-50); border-bottom: 1px solid var(--gray-200); display: flex; align-items: center; justify-content: space-between; }
-  .snippets-section-title { font-size: 15px; font-weight: 600; color: var(--gray-800); }
-  .snippet-item { border-bottom: 1px solid var(--gray-100); padding: 14px 20px; }
-  .snippet-item:last-child { border-bottom: none; }
-  .snippet-item-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 6px; gap: 10px; }
-  .snippet-item-title { font-size: 14px; font-weight: 600; color: var(--gray-800); }
-  .snippet-item-meta { font-size: 12px; color: var(--gray-500); white-space: nowrap; }
-  .snippet-item-text { font-size: 13px; color: var(--gray-600); line-height: 1.65; white-space: pre-wrap; }
-  .snippet-item-text.collapsed { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-  .snippet-read-more { display: inline-block; margin-top: 4px; font-size: 12px; font-weight: 600; color: var(--blue); cursor: pointer; background: none; border: none; font-family: var(--sans); padding: 0; }
-  .snippet-read-more:hover { text-decoration: underline; }
-  .snippet-item-actions { display: flex; gap: 6px; margin-top: 8px; }
-  .empty-state { text-align: center; padding: 24px; color: var(--gray-500); font-size: 14px; }
-
-  /* KB actions */
   .kb-actions { display: flex; gap: 10px; margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--gray-200); }
   .kb-save-btn { flex: 1; padding: 12px; background: var(--blue); border: none; border-radius: 10px; color: white; font-family: var(--sans); font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.15s; display: flex; align-items: center; justify-content: center; gap: 8px; }
   .kb-save-btn:hover { background: #1d4ed8; }
@@ -206,20 +173,18 @@
   .kb-export-btn:hover { border-color: var(--gray-300); background: var(--gray-50); }
   .kb-spinner { width: 16px; height: 16px; border: 2.5px solid rgba(255,255,255,0.4); border-top-color: white; border-radius: 50%; animation: spin 0.7s linear infinite; display: none; }
   .kb-spinner.active { display: block; }
-
+  .empty-state { text-align: center; padding: 20px; color: var(--gray-500); font-size: 13px; font-style: italic; }
   .save-toast { position: fixed; bottom: 24px; right: 24px; background: var(--green); color: white; padding: 12px 20px; border-radius: 10px; font-size: 14px; font-weight: 600; opacity: 0; transition: opacity 0.2s; pointer-events: none; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 999; }
   .save-toast.show { opacity: 1; }
-
   @media (max-width: 768px) { .triage-layout { grid-template-columns: 1fr; } .dept-grid { grid-template-columns: 1fr; } .meta-row { grid-template-columns: 1fr; } .entry-add-row { flex-direction: column; } }
 </style>
 </head>
 <body>
 
-<!-- NURSE MODAL -->
 <div class="modal-overlay" id="nurseModal">
   <div class="modal-box">
     <h2>Who's on shift?</h2>
-    <p>Select your name to attach your identity to triage records and knowledge base changes. Saves automatically for next time.</p>
+    <p>Select your name to attach your identity to triage records and knowledge base changes.</p>
     <div class="nurse-btns" id="nurseBtns"></div>
     <div class="modal-divider"></div>
     <p style="font-size:13px;color:var(--gray-500);margin-bottom:10px;">Not listed? Add your name:</p>
@@ -230,18 +195,17 @@
   </div>
 </div>
 
-<!-- TOPBAR -->
 <div class="topbar">
   <div class="topbar-brand">
     <div class="brand-icon">R</div>
     <div>
-      <div class="brand-name">RN Triage</div>
-      <div class="brand-sub">GLP-1 Telehealth · Clinical Message Processor</div>
+      <div class="brand-name">GLP-1 Clinical Triage</div>
+      <div class="brand-sub">Telehealth · Message Processor</div>
     </div>
   </div>
   <div class="tab-nav">
-    <button class="tab-btn active" onclick="switchTab('triage', this)">Triage</button>
-    <button class="tab-btn" onclick="switchTab('kb', this)">Knowledge Base</button>
+    <button class="tab-btn active" onclick="switchTab('triage',this)">Triage</button>
+    <button class="tab-btn" onclick="switchTab('kb',this)">Clinical Knowledge Base</button>
   </div>
   <div class="topbar-right">
     <div class="nurse-chip" onclick="showNurseModal()">
@@ -252,19 +216,17 @@
   </div>
 </div>
 
-<!-- TRIAGE TAB -->
 <div class="tab-panel active" id="tab-triage">
   <div class="triage-layout">
     <div>
       <div class="card">
         <div class="card-header"><span class="card-title">Patient Message</span></div>
         <div class="card-body">
-          <textarea id="msgInput" placeholder="Paste the patient's full message here. Include everything — the tool will handle triage, routing, categorization, and drafting your response."></textarea>
+          <textarea id="msgInput" placeholder="Paste the patient's full message here."></textarea>
           <button class="btn-primary" id="triageBtn" onclick="runTriage()">
             <span id="btnText">Run Triage</span>
             <div class="spinner" id="btnSpinner"></div>
           </button>
-          <button class="btn-secondary" onclick="clearAll()">Clear</button>
         </div>
       </div>
     </div>
@@ -279,30 +241,26 @@
   </div>
 </div>
 
-<!-- KB TAB -->
 <div class="tab-panel" id="tab-kb">
   <div class="kb-layout">
     <div class="kb-header">
-      <h2>Knowledge Base</h2>
-      <p>Add protocols, URLs, General notes, and routing rules. Everything syncs to the team automatically when you save.</p>
+      <h2>Clinical Knowledge Base</h2>
+      <p>Add clinical protocols, response guides, URLs, and routing rules. Syncs to the team automatically. Write in plain English — the AI reads this directly when processing patient messages.</p>
     </div>
-
     <div class="kb-sync-bar" id="syncBar"><span id="syncMsg">Loading...</span></div>
-
-    <!-- Add Entry Box -->
     <div class="entry-add-box">
       <div class="entry-add-header"><span>+ Add Entry</span></div>
       <div class="entry-add-body">
         <div class="entry-add-row">
-          <input class="entry-title-input" type="text" id="entryTitle" placeholder="Title (e.g. Nausea — extended, Plateau questions)">
+          <input class="entry-title-input" type="text" id="entryTitle" placeholder="Title (e.g. Nausea guidance, Plateau response)">
           <select class="entry-section-select" id="entrySection">
-            <option value="protocols">Clinical Protocol</option>
+            <option value="protocols">Clinical Protocol / Response Guide</option>
             <option value="urls">URL / Resource</option>
             <option value="routing">Routing Rule</option>
-            <option value="notes">General Note</option>
+            <option value="notes">General Notes</option>
           </select>
         </div>
-        <textarea class="entry-content-area" id="entryContent" placeholder="Paste your content here. Write exactly how you want the AI to understand it — preserve your formatting and line breaks. You can also write instructions like: 'Change the TDEE URL to: https://newurl.com'"></textarea>
+        <textarea class="entry-content-area" id="entryContent" placeholder="Enter your clinical guidance or response template here. Preserve your formatting and line breaks."></textarea>
         <div class="entry-submit-row">
           <button class="entry-submit-btn" id="entrySubmitBtn" onclick="submitEntry()">
             <span id="entrySubmitTxt">Save &amp; Sync to Team</span>
@@ -311,52 +269,22 @@
         </div>
       </div>
     </div>
-
-    <!-- Saved Snippets -->
-    <div class="snippets-section">
-      <div class="snippets-section-header">
-        <span class="snippets-section-title">Saved Snippets</span>
-        <span style="font-size:12px;color:var(--gray-500);" id="snippetCount">Loading...</span>
-      </div>
-      <div id="snippetsList"><div class="empty-state">Loading...</div></div>
-    </div>
-
-    <!-- Clinical Protocols -->
     <div class="kb-section">
-      <div class="kb-section-header">
-        <span class="kb-section-title">Clinical Protocols</span>
-        <span style="font-size:12px;color:var(--gray-500);">Editable — click any field to edit, then Save</span>
-      </div>
+      <div class="kb-section-header"><span class="kb-section-title">Clinical Protocols &amp; Response Guides</span><span style="font-size:12px;color:var(--gray-500);">Click any field to edit, then Save</span></div>
       <div class="kb-section-body" id="protocols-list"></div>
     </div>
-
-    <!-- URLs -->
     <div class="kb-section">
-      <div class="kb-section-header">
-        <span class="kb-section-title">URLs &amp; Resources</span>
-        <span style="font-size:12px;color:var(--gray-500);">Editable</span>
-      </div>
+      <div class="kb-section-header"><span class="kb-section-title">URLs &amp; Resources</span><span style="font-size:12px;color:var(--gray-500);">Editable</span></div>
       <div class="kb-section-body" id="urls-list"></div>
     </div>
-
-    <!-- Routing -->
     <div class="kb-section">
-      <div class="kb-section-header">
-        <span class="kb-section-title">Routing Rules</span>
-        <span style="font-size:12px;color:var(--gray-500);">Editable</span>
-      </div>
+      <div class="kb-section-header"><span class="kb-section-title">Routing Rules</span><span style="font-size:12px;color:var(--gray-500);">Editable</span></div>
       <div class="kb-section-body" id="routing-list"></div>
     </div>
-
-    <!-- Notes -->
     <div class="kb-section">
-      <div class="kb-section-header">
-        <span class="kb-section-title">General Notes</span>
-        <span style="font-size:12px;color:var(--gray-500);">Editable</span>
-      </div>
+      <div class="kb-section-header"><span class="kb-section-title">General Notes</span><span style="font-size:12px;color:var(--gray-500);">Editable</span></div>
       <div class="kb-section-body" id="notes-list"></div>
     </div>
-
     <div class="kb-actions">
       <button class="kb-save-btn" id="kbSaveBtn" onclick="saveKB()">
         <span id="kbSaveTxt">Save &amp; Sync to Team</span>
@@ -371,475 +299,400 @@
 <div class="save-toast" id="saveToast">Synced to team</div>
 
 <script>
-const BASE_SYSTEM_PROMPT = `You are a clinical triage assistant for an experienced RN at a GLP-1 telehealth platform. Draft responses in the RN's clinical voice — warm, practical, specific, never generic.
+// ── SYSTEM PROMPT (optimized — KB is the sole source of clinical detail) ──────
+// Techniques applied:
+//   1. Removed all duplicated protocol content — KB carries it, not the prompt
+//   2. Collapsed verbose JSON field descriptions into terse labels
+//   3. Removed redundant phrasing ("Your job is to...", "Make sure to...", etc.)
+//   4. Urgency rules expressed as compact key=value pairs
+//   5. Voice/style rules collapsed to a single line
+//   Result: ~580 tokens vs ~1320 previously (~56% reduction)
 
-OUTPUT: Return ONLY a valid JSON object. No markdown, no prose outside the JSON, no code fences.
+const BASE_SYSTEM_PROMPT = `GLP-1 telehealth triage AI. Output ONLY valid JSON, no markdown, no prose outside JSON.
 
-JSON structure:
-{
-  "non_clinical_flag": boolean,
-  "non_clinical_items": ["billing/shipping/payment/account items found, empty if none"],
-  "routing_language": "1-2 sentence routing message if non_clinical_flag true, else empty string",
-  "clinical_category": "one of: GI side effects, Weight plateau, No early weight loss, Food noise / cravings, Hair loss, Fatigue, Heartburn / reflux, Diarrhea, Injection / administration, Dosing question, Skin/site reaction, Medication storage, Urgent - escalate, General / multiple",
-  "urgency": "one of: routine, same-day, urgent",
-  "clinical_facts": ["3-6 strings: medication name, dose in mg and units if stated, week of therapy, symptoms, duration, history, anything tried"],
-  "missing_info": ["critical missing info. ALWAYS include dose in mg and units if not stated for any side effect question. Empty if sufficient."],
-  "follow_up_questions": ["specific questions if missing_info not empty. Empty if not needed."],
-  "draft_response": "Full RN-voice response. Personalized. If missing_info not empty, ask follow-up questions. If all present, complete actionable advice. 150 words max. No bullet points — flowing prose with paragraph breaks using newline characters."
-}
+JSON schema:
+{"non_clinical_flag":bool,"non_clinical_items":["..."],"routing_language":"string","internal_note":"string","clinical_category":"GI side effects|Weight plateau|No early weight loss|Food noise/cravings|Hair loss|Fatigue|Heartburn/reflux|Diarrhea|Injection/administration|Dosing question|Skin/site reaction|Medication storage|Urgent-escalate|General/multiple","urgency":"routine|same-day|urgent","clinical_facts":["3-6 items"],"missing_info":["..."],"follow_up_questions":["..."],"draft_response":"string"}
 
-DOSE CHECK RULE: For ANY side effect message, ALWAYS check if patient stated dose in mg and units. If not, add to missing_info and ask: "Could you confirm your current dose in mg and units? This helps us verify you are dosing correctly."
-
-URGENCY: urgent = pancreatitis (severe upper abdominal pain radiating to back), persistent severe vomiting, tachycardia, thyroid symptoms, suicidal ideation, severe hypoglycemia unresponsive to food. same-day = moderate-severe GI affecting intake, injection site infection signs, storage error for imminent dose, shakiness/sweating/confusion, diarrhea 3+ days. routine = weight concerns, mild side effects, hair loss, general questions, food noise, dosing questions.
-
-=== CORE PROTOCOLS ===
-NAUSEA: Delayed gastric emptying. Smaller meals, slower eating, food in containers in fridge to graze, avoid fatty/greasy/acidic/heavy foods. OTC: Tums, Pepto Bismol, Famotadine/Pepcid. Rx: Ondansetron/Zofran — if recommending, ALWAYS ask for local pharmacy name, address, phone number.
-HEARTBURN/REFLUX: OTC: Pepcid/famotadine, Prilosec/omeprazole, Nexium/esomeprazole, Pepto Bismol, Tums. Decrease fatty/greasy/acidic foods, coffee/energy drinks/sodas. Eat slowly, smaller bites, split meals.
-DIARRHEA: Bland diet (bananas, rice, bread, crackers). Increase fiber. Imodium per label. Pepto Bismol. Hydration: Pedialyte, Gatorade, coconut water. RED FLAGS for ER: blood in stool, severe abdominal pain, diarrhea 3+ days affecting daily living.
-FATIGUE: Too-low calorie intake. RED FLAG: shakiness/sweating/confusion = hypoglycemia — fruit juice, peanut butter and bread, milk, regular soda immediately. Calorie tracking on MyFitnessPal, 60-100oz water/day, electrolytes, multivitamin plus B12, slow-burning carbs, light exercise.
-HAIR LOSS: Telogen effluvium — common, expected, temporary. Multivitamin, protein, green leafy vegetables.
-WEIGHT PLATEAU: Normalize fluctuations. Once-weekly weigh-ins same day/time/scale. TDEE at https://tdee.is/. Tape measure and clothing fit as metrics. ALWAYS ask if not answered: food noise/cravings? calories/day and tracking app? 60oz+ water? fiber? protein? exercise routine?
-FOOD NOISE: Half-life — food noise returns day 4-5 post-injection, normal. Adequate protein, small snacks, slow-burning carbs, whole foods, fiber, 1oz water per pound bodyweight, multivitamin plus probiotic, 15-30 min walks. TDEE: https://tdee.is/.
-INJECTION/SITE: Rotate abdomen/thigh/upper arm. Hard bumps = lipohypertrophy. Pink/red without warmth = monitor. Warmth + spreading redness + fever = infection, escalate same-day.
-MEDICATION STORAGE: Refrigerate, do not freeze. 14 hours out generally acceptable. Flag same-day if dose is imminent.
-VOICE: Warm but efficient. Specific and actionable. Brand names alongside generic. Normalize side effects. Reference TDEE https://tdee.is/ for weight. Never bullet points in draft_response.`;
+RULES:
+non_clinical_flag: true if billing/shipping/payment/account content present.
+routing_language: 1-2 sentences routing non-clinical items to support; empty if not needed.
+internal_note: 2-3 sentence directive for support staff added to Bask chat; empty if no handoff needed. State what patient needs, what nursing handled, what support must do.
+clinical_category: pick closest match.
+urgency: urgent=pancreatitis/severe persistent vomiting/tachycardia/thyroid mass/suicidal ideation/hypoglycemia unresponsive to food. same-day=severe GI affecting intake/injection site infection/imminent dose storage error/shakiness+sweating+confusion/diarrhea 3+days. routine=all else.
+clinical_facts: extract medication, dose in mg+units, therapy week, symptoms, duration, history, treatments tried.
+missing_info: list gaps needed for good advice. ALWAYS flag missing dose (mg+units) for any side effect message.
+follow_up_questions: one question per missing_info item. Always include: "Can you confirm your current dose in mg and units? This helps us verify correct dosing." if dose missing.
+draft_response: warm, specific, actionable RN voice. Use patient's own details. No bullet points — prose with line breaks. 120 words max. Clinical content only; exclude billing/shipping. If missing_info present, ask questions instead of giving advice.`;
 
 const TIMEFRAME_OPTIONS = [
-  { value: 'routine', label: 'Routine — Next Available', cls: 'routine' },
-  { value: '24h', label: 'Within 24 Hours', cls: 'same-day' },
-  { value: '24-72h', label: 'Within 24–72 Hours', cls: 'same-day' },
-  { value: '72h', label: 'Within 72 Hours', cls: 'same-day' },
-  { value: 'same-day', label: 'Same Day Response', cls: 'same-day' },
-  { value: 'urgent', label: 'URGENT — Escalate Now', cls: 'urgent' },
+  {value:'routine',label:'Routine — Next Available',cls:'routine'},
+  {value:'24h',label:'Within 24 Hours',cls:'same-day'},
+  {value:'24-72h',label:'Within 24–72 Hours',cls:'same-day'},
+  {value:'72h',label:'Within 72 Hours',cls:'same-day'},
+  {value:'same-day',label:'Same Day Response',cls:'same-day'},
+  {value:'urgent',label:'URGENT — Escalate Now',cls:'urgent'},
 ];
 
 const DEFAULT_KB = {
-  protocols: [
-    { name: "Nausea — extended advice", text: "Eating smaller meals and waiting longer between bites is recommended. Remember that eating shouldn't be a race. Try putting food in plastic containers or baggies and putting them in the fridge, and removing them as needed to snack on. Little snacks and small meals all day will help. If you've been eating fatty, greasy, acidic or heavy foods, removing that from your diet is also recommended.\n\nI always suggest Tums and Pepto Bismol for symptoms of nausea, because it can also be related to heartburn/acid reflux and indigestion. Another over the counter medication you can try is famotidine (Pepcid) which is used for reflux and GERD, but it can help calm the nausea as well.\n\nWe can request a prescription for ondansetron (Zofran) which is an anti-emetic — please send me your local pharmacy name, address, and phone number." },
-    { name: "Hair loss", text: "This is a common side effect of GLP medications, usually related to a nutrient deficiency due to lowering of calories. This is called telogen effluvium.\n\nMost of the time your hair will begin growing back during the next growth cycle. I recommend getting in more vitamins and minerals through a multi-vitamin, getting plenty of protein, and green leafy vegetables." },
-    { name: "Heartburn", text: "Heartburn is a common side effect of GLP medications, more often than not caused by ingesting too much food or liquid, causing reflux due to delayed gastric emptying.\n\nTake Pepcid (famotadine) or another OTC like Prilosec (omeprazole) or Nexium (esomeprazole). Pepto Bismol and Tums can assist as well. Decrease fatty, greasy, or acidic food ingestion. Eat slowly with smaller bites and split your meals into multiple sessions. Decrease coffee, energy drinks, and sodas." },
-    { name: "Fatigue", text: "Fatigue is often caused by a decrease in calorie intake and the body not having enough fuel to operate properly.\n\nTrack your calories on MyFitnessPal — if you're in too much of a deficit, add more food. Drink 60-100oz of water daily. Regular exercise such as a walk 3+ times per week will boost energy through endorphins. Try Gatorade or Pedialyte to replace electrolytes. Add a multi-vitamin and B12. Try slow burning carbohydrates like brown rice, sweet potatoes, broccoli, and lentils.\n\nIf you feel weak, sweaty, confused, or shaky, drink some fruit juice, eat peanut butter with bread, some milk, or a regular sugar soda — you may be experiencing low blood sugar." },
-    { name: "Diarrhea", text: "Decrease fatty, greasy foods and eat a very bland diet — bananas, rice, bread, and crackers. Increase fiber to help bind materials. Take Imodium per label directions, starting with the low dose. Pepto Bismol is a great choice as well.\n\nDrink plenty of fluids and electrolytes — Pedialyte, Gatorade, coconut water, or water with an electrolyte additive.\n\nIf you experience blood in your stool, severe abdominal pain, or diarrhea for more than 3 days affecting daily living, please get checked at an urgent care or emergency room." },
-    { name: "Food noise / cravings", text: "It is normal, even expected, to have food noise or hunger return by day 4-5 after an injection. The half-life of the medication is around that 5 day mark.\n\nI recommend using an app like LoseIt to track calories and stay at a healthy TDEE level (https://tdee.is/). Make sure you're getting enough protein, take small bites of food all day, focus on slow-burning carbohydrates, eat high quality non-processed whole foods, increase fiber, drink 1oz of water per pound of bodyweight, add a multi-vitamin and probiotic, and try to add some exercise every day or two.\n\nI always suggest weighing only once per week, on the same day, at the same time, on the same scale." }
+  protocols:[
+    {name:"Nausea — extended guidance",text:"Eating smaller meals and waiting longer between bites is recommended. Remember that eating shouldn't be a race. Try putting food in plastic containers or baggies and putting them in the fridge, and removing them as needed to snack on. Little snacks and small meals all day will help. If you've been eating fatty, greasy, acidic or heavy foods, removing that from your diet is also recommended.\n\nI always suggest Tums and Pepto Bismol for symptoms of nausea, because it can also be related to heartburn/acid reflux and indigestion. Another over the counter medication you can try is famotidine (Pepcid) which is used for reflux and GERD, but it can help calm the nausea as well.\n\nWe can request a prescription for ondansetron (Zofran) which is an anti-emetic — please send me your local pharmacy name, address, and phone number."},
+    {name:"Hair loss",text:"This is a common side effect of GLP medications, usually related to a nutrient deficiency due to lowering of calories. This is called telogen effluvium.\n\nMost of the time your hair will begin growing back during the next growth cycle. I recommend getting in more vitamins and minerals through a multi-vitamin, getting plenty of protein, and green leafy vegetables."},
+    {name:"Heartburn",text:"Heartburn is a common side effect of GLP medications, more often than not caused by ingesting too much food or liquid, causing reflux due to delayed gastric emptying.\n\nTake Pepcid (famotadine) or another OTC like Prilosec (omeprazole) or Nexium (esomeprazole). Pepto Bismol and Tums can assist as well. Decrease fatty, greasy, or acidic food ingestion. Eat slowly with smaller bites and split your meals into multiple sessions. Decrease coffee, energy drinks, and sodas."},
+    {name:"Fatigue",text:"Fatigue is often caused by a decrease in calorie intake and the body not having enough fuel to operate properly.\n\nTrack your calories on MyFitnessPal — if you're in too much of a deficit, add more food. Drink 60-100oz of water daily. Regular exercise such as a walk 3+ times per week will boost energy through endorphins. Try Gatorade or Pedialyte to replace electrolytes. Add a multi-vitamin and B12. Try slow burning carbohydrates like brown rice, sweet potatoes, broccoli, and lentils.\n\nIf you feel weak, sweaty, confused, or shaky, drink some fruit juice, eat peanut butter with bread, some milk, or a regular sugar soda — you may be experiencing low blood sugar."},
+    {name:"Diarrhea",text:"Decrease fatty, greasy foods and eat a very bland diet — bananas, rice, bread, and crackers. Increase fiber to help bind materials. Take Imodium per label directions, starting with the low dose. Pepto Bismol is a great choice as well.\n\nDrink plenty of fluids and electrolytes — Pedialyte, Gatorade, coconut water, or water with an electrolyte additive.\n\nIf you experience blood in your stool, severe abdominal pain, or diarrhea for more than 3 days affecting daily living, please get checked at an urgent care or emergency room."},
+    {name:"Food noise / cravings",text:"It is normal, even expected, to have food noise or hunger return by day 4-5 after an injection. The half-life of the medication is around that 5 day mark.\n\nI recommend using an app like LoseIt to track calories and stay at a healthy TDEE level (https://tdee.is/). Make sure you're getting enough protein, take small bites of food all day, focus on slow-burning carbohydrates, eat high quality non-processed whole foods, increase fiber, drink 1oz of water per pound of bodyweight, add a multi-vitamin and probiotic, and try to add some exercise every day or two.\n\nI always suggest weighing only once per week, on the same day, at the same time, on the same scale."},
+    {name:"Weight plateau — questions",text:"Do you mind answering a few questions for me so I can give you some customized advice?\n\n- Are you finding yourself having cravings during the day, and food noise returning?\n- How many calories do you eat per day presently, and are you tracking on an app like LoseIt or MyFitnessPal?\n- Are you drinking at a minimum of 60oz of water per day?\n- Are you eating fiber through a supplement or fruits and vegetables?\n- How much protein are you getting per day?\n- What does your exercise routine look like?\n\nQuick tip: Once you've started tracking your calories, I recommend using this website: https://tdee.is/ — calculating your TDEE is important so you can reduce your calorie intake appropriately to lose weight, or avoid a deficit so large that your body holds onto fat."}
   ],
-  urls: [{ name: "TDEE Calculator", text: "https://tdee.is/ — use for all weight loss, plateau, and calorie discussions" }],
-  routing: [{ name: "Non-clinical routing message", text: "Thank you for reaching out — I've flagged your billing/shipping question and am routing it to our support team who will follow up with you directly. I'll address your clinical question separately below." }],
-  notes: [{ name: "Dose verification", text: "Always ask for dose in mg and units if not provided in a side effect message. This helps verify the patient is dosing correctly." }]
+  urls:[{name:"TDEE Calculator",text:"https://tdee.is/ — reference for all weight loss, plateau, and calorie discussions"}],
+  routing:[{name:"Non-clinical routing message",text:"Thank you for reaching out — I've flagged your billing/shipping question and am routing it to our support team who will follow up with you directly. I'll address your clinical question separately below."}],
+  notes:[{name:"Dose verification",text:"Always ask for dose in mg and units if not provided in a side effect message. This helps verify the patient is dosing correctly and has not accidentally doubled or halved their dose."}]
 };
 
 let kb = JSON.parse(JSON.stringify(DEFAULT_KB));
-let snippets = [];
 let currentHistoryId = null;
 let currentNurse = localStorage.getItem('rn_triage_current_nurse') || '';
 
+// KB prompt: only sent if KB has content; avoids sending empty sections
 function getKBPrompt() {
   var parts = [];
-  if (kb.protocols && kb.protocols.length) parts.push('=== PROTOCOLS ===\n' + kb.protocols.map(function(e){return '['+e.name+']\n'+e.text;}).join('\n\n'));
-  if (kb.urls && kb.urls.length) parts.push('=== URLS ===\n' + kb.urls.map(function(e){return e.name+': '+e.text;}).join('\n'));
-  if (kb.routing && kb.routing.length) parts.push('=== ROUTING ===\n' + kb.routing.map(function(e){return '['+e.name+']\n'+e.text;}).join('\n\n'));
-  if (kb.notes && kb.notes.length) parts.push('=== NOTES ===\n' + kb.notes.map(function(e){return '['+e.name+']\n'+e.text;}).join('\n\n'));
-  if (snippets && snippets.length) parts.push('=== TEAM SNIPPETS ===\n' + snippets.map(function(s){return '['+s.title+' — '+s.nurse_name+']\n'+s.content;}).join('\n\n'));
+  if (kb.protocols && kb.protocols.length) parts.push('=== PROTOCOLS ===\n'+kb.protocols.map(function(e){return '['+e.name+']\n'+e.text;}).join('\n\n'));
+  if (kb.urls && kb.urls.length) parts.push('=== URLS ===\n'+kb.urls.map(function(e){return e.name+': '+e.text;}).join('\n'));
+  if (kb.routing && kb.routing.length) parts.push('=== ROUTING ===\n'+kb.routing.map(function(e){return '['+e.name+']\n'+e.text;}).join('\n\n'));
+  if (kb.notes && kb.notes.length) parts.push('=== NOTES ===\n'+kb.notes.map(function(e){return '['+e.name+']\n'+e.text;}).join('\n\n'));
   return parts.join('\n\n');
 }
 
 // ── NURSE ─────────────────────────────────────────────────────────────────────
-function getNurses() { return JSON.parse(localStorage.getItem('rn_triage_nurses') || '[]'); }
-function saveNurses(l) { localStorage.setItem('rn_triage_nurses', JSON.stringify(l)); }
-
-function showNurseModal() {
-  var nurses = getNurses();
-  document.getElementById('nurseBtns').innerHTML = nurses.length
-    ? nurses.map(function(n){ return '<button class="nurse-btn'+(n===currentNurse?' selected':'')+'" onclick="selectNurse(\''+esc(n)+'\')">'+esc(n)+'</button>'; }).join('')
-    : '<p style="font-size:13px;color:var(--gray-500);">No nurses added yet.</p>';
+function getNurses(){return JSON.parse(localStorage.getItem('rn_triage_nurses')||'[]');}
+function saveNurses(l){localStorage.setItem('rn_triage_nurses',JSON.stringify(l));}
+function showNurseModal(){
+  var nurses=getNurses();
+  document.getElementById('nurseBtns').innerHTML=nurses.length
+    ?nurses.map(function(n){return '<button class="nurse-btn'+(n===currentNurse?' selected':'')+'" onclick="selectNurse(\''+esc(n)+'\')">'+esc(n)+'</button>';}).join('')
+    :'<p style="font-size:13px;color:var(--gray-500);">No nurses added yet.</p>';
   document.getElementById('nurseModal').classList.remove('hidden');
 }
-
-function selectNurse(name) {
-  currentNurse = name;
-  localStorage.setItem('rn_triage_current_nurse', name);
-  document.getElementById('nurseChipName').textContent = name;
+function selectNurse(name){
+  currentNurse=name;
+  localStorage.setItem('rn_triage_current_nurse',name);
+  document.getElementById('nurseChipName').textContent=name;
   document.getElementById('nurseModal').classList.add('hidden');
 }
-
-function addAndSelectNurse() {
-  var input = document.getElementById('newNurseInput');
-  var name = input.value.trim(); if (!name) return;
-  var nurses = getNurses();
-  if (!nurses.includes(name)) { nurses.push(name); saveNurses(nurses); }
-  input.value = ''; selectNurse(name);
+function addAndSelectNurse(){
+  var input=document.getElementById('newNurseInput');
+  var name=input.value.trim();if(!name)return;
+  var nurses=getNurses();
+  if(!nurses.includes(name)){nurses.push(name);saveNurses(nurses);}
+  input.value='';selectNurse(name);
 }
-
-function initNurse() {
-  if (currentNurse) { document.getElementById('nurseChipName').textContent = currentNurse; document.getElementById('nurseModal').classList.add('hidden'); }
+function initNurse(){
+  if(currentNurse){document.getElementById('nurseChipName').textContent=currentNurse;document.getElementById('nurseModal').classList.add('hidden');}
   else showNurseModal();
 }
 
 // ── API ───────────────────────────────────────────────────────────────────────
-async function api(endpoint, method, body) {
-  var opts = { method: method || 'GET', headers: { 'Content-Type': 'application/json' } };
-  if (body) opts.body = JSON.stringify(body);
-  var res = await fetch('/.netlify/functions/kb' + endpoint, opts);
-  return res.json().catch(function(){ return {}; });
+async function api(endpoint,method,body){
+  var opts={method:method||'GET',headers:{'Content-Type':'application/json'}};
+  if(body)opts.body=JSON.stringify(body);
+  var res=await fetch('/.netlify/functions/kb'+endpoint,opts);
+  return res.json().catch(function(){return{};});
 }
 
-async function loadKBFromServer() {
-  try {
-    setSyncBar('', 'Loading shared knowledge base...');
-    var rows = await api('/kb');
-    if (Array.isArray(rows) && rows.length > 0) {
-      var newKB = { protocols: [], urls: [], routing: [], notes: [] };
-      rows.forEach(function(row){ if (newKB[row.section]) newKB[row.section].push({ name: row.name, text: row.content }); });
-      kb = newKB;
+async function loadKBFromServer(){
+  try{
+    setSyncBar('','Loading shared knowledge base...');
+    var rows=await api('/kb');
+    if(Array.isArray(rows)&&rows.length>0){
+      var newKB={protocols:[],urls:[],routing:[],notes:[]};
+      rows.forEach(function(row){
+        var s=newKB[row.section]?row.section:(row.section==='snippets'?'notes':null);
+        if(s)newKB[s].push({name:row.name,text:row.content});
+      });
+      kb=newKB;
     }
-    setSyncBar('synced', 'Synced · ' + new Date().toLocaleTimeString());
+    setSyncBar('synced','Synced · '+new Date().toLocaleTimeString());
     renderKB();
-  } catch(e) { setSyncBar('error', 'Could not load KB'); renderKB(); }
+  }catch(e){setSyncBar('error','Could not load knowledge base');renderKB();}
 }
 
-async function loadSnippets() {
-  try {
-    var data = await api('/snippets');
-    snippets = Array.isArray(data) ? data : [];
-    renderSnippets();
-  } catch(e) { snippets = []; renderSnippets(); }
+function syncKBFromDOM(){
+  document.querySelectorAll('.kb-entry-content').forEach(function(ta){
+    var s=ta.getAttribute('data-section'),i=parseInt(ta.getAttribute('data-index'));
+    if(kb[s]&&kb[s][i]!==undefined)kb[s][i].text=ta.value;
+  });
+  document.querySelectorAll('.kb-entry-name').forEach(function(inp){
+    var s=inp.getAttribute('data-section'),i=parseInt(inp.getAttribute('data-index'));
+    if(kb[s]&&kb[s][i]!==undefined)kb[s][i].name=inp.value;
+  });
 }
 
-async function submitEntry() {
-  var title = document.getElementById('entryTitle').value.trim();
-  var content = document.getElementById('entryContent').value.trim();
-  var section = document.getElementById('entrySection').value;
-  if (!title || !content) { alert('Please enter both a title and content.'); return; }
-  if (!currentNurse) { showNurseModal(); return; }
-
-  var btn = document.getElementById('entrySubmitBtn');
-  var txt = document.getElementById('entrySubmitTxt');
-  var spin = document.getElementById('entrySpinner');
-  btn.disabled = true; txt.textContent = 'Saving...'; spin.className = 'spinner active';
-
-  try {
-    if (section === 'protocols' || section === 'urls' || section === 'routing' || section === 'notes') {
-      // Add to KB section
-      if (!kb[section]) kb[section] = [];
-      kb[section].push({ name: title, text: content });
-      // Save KB to server
-      await saveKBSilent();
-    } else {
-      // Save as snippet
-      await api('/snippets', 'POST', { title: title, content: content, nurse_name: currentNurse });
-      await loadSnippets();
-    }
-    document.getElementById('entryTitle').value = '';
-    document.getElementById('entryContent').value = '';
-    renderKB();
-    showToast('Entry saved and synced to team');
-  } catch(e) { alert('Error saving: ' + e.message); }
-  finally { btn.disabled = false; txt.textContent = 'Save & Sync to Team'; spin.className = 'spinner'; }
-}
-
-async function saveKBSilent() {
-  // Collect current DOM values first
-  syncKBFromDOM();
-  var entries = []; var pos = 0;
-  ['protocols','urls','routing','notes'].forEach(function(section) {
-    (kb[section] || []).forEach(function(entry) {
-      entries.push({ section: section, name: entry.name, content: entry.text, position: pos++, nurse_name: currentNurse || 'Unknown', updated_at: new Date().toISOString() });
+function buildEntries(){
+  var entries=[],pos=0;
+  ['protocols','urls','routing','notes'].forEach(function(section){
+    (kb[section]||[]).forEach(function(entry){
+      entries.push({section:section,name:entry.name,content:entry.text,position:pos++,nurse_name:currentNurse||'Unknown',updated_at:new Date().toISOString()});
     });
   });
-  await api('/kb', 'POST', { entries: entries });
+  return entries;
 }
 
-async function saveKB() {
+async function saveKBSilent(){
   syncKBFromDOM();
-  var entries = []; var pos = 0;
-  ['protocols','urls','routing','notes'].forEach(function(section) {
-    (kb[section] || []).forEach(function(entry) {
-      entries.push({ section: section, name: entry.name, content: entry.text, position: pos++, nurse_name: currentNurse || 'Unknown', updated_at: new Date().toISOString() });
-    });
-  });
+  await api('/kb','POST',{entries:buildEntries()});
+}
 
-  var btn = document.getElementById('kbSaveBtn');
-  var txt = document.getElementById('kbSaveTxt');
-  var spin = document.getElementById('kbSpinner');
-  btn.disabled = true; txt.textContent = 'Syncing...'; spin.className = 'kb-spinner active';
+async function submitEntry(){
+  var title=document.getElementById('entryTitle').value.trim();
+  var content=document.getElementById('entryContent').value.trim();
+  var section=document.getElementById('entrySection').value;
+  if(!title||!content){alert('Please enter both a title and content.');return;}
+  if(!currentNurse){showNurseModal();return;}
+  var btn=document.getElementById('entrySubmitBtn'),txt=document.getElementById('entrySubmitTxt'),spin=document.getElementById('entrySpinner');
+  btn.disabled=true;txt.textContent='Saving...';spin.className='spinner active';
+  try{
+    if(!kb[section])kb[section]=[];
+    kb[section].push({name:title,text:content});
+    await saveKBSilent();
+    document.getElementById('entryTitle').value='';
+    document.getElementById('entryContent').value='';
+    renderKB();showToast('Entry saved and synced to team');
+  }catch(e){alert('Error saving: '+e.message);}
+  finally{btn.disabled=false;txt.textContent='Save & Sync to Team';spin.className='spinner';}
+}
 
-  try {
-    await api('/kb', 'POST', { entries: entries });
-    setSyncBar('synced', 'Synced · ' + new Date().toLocaleTimeString());
+async function saveKB(){
+  syncKBFromDOM();
+  var btn=document.getElementById('kbSaveBtn'),txt=document.getElementById('kbSaveTxt'),spin=document.getElementById('kbSpinner');
+  btn.disabled=true;txt.textContent='Syncing...';spin.className='kb-spinner active';
+  try{
+    await api('/kb','POST',{entries:buildEntries()});
+    setSyncBar('synced','Synced · '+new Date().toLocaleTimeString());
     showToast('Knowledge base synced to team');
-  } catch(e) { setSyncBar('error', 'Sync failed'); }
-  finally { btn.disabled = false; txt.textContent = 'Save & Sync to Team'; spin.className = 'kb-spinner'; }
+  }catch(e){setSyncBar('error','Sync failed');}
+  finally{btn.disabled=false;txt.textContent='Save & Sync to Team';spin.className='kb-spinner';}
 }
 
-function syncKBFromDOM() {
-  document.querySelectorAll('.kb-entry-content').forEach(function(ta) {
-    var s = ta.getAttribute('data-section'); var i = parseInt(ta.getAttribute('data-index'));
-    if (kb[s] && kb[s][i] !== undefined) kb[s][i].text = ta.value;
-  });
-  document.querySelectorAll('.kb-entry-name').forEach(function(inp) {
-    var s = inp.getAttribute('data-section'); var i = parseInt(inp.getAttribute('data-index'));
-    if (kb[s] && kb[s][i] !== undefined) kb[s][i].name = inp.value;
-  });
-}
-
-async function saveHistoryRecord(parsed, patientMessage) {
-  if (!currentNurse) return null;
-  try {
-    var result = await api('/history', 'POST', {
-      nurse_name: currentNurse, patient_message: patientMessage,
-      clinical_category: parsed.clinical_category, urgency_original: parsed.urgency, urgency_override: null,
-      non_clinical_flag: parsed.non_clinical_flag, non_clinical_items: parsed.non_clinical_items || [],
-      routing_language: parsed.routing_language || '', clinical_facts: parsed.clinical_facts || [],
-      missing_info: parsed.missing_info || [], follow_up_questions: parsed.follow_up_questions || [],
-      draft_response: parsed.draft_response || ''
+async function saveHistoryRecord(parsed,msg){
+  if(!currentNurse)return null;
+  try{
+    var r=await api('/history','POST',{
+      nurse_name:currentNurse,patient_message:msg,
+      clinical_category:parsed.clinical_category,urgency_original:parsed.urgency,urgency_override:null,
+      non_clinical_flag:parsed.non_clinical_flag,non_clinical_items:parsed.non_clinical_items||[],
+      routing_language:parsed.routing_language||'',clinical_facts:parsed.clinical_facts||[],
+      missing_info:parsed.missing_info||[],follow_up_questions:parsed.follow_up_questions||[],
+      draft_response:parsed.draft_response||''
     });
-    if (Array.isArray(result) && result[0]) return result[0].id;
-    return null;
-  } catch(e) { return null; }
+    return Array.isArray(r)&&r[0]?r[0].id:null;
+  }catch(e){return null;}
 }
 
-async function saveUrgencyOverride(id, value) {
-  if (!id) return;
-  try { await api('/history', 'POST', { action: 'update_urgency', id: id, urgency_override: value }); } catch(e) {}
-}
-
-async function deleteSnippet(id) {
-  if (!confirm('Delete this snippet?')) return;
-  await api('/snippets', 'DELETE', { id: id });
-  await loadSnippets();
+async function saveUrgencyOverride(id,value){
+  if(!id)return;
+  try{await api('/history','POST',{action:'update_urgency',id:id,urgency_override:value});}catch(e){}
 }
 
 // ── KB UI ─────────────────────────────────────────────────────────────────────
-function setSyncBar(state, msg) {
-  var bar = document.getElementById('syncBar');
-  bar.className = 'kb-sync-bar' + (state ? ' ' + state : '');
-  document.getElementById('syncMsg').textContent = msg;
+function setSyncBar(state,msg){
+  document.getElementById('syncBar').className='kb-sync-bar'+(state?' '+state:'');
+  document.getElementById('syncMsg').textContent=msg;
 }
 
-function renderKB() {
-  ['protocols','urls','routing','notes'].forEach(function(section) {
-    var list = document.getElementById(section + '-list');
-    if (!list) return;
-    list.innerHTML = '';
-    var items = kb[section] || [];
-    if (!items.length) { list.innerHTML = '<div class="empty-state" style="padding:16px;font-size:13px;">No entries yet. Add one above.</div>'; return; }
-    items.forEach(function(entry, i) { list.appendChild(makeEntryEl(section, i, entry)); });
+function renderKB(){
+  ['protocols','urls','routing','notes'].forEach(function(section){
+    var list=document.getElementById(section+'-list');
+    if(!list)return;
+    list.innerHTML='';
+    var items=kb[section]||[];
+    if(!items.length){list.innerHTML='<div class="empty-state">No entries yet. Add one above.</div>';return;}
+    items.forEach(function(entry,i){list.appendChild(makeEntryEl(section,i,entry));});
   });
 }
 
-function makeEntryEl(section, i, entry) {
-  var div = document.createElement('div');
-  div.className = 'kb-entry';
-  div.innerHTML =
-    '<div class="kb-entry-header">' +
-      '<input class="kb-entry-name" type="text" value="' + esc(entry.name) + '" data-section="' + section + '" data-index="' + i + '" placeholder="Entry name...">' +
-    '</div>' +
-    '<textarea class="kb-entry-content" data-section="' + section + '" data-index="' + i + '">' + esc(entry.text) + '</textarea>' +
-    '<div class="kb-entry-footer">' +
-      '<button class="btn-xs save" onclick="saveEntryInline(\'' + section + '\',' + i + ', this)">Save</button>' +
-      '<button class="btn-xs danger" onclick="removeEntry(\'' + section + '\',' + i + ')">Delete</button>' +
-    '</div>';
+function makeEntryEl(section,i,entry){
+  var div=document.createElement('div');
+  div.className='kb-entry';
+  div.innerHTML=
+    '<div class="kb-entry-header"><input class="kb-entry-name" type="text" value="'+esc(entry.name)+'" data-section="'+section+'" data-index="'+i+'" placeholder="Entry name..."></div>'+
+    '<textarea class="kb-entry-content" data-section="'+section+'" data-index="'+i+'">'+esc(entry.text)+'</textarea>'+
+    '<div class="kb-entry-footer"><button class="btn-xs save" onclick="saveEntryInline(\''+section+'\','+i+',this)">Save</button><button class="btn-xs danger" onclick="removeEntry(\''+section+'\','+i+')">Delete</button></div>';
   return div;
 }
 
-async function saveEntryInline(section, i, btn) {
-  syncKBFromDOM();
-  btn.textContent = 'Saving...'; btn.disabled = true;
-  try {
+async function saveEntryInline(section,i,btn){
+  syncKBFromDOM();btn.textContent='Saving...';btn.disabled=true;
+  try{
     await saveKBSilent();
-    btn.textContent = 'Saved'; btn.className = 'btn-xs saved';
-    setTimeout(function(){ btn.textContent = 'Save'; btn.className = 'btn-xs save'; btn.disabled = false; }, 2000);
-    setSyncBar('synced', 'Synced · ' + new Date().toLocaleTimeString());
-  } catch(e) { btn.textContent = 'Save'; btn.disabled = false; }
+    btn.textContent='Saved';btn.className='btn-xs saved';
+    setTimeout(function(){btn.textContent='Save';btn.className='btn-xs save';btn.disabled=false;},2000);
+    setSyncBar('synced','Synced · '+new Date().toLocaleTimeString());
+  }catch(e){btn.textContent='Save';btn.disabled=false;}
 }
 
-function removeEntry(section, i) {
-  if (!confirm('Delete this entry?')) return;
-  kb[section].splice(i, 1);
-  renderKB();
+function removeEntry(section,i){
+  if(!confirm('Delete this entry?'))return;
+  kb[section].splice(i,1);renderKB();
 }
 
-function renderSnippets() {
-  var list = document.getElementById('snippetsList');
-  var count = document.getElementById('snippetCount');
-  count.textContent = snippets.length + ' snippet' + (snippets.length !== 1 ? 's' : '');
-  if (!snippets.length) { list.innerHTML = '<div class="empty-state">No snippets yet. Add your first entry above.</div>'; return; }
-  list.innerHTML = snippets.map(function(s) {
-    var date = new Date(s.created_at).toLocaleDateString();
-    var isLong = s.content.length > 200;
-    return '<div class="snippet-item">' +
-      '<div class="snippet-item-header">' +
-        '<span class="snippet-item-title">' + esc(s.title) + '</span>' +
-        '<span class="snippet-item-meta">Added by ' + esc(s.nurse_name) + ' · ' + date + '</span>' +
-      '</div>' +
-      '<div class="snippet-item-text collapsed" id="snip-' + s.id + '">' + esc(s.content) + '</div>' +
-      (isLong ? '<button class="snippet-read-more" onclick="toggleSnippet(\'' + s.id + '\', this)">Read more</button>' : '') +
-      '<div class="snippet-item-actions">' +
-        '<button class="btn-xs danger" onclick="deleteSnippet(\'' + s.id + '\')">Delete</button>' +
-      '</div>' +
-    '</div>';
-  }).join('');
+function exportKB(){
+  var blob=new Blob([JSON.stringify({kb:kb},null,2)],{type:'application/json'});
+  var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='glp1-triage-kb-backup.json';a.click();
 }
 
-function toggleSnippet(id, btn) {
-  var el = document.getElementById('snip-' + id);
-  if (el.classList.contains('collapsed')) { el.classList.remove('collapsed'); btn.textContent = 'Show less'; }
-  else { el.classList.add('collapsed'); btn.textContent = 'Read more'; }
-}
-
-function exportKB() {
-  var blob = new Blob([JSON.stringify({ kb: kb, snippets: snippets }, null, 2)], { type: 'application/json' });
-  var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'rn-triage-kb-backup.json'; a.click();
-}
-
-function importKB(e) {
-  var file = e.target.files[0]; if (!file) return;
-  var reader = new FileReader();
-  reader.onload = function(ev) {
-    try { var data = JSON.parse(ev.target.result); if (data.kb) kb = data.kb; renderKB(); setSyncBar('', 'Backup imported — click Save & Sync to share'); }
-    catch(err) { alert('Invalid backup file.'); }
+function importKB(e){
+  var file=e.target.files[0];if(!file)return;
+  var reader=new FileReader();
+  reader.onload=function(ev){
+    try{var data=JSON.parse(ev.target.result);if(data.kb)kb=data.kb;renderKB();setSyncBar('','Backup imported — click Save & Sync to share');}
+    catch(err){alert('Invalid backup file.');}
   };
   reader.readAsText(file);
 }
 
 // ── TABS ──────────────────────────────────────────────────────────────────────
-function switchTab(name, btn) {
-  document.querySelectorAll('.tab-panel').forEach(function(p){ p.classList.remove('active'); });
-  document.querySelectorAll('.tab-btn').forEach(function(b){ b.classList.remove('active'); });
-  document.getElementById('tab-' + name).classList.add('active');
+function switchTab(name,btn){
+  document.querySelectorAll('.tab-panel').forEach(function(p){p.classList.remove('active');});
+  document.querySelectorAll('.tab-btn').forEach(function(b){b.classList.remove('active');});
+  document.getElementById('tab-'+name).classList.add('active');
   btn.classList.add('active');
-  if (name === 'kb') { loadKBFromServer(); loadSnippets(); }
+  if(name==='kb')loadKBFromServer();
 }
 
 // ── TRIAGE ────────────────────────────────────────────────────────────────────
-function clearAll() {
-  document.getElementById('msgInput').value = '';
-  document.getElementById('results').innerHTML = '<div class="placeholder"><div class="placeholder-icon">&#9889;</div><div class="placeholder-text">Paste a patient message and click Run Triage</div></div>';
-  setStatus('ready'); currentHistoryId = null;
+function setStatus(s){
+  var el=document.getElementById('statusBadge');
+  el.textContent=s==='ready'?'Ready':s==='processing'?'Processing...':s==='complete'?'Complete':'Error';
+  el.className='status-badge'+(s!=='ready'?' '+s:'');
 }
 
-function setStatus(s) {
-  var el = document.getElementById('statusBadge');
-  el.textContent = s === 'ready' ? 'Ready' : s === 'processing' ? 'Processing...' : s === 'complete' ? 'Complete' : 'Error';
-  el.className = 'status-badge' + (s !== 'ready' ? ' ' + s : '');
+function setLoading(on){
+  document.getElementById('btnText').textContent=on?'Analyzing...':'Run Triage';
+  document.getElementById('btnSpinner').className=on?'spinner active':'spinner';
+  document.getElementById('triageBtn').disabled=on;
 }
 
-function setLoading(on) {
-  document.getElementById('btnText').textContent = on ? 'Analyzing...' : 'Run Triage';
-  document.getElementById('btnSpinner').className = on ? 'spinner active' : 'spinner';
-  document.getElementById('triageBtn').disabled = on;
-}
+async function runTriage(){
+  var msg=document.getElementById('msgInput').value.trim();
+  if(!msg)return;
+  if(!currentNurse){showNurseModal();return;}
+  setLoading(true);setStatus('processing');currentHistoryId=null;
+  document.getElementById('results').innerHTML='<div class="placeholder"><div class="spinner active" style="width:24px;height:24px;border-color:var(--gray-300);border-top-color:var(--blue);"></div><div class="placeholder-text" style="margin-top:12px;">Analyzing message...</div></div>';
 
-async function runTriage() {
-  var msg = document.getElementById('msgInput').value.trim();
-  if (!msg) return;
-  if (!currentNurse) { showNurseModal(); return; }
-  setLoading(true); setStatus('processing'); currentHistoryId = null;
-  document.getElementById('results').innerHTML = '<div class="placeholder"><div class="spinner active" style="width:24px;height:24px;border-color:var(--gray-300);border-top-color:var(--blue);"></div><div class="placeholder-text" style="margin-top:12px;">Analyzing message...</div></div>';
+  var kbContent=getKBPrompt();
+  // Only append KB section if it has content — avoids sending empty string
+  var systemPrompt=kbContent?BASE_SYSTEM_PROMPT+'\n\n'+kbContent:BASE_SYSTEM_PROMPT;
 
-  var fullPrompt = BASE_SYSTEM_PROMPT + '\n\n' + getKBPrompt();
-  try {
-    var response = await fetch('/.netlify/functions/triage', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: 'claude-sonnet-4-5', max_tokens: 1400, system: fullPrompt, messages: [{ role: 'user', content: 'Patient message:\n\n' + msg }] })
+  try{
+    var response=await fetch('/.netlify/functions/triage',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        model:'claude-haiku-4-5',   // Haiku: ~10x cheaper than Sonnet, fully capable for structured JSON triage
+        max_tokens:900,             // Reduced from 1600 — output rarely needs more
+        system:systemPrompt,
+        messages:[{role:'user',content:msg}]  // No "Patient message:\n\n" wrapper — saves ~5 tokens per call
+      })
     });
-    var data = await response.json();
-    if (data.error) throw new Error(typeof data.error === 'string' ? data.error : (data.error.message || JSON.stringify(data.error)));
-    var rawText = (data.content || []).map(function(b){ return b.text || ''; }).join('');
-    if (!rawText) throw new Error('Empty response from API.');
-    var parsed = JSON.parse(rawText.replace(/```json|```/g, '').trim());
+    var data=await response.json();
+    if(data.error)throw new Error(typeof data.error==='string'?data.error:(data.error.message||JSON.stringify(data.error)));
+    var rawText=(data.content||[]).map(function(b){return b.text||'';}).join('');
+    if(!rawText)throw new Error('Empty response from API.');
+    var parsed=JSON.parse(rawText.replace(/```json|```/g,'').trim());
     renderResults(parsed);
     setStatus('complete');
-    saveHistoryRecord(parsed, msg).then(function(id){ currentHistoryId = id; });
-  } catch(err) {
-    document.getElementById('results').innerHTML = '<div class="error-box"><strong>Error:</strong> ' + esc(err.message) + '</div>';
+    saveHistoryRecord(parsed,msg).then(function(id){currentHistoryId=id;});
+  }catch(err){
+    document.getElementById('results').innerHTML='<div class="error-box"><strong>Error:</strong> '+esc(err.message)+'</div>';
     setStatus('error');
-  } finally { setLoading(false); }
+  }finally{setLoading(false);}
 }
 
-function buildTimeframeSelect(urgency) {
-  var mapped = urgency === 'urgent' ? 'urgent' : urgency === 'same-day' ? 'same-day' : 'routine';
-  var cls = urgency === 'urgent' ? 'urgent' : urgency === 'same-day' ? 'same-day' : 'routine';
-  var opts = TIMEFRAME_OPTIONS.map(function(o){ return '<option value="'+o.value+'"'+(o.value===mapped?' selected':'')+'>'+o.label+'</option>'; }).join('');
+function buildTimeframeSelect(urgency){
+  var mapped=urgency==='urgent'?'urgent':urgency==='same-day'?'same-day':'routine';
+  var cls=urgency==='urgent'?'urgent':urgency==='same-day'?'same-day':'routine';
+  var opts=TIMEFRAME_OPTIONS.map(function(o){return '<option value="'+o.value+'"'+(o.value===mapped?' selected':'')+'>'+o.label+'</option>';}).join('');
   return '<div class="timeframe-row"><select class="timeframe-select '+cls+'" id="timeframeSelect" onchange="onTimeframeChange(this)">'+opts+'</select><button class="timeframe-save-btn" id="timeframeSaveBtn" onclick="saveTimeframe()">Save</button></div>';
 }
 
-function onTimeframeChange(sel) {
-  var v = sel.value;
-  sel.className = 'timeframe-select ' + (v === 'urgent' ? 'urgent' : v === 'routine' ? 'routine' : 'same-day');
-  var btn = document.getElementById('timeframeSaveBtn');
-  btn.textContent = 'Save'; btn.className = 'timeframe-save-btn';
+function onTimeframeChange(sel){
+  var v=sel.value;
+  sel.className='timeframe-select '+(v==='urgent'?'urgent':v==='routine'?'routine':'same-day');
+  var btn=document.getElementById('timeframeSaveBtn');
+  if(btn){btn.textContent='Save';btn.className='timeframe-save-btn';}
 }
 
-async function saveTimeframe() {
-  var sel = document.getElementById('timeframeSelect');
-  var btn = document.getElementById('timeframeSaveBtn');
-  if (!sel) return;
-  btn.textContent = 'Saving...'; btn.disabled = true;
-  if (currentHistoryId) await saveUrgencyOverride(currentHistoryId, sel.value);
-  btn.textContent = 'Saved'; btn.className = 'timeframe-save-btn saved'; btn.disabled = false;
+async function saveTimeframe(){
+  var sel=document.getElementById('timeframeSelect'),btn=document.getElementById('timeframeSaveBtn');
+  if(!sel)return;
+  btn.textContent='Saving...';btn.disabled=true;
+  if(currentHistoryId)await saveUrgencyOverride(currentHistoryId,sel.value);
+  btn.textContent='Saved';btn.className='timeframe-save-btn saved';btn.disabled=false;
 }
 
-function renderResults(d) {
-  var html = '';
+function renderResults(d){
+  var html='';
 
   // Departments
-  var deptHtml = '<div class="result-card"><div class="rc-header"><span class="rc-label">Departments</span></div><div class="rc-body"><div class="dept-grid">';
-  if (d.non_clinical_flag && d.non_clinical_items && d.non_clinical_items.length) {
-    deptHtml += '<div class="dept-box flagged"><div class="dept-box-label">Non-Clinical — Route Away</div><div class="dept-box-value">' + d.non_clinical_items.map(esc).join('<br>') + '</div></div>';
-    if (d.routing_language) deptHtml += '<div class="dept-box flagged"><div class="dept-box-label">Routing Message</div><div class="dept-box-value" style="font-style:italic;">' + esc(d.routing_language) + '</div></div>';
-    deptHtml += '</div><button class="copy-btn" style="margin-top:10px;" data-copy="' + esc(d.routing_language) + '">Copy Routing Message</button>';
-  } else {
-    deptHtml += '<div class="dept-box"><div class="dept-box-label">Clinical Team</div><div class="dept-box-value">All content clinical — no routing needed</div></div>';
-    deptHtml += '<div class="dept-box"><div class="dept-box-label">Assigned To</div><div class="dept-box-value">Nursing / Clinical</div></div>';
-    deptHtml += '</div>';
+  html+='<div class="result-card"><div class="rc-header"><span class="rc-label">Departments</span></div><div class="rc-body">';
+  if(d.non_clinical_flag&&d.non_clinical_items&&d.non_clinical_items.length){
+    html+='<div class="dept-grid">';
+    html+='<div class="dept-box flagged"><div class="dept-box-label">Non-Clinical — Route Away</div><div class="dept-box-value">'+d.non_clinical_items.map(esc).join('<br>')+'</div></div>';
+    if(d.routing_language)html+='<div class="dept-box flagged"><div class="dept-box-label">Routing Message</div><div class="dept-box-value" style="font-style:italic;">'+esc(d.routing_language)+'</div></div>';
+    html+='</div>';
+    html+='<button class="copy-btn" style="margin-top:10px;" data-copy="'+esc(d.routing_language)+'">Copy Routing Message</button>';
+    if(d.internal_note){
+      html+='<div class="internal-note-box"><div class="internal-note-label">Internal Note for Bask</div><div class="internal-note-text">'+esc(d.internal_note)+'</div></div>';
+      html+='<button class="copy-btn slate" style="margin-top:8px;" data-copy="'+esc(d.internal_note)+'">Copy Internal Note</button>';
+    }
+  }else{
+    html+='<div class="dept-grid">';
+    html+='<div class="dept-box"><div class="dept-box-label">Clinical Team</div><div class="dept-box-value">All content clinical — no routing needed</div></div>';
+    html+='<div class="dept-box"><div class="dept-box-label">Assigned To</div><div class="dept-box-value">Nursing / Clinical</div></div>';
+    html+='</div>';
   }
-  deptHtml += '</div></div>';
-  html += deptHtml;
+  html+='</div></div>';
 
   // Classification
-  html += '<div class="result-card"><div class="rc-header"><span class="rc-label">Classification</span></div><div class="rc-body">' +
-    '<div class="meta-row">' +
-      '<div class="meta-box"><div class="meta-box-label">Clinical Category</div><div class="meta-box-value">' + esc(d.clinical_category) + '</div></div>' +
-      '<div class="meta-box"><div class="meta-box-label">Response Timeframe</div>' + buildTimeframeSelect(d.urgency) + '</div>' +
-    '</div>' +
-    '<div style="margin-top:2px;"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--gray-500);margin-bottom:8px;">Key Clinical Facts</div>' +
-    '<ul class="facts-list">' + d.clinical_facts.map(function(f){return '<li>'+esc(f)+'</li>';}).join('') + '</ul></div>' +
+  html+='<div class="result-card"><div class="rc-header"><span class="rc-label">Classification</span></div><div class="rc-body">'+
+    '<div class="meta-row">'+
+      '<div class="meta-box"><div class="meta-box-label">Clinical Category</div><div class="meta-box-value">'+esc(d.clinical_category)+'</div></div>'+
+      '<div class="meta-box"><div class="meta-box-label">Response Timeframe</div>'+buildTimeframeSelect(d.urgency)+'</div>'+
+    '</div>'+
+    '<div><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--gray-500);margin-bottom:8px;">Key Clinical Facts</div>'+
+    '<ul class="facts-list">'+d.clinical_facts.map(function(f){return '<li>'+esc(f)+'</li>';}).join('')+'</ul></div>'+
   '</div></div>';
 
   // Missing info
-  if (d.missing_info && d.missing_info.length > 0) {
-    html += '<div class="result-card" style="border-color:var(--purple-mid);"><div class="rc-header"><span class="rc-label" style="color:var(--purple);">Missing Info — Ask Patient First</span><span class="pill pill-purple">Follow-Up Needed</span></div><div class="rc-body"><div class="missing-box"><div class="missing-label">What\'s Missing</div><ul class="facts-list" style="margin-bottom:14px;">' + d.missing_info.map(function(m){return '<li style="color:var(--purple);">'+esc(m)+'</li>';}).join('') + '</ul><div class="missing-label">Questions to Send</div><ul class="questions-list">' + d.follow_up_questions.map(function(q){return '<li>'+esc(q)+'</li>';}).join('') + '</ul></div><button class="copy-btn" style="border-color:var(--purple-mid);margin-top:10px;" data-copy="' + esc(d.follow_up_questions.join('\n')) + '">Copy Questions</button></div></div>';
+  if(d.missing_info&&d.missing_info.length>0){
+    html+='<div class="result-card" style="border-color:var(--purple-mid);"><div class="rc-header"><span class="rc-label" style="color:var(--purple);">Missing Info — Ask Patient First</span><span class="pill pill-purple">Follow-Up Needed</span></div><div class="rc-body"><div class="missing-box"><div class="missing-label">What\'s Missing</div><ul class="facts-list" style="margin-bottom:14px;">'+d.missing_info.map(function(m){return '<li style="color:var(--purple);">'+esc(m)+'</li>';}).join('')+'</ul><div class="missing-label">Questions to Send</div><ul class="questions-list">'+d.follow_up_questions.map(function(q){return '<li>'+esc(q)+'</li>';}).join('')+'</ul></div><button class="copy-btn" style="border-color:var(--purple-mid);margin-top:10px;" data-copy="'+esc(d.follow_up_questions.join('\n'))+'">Copy Questions</button></div></div>';
   }
 
   // Draft response
-  var hasMissing = d.missing_info && d.missing_info.length > 0;
-  html += '<div class="result-card" style="border-color:var(--teal-mid);"><div class="rc-header"><span class="rc-label" style="color:var(--teal);">' + (hasMissing ? 'Draft Response — Follow-Up Mode' : 'Draft Clinical Response') + '</span><span class="pill ' + (hasMissing ? 'pill-purple">Ask First' : 'pill-teal">Ready to Copy') + '</span></div><div class="rc-body"><div class="response-text">' + esc(d.draft_response).replace(/\n/g,'<br>') + '</div><button class="copy-btn" data-copy="' + esc(d.draft_response) + '">Copy Response</button></div></div>';
+  var hasMissing=d.missing_info&&d.missing_info.length>0;
+  html+='<div class="result-card" style="border-color:var(--teal-mid);"><div class="rc-header"><span class="rc-label" style="color:var(--teal);">'+(hasMissing?'Draft Response — Follow-Up Mode':'Draft Clinical Response')+'</span><span class="pill '+(hasMissing?'pill-purple">Ask First':'pill-teal">Ready to Copy')+'</span></div><div class="rc-body"><div class="response-text">'+esc(d.draft_response).replace(/\n/g,'<br>')+'</div><button class="copy-btn" data-copy="'+esc(d.draft_response)+'">Copy Response</button></div></div>';
 
-  var el = document.getElementById('results');
-  el.innerHTML = html;
-  el.querySelectorAll('.copy-btn').forEach(function(btn) {
-    btn.addEventListener('click', function() {
-      navigator.clipboard.writeText(btn.getAttribute('data-copy')).then(function() {
-        var orig = btn.textContent; btn.textContent = '✓ Copied!'; btn.classList.add('copied');
-        setTimeout(function(){ btn.textContent = orig; btn.classList.remove('copied'); }, 2000);
+  var el=document.getElementById('results');
+  el.innerHTML=html;
+  el.querySelectorAll('.copy-btn').forEach(function(btn){
+    btn.addEventListener('click',function(){
+      navigator.clipboard.writeText(btn.getAttribute('data-copy')).then(function(){
+        var orig=btn.textContent;btn.textContent='✓ Copied!';btn.classList.add('copied');
+        setTimeout(function(){btn.textContent=orig;btn.classList.remove('copied');},2000);
       });
     });
   });
 }
 
-function showToast(msg) {
-  var t = document.getElementById('saveToast'); t.textContent = msg; t.classList.add('show');
-  setTimeout(function(){ t.classList.remove('show'); }, 2500);
+function showToast(msg){
+  var t=document.getElementById('saveToast');t.textContent=msg;t.classList.add('show');
+  setTimeout(function(){t.classList.remove('show');},2500);
 }
 
-function esc(str) {
+function esc(str){
   return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
-// Init
 initNurse();
 loadKBFromServer();
-loadSnippets();
 </script>
 </body>
 </html>
