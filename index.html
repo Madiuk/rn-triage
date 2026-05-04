@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>RN Triage · GLP-1 Telehealth</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap');
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
     --white: #ffffff; --gray-50: #f8f9fa; --gray-100: #f1f3f5;
@@ -22,12 +22,33 @@
   }
   body { background: var(--gray-100); color: var(--gray-900); font-family: var(--sans); font-size: 15px; min-height: 100vh; }
 
-  /* TOPBAR */
+  /* ── NURSE SELECTOR MODAL ── */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; display: flex; align-items: center; justify-content: center; }
+  .modal-overlay.hidden { display: none; }
+  .modal-box { background: var(--white); border-radius: 16px; padding: 32px; max-width: 420px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
+  .modal-box h2 { font-size: 20px; font-weight: 700; color: var(--gray-900); margin-bottom: 6px; }
+  .modal-box p { font-size: 14px; color: var(--gray-600); margin-bottom: 20px; line-height: 1.6; }
+  .nurse-btns { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+  .nurse-btn { padding: 12px 16px; border-radius: 10px; border: 1.5px solid var(--gray-200); background: var(--gray-50); font-family: var(--sans); font-size: 15px; font-weight: 500; color: var(--gray-800); cursor: pointer; text-align: left; transition: all 0.15s; }
+  .nurse-btn:hover { border-color: var(--blue); background: var(--blue-light); color: var(--blue); }
+  .nurse-btn.selected { border-color: var(--blue); background: var(--blue); color: white; }
+  .modal-divider { border: none; border-top: 1px solid var(--gray-200); margin: 14px 0; }
+  .modal-input-row { display: flex; gap: 8px; }
+  .modal-input { flex: 1; padding: 10px 14px; border: 1.5px solid var(--gray-200); border-radius: 8px; font-family: var(--sans); font-size: 14px; outline: none; }
+  .modal-input:focus { border-color: var(--blue); }
+  .modal-confirm-btn { padding: 10px 18px; background: var(--blue); border: none; border-radius: 8px; color: white; font-family: var(--sans); font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+  .modal-confirm-btn:hover { background: #1d4ed8; }
+
+  /* ── TOPBAR ── */
   .topbar { background: var(--white); border-bottom: 1px solid var(--gray-200); padding: 0 24px; height: 60px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
   .topbar-brand { display: flex; align-items: center; gap: 10px; }
   .brand-icon { width: 34px; height: 34px; border-radius: 8px; background: var(--blue); display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700; color: white; }
   .brand-name { font-size: 17px; font-weight: 700; color: var(--gray-900); letter-spacing: -0.3px; }
   .brand-sub { font-size: 12px; color: var(--gray-500); margin-top: 1px; }
+  .topbar-right { display: flex; align-items: center; gap: 12px; }
+  .nurse-chip { display: flex; align-items: center; gap: 7px; padding: 5px 12px; background: var(--blue-light); border: 1.5px solid var(--blue-mid); border-radius: 20px; font-size: 13px; font-weight: 600; color: var(--blue); cursor: pointer; }
+  .nurse-chip:hover { background: var(--blue-mid); }
+  .nurse-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--blue); }
   .tab-nav { display: flex; gap: 4px; }
   .tab-btn { padding: 7px 16px; border-radius: 8px; border: none; font-family: var(--sans); font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.15s; color: var(--gray-600); background: transparent; }
   .tab-btn:hover { background: var(--gray-100); color: var(--gray-800); }
@@ -40,7 +61,7 @@
   .tab-panel { display: none; }
   .tab-panel.active { display: block; }
 
-  /* TRIAGE TAB */
+  /* ── TRIAGE LAYOUT ── */
   .triage-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 20px 24px; max-width: 1400px; margin: 0 auto; }
   .card { background: var(--white); border-radius: 14px; border: 1px solid var(--gray-200); box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
   .card-header { padding: 16px 20px 14px; border-bottom: 1px solid var(--gray-100); display: flex; align-items: center; justify-content: space-between; }
@@ -59,7 +80,7 @@
   .spinner.active { display: block; }
   @keyframes spin { to { transform: rotate(360deg); } }
 
-  /* RESULTS */
+  /* ── RESULTS ── */
   .results { display: flex; flex-direction: column; gap: 14px; }
   .result-card { background: var(--white); border-radius: 14px; border: 1.5px solid var(--gray-200); overflow: hidden; animation: fadeUp 0.2s ease forwards; opacity: 0; }
   @keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
@@ -67,23 +88,42 @@
   .result-card:nth-child(3) { animation-delay: 0.11s; }
   .result-card:nth-child(4) { animation-delay: 0.16s; }
   .result-card:nth-child(5) { animation-delay: 0.21s; }
-  .rc-header { padding: 12px 16px; border-bottom: 1px solid var(--gray-100); display: flex; align-items: center; justify-content: space-between; }
+  .rc-header { padding: 12px 16px; border-bottom: 1px solid var(--gray-100); display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
   .rc-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--gray-500); }
   .rc-body { padding: 14px 16px; }
-  .pill { font-size: 12px; font-weight: 700; padding: 4px 12px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .pill { font-size: 12px; font-weight: 700; padding: 4px 12px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap; }
   .pill-green { background: var(--green-light); color: var(--green); border: 1.5px solid var(--green-mid); }
   .pill-amber { background: var(--amber-light); color: var(--amber); border: 1.5px solid var(--amber-mid); }
   .pill-red { background: var(--red-light); color: var(--red); border: 1.5px solid var(--red-mid); }
   .pill-blue { background: var(--blue-light); color: var(--blue); border: 1.5px solid var(--blue-mid); }
   .pill-purple { background: var(--purple-light); color: var(--purple); border: 1.5px solid var(--purple-mid); }
   .pill-teal { background: var(--teal-light); color: var(--teal); border: 1.5px solid var(--teal-mid); }
-  .meta-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  /* ── DEPARTMENTS CARD ── */
+  .dept-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+  .dept-box { background: var(--green-light); border: 1.5px solid var(--green-mid); border-radius: 10px; padding: 10px 14px; }
+  .dept-box.flagged { background: var(--amber-light); border-color: var(--amber-mid); }
+  .dept-box-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--green); margin-bottom: 4px; }
+  .dept-box.flagged .dept-box-label { color: var(--amber); }
+  .dept-box-value { font-size: 13px; color: var(--gray-700); line-height: 1.5; }
+
+  /* ── CLASSIFICATION CARD ── */
+  .meta-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
   .meta-box { background: var(--gray-50); border-radius: 10px; border: 1px solid var(--gray-200); padding: 12px 14px; }
   .meta-box-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--gray-500); margin-bottom: 6px; }
   .meta-box-value { font-size: 15px; font-weight: 600; color: var(--gray-800); }
-  .urgency-routine { color: var(--green); }
-  .urgency-same-day { color: var(--amber); }
-  .urgency-urgent { color: var(--red); }
+
+  /* ── RESPONSE TIMEFRAME DROPDOWN ── */
+  .timeframe-row { display: flex; align-items: center; gap: 10px; margin-top: 4px; }
+  .timeframe-select { flex: 1; padding: 8px 12px; border: 1.5px solid var(--gray-200); border-radius: 8px; font-family: var(--sans); font-size: 14px; font-weight: 600; color: var(--gray-800); background: var(--white); outline: none; cursor: pointer; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236c757d' d='M6 8L1 3h10z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px; }
+  .timeframe-select:focus { border-color: var(--blue); }
+  .timeframe-select.routine { border-color: var(--green-mid); color: var(--green); background-color: var(--green-light); }
+  .timeframe-select.same-day { border-color: var(--amber-mid); color: var(--amber); background-color: var(--amber-light); }
+  .timeframe-select.urgent { border-color: var(--red-mid); color: var(--red); background-color: var(--red-light); }
+  .timeframe-save-btn { padding: 8px 14px; background: var(--blue); border: none; border-radius: 8px; color: white; font-family: var(--sans); font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: all 0.15s; }
+  .timeframe-save-btn:hover { background: #1d4ed8; }
+  .timeframe-save-btn.saved { background: var(--green); }
+
   .facts-list { list-style: none; display: flex; flex-direction: column; gap: 7px; margin-top: 4px; }
   .facts-list li { font-size: 15px; line-height: 1.55; color: var(--gray-700); padding-left: 18px; position: relative; }
   .facts-list li::before { content: '›'; position: absolute; left: 0; color: var(--blue); font-weight: 700; font-size: 16px; top: -1px; }
@@ -103,7 +143,7 @@
   .placeholder-icon { font-size: 36px; opacity: 0.4; }
   .placeholder-text { font-size: 14px; color: var(--gray-400); }
 
-  /* KB TAB */
+  /* ── KB TAB ── */
   .kb-layout { max-width: 900px; margin: 0 auto; padding: 24px; }
   .kb-header { margin-bottom: 20px; }
   .kb-header h2 { font-size: 22px; font-weight: 700; color: var(--gray-900); margin-bottom: 6px; }
@@ -111,6 +151,37 @@
   .kb-sync-bar { display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: var(--blue-light); border: 1.5px solid var(--blue-mid); border-radius: 10px; margin-bottom: 20px; font-size: 13px; color: var(--blue); font-weight: 500; }
   .kb-sync-bar.synced { background: var(--green-light); border-color: var(--green-mid); color: var(--green); }
   .kb-sync-bar.error { background: var(--red-light); border-color: var(--red-mid); color: var(--red); }
+
+  /* Quick snippet add */
+  .snippet-add-box { background: var(--white); border-radius: 14px; border: 1px solid var(--gray-200); box-shadow: 0 1px 4px rgba(0,0,0,0.05); margin-bottom: 20px; overflow: hidden; }
+  .snippet-add-header { padding: 14px 20px; background: var(--blue); display: flex; align-items: center; gap: 10px; }
+  .snippet-add-header span { font-size: 15px; font-weight: 600; color: white; }
+  .snippet-add-body { padding: 16px 20px; }
+  .snippet-title-input { width: 100%; padding: 10px 14px; border: 1.5px solid var(--gray-200); border-radius: 8px; font-family: var(--sans); font-size: 14px; font-weight: 600; outline: none; margin-bottom: 10px; }
+  .snippet-title-input:focus { border-color: var(--blue); }
+  .snippet-content-area { width: 100%; min-height: 120px; padding: 12px 14px; border: 1.5px solid var(--gray-200); border-radius: 8px; font-family: var(--sans); font-size: 14px; line-height: 1.65; outline: none; resize: vertical; background: var(--gray-50); }
+  .snippet-content-area:focus { border-color: var(--blue); background: var(--white); }
+  .snippet-submit-row { display: flex; justify-content: flex-end; margin-top: 10px; }
+  .snippet-submit-btn { padding: 10px 24px; background: var(--blue); border: none; border-radius: 8px; color: white; font-family: var(--sans); font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.15s; }
+  .snippet-submit-btn:hover { background: #1d4ed8; }
+  .snippet-submit-btn:disabled { background: var(--gray-300); cursor: not-allowed; }
+
+  /* Snippets list */
+  .snippets-section { background: var(--white); border-radius: 14px; border: 1px solid var(--gray-200); box-shadow: 0 1px 4px rgba(0,0,0,0.05); margin-bottom: 20px; overflow: hidden; }
+  .snippets-section-header { padding: 14px 20px; background: var(--gray-50); border-bottom: 1px solid var(--gray-200); display: flex; align-items: center; justify-content: space-between; }
+  .snippets-section-title { font-size: 15px; font-weight: 600; color: var(--gray-800); }
+  .snippet-item { border-bottom: 1px solid var(--gray-100); padding: 14px 20px; }
+  .snippet-item:last-child { border-bottom: none; }
+  .snippet-item-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+  .snippet-item-title { font-size: 14px; font-weight: 600; color: var(--gray-800); }
+  .snippet-item-meta { font-size: 12px; color: var(--gray-500); }
+  .snippet-item-text { font-size: 13px; color: var(--gray-600); line-height: 1.6; white-space: pre-wrap; }
+  .snippet-item-actions { display: flex; gap: 6px; margin-top: 8px; }
+  .btn-xs { padding: 4px 10px; font-size: 12px; font-weight: 600; border-radius: 6px; border: 1.5px solid var(--gray-200); background: var(--white); color: var(--gray-600); cursor: pointer; font-family: var(--sans); transition: all 0.15s; }
+  .btn-xs:hover { border-color: var(--gray-300); color: var(--gray-800); }
+  .btn-xs.danger:hover { border-color: var(--red-mid); color: var(--red); background: var(--red-light); }
+
+  /* KB sections */
   .kb-section { background: var(--white); border-radius: 14px; border: 1px solid var(--gray-200); box-shadow: 0 1px 4px rgba(0,0,0,0.05); margin-bottom: 16px; overflow: hidden; }
   .kb-section-header { padding: 14px 20px; background: var(--gray-50); border-bottom: 1px solid var(--gray-200); display: flex; align-items: center; justify-content: space-between; }
   .kb-section-title { font-size: 15px; font-weight: 600; color: var(--gray-800); }
@@ -118,8 +189,8 @@
   .kb-entry { border: 1.5px solid var(--gray-200); border-radius: 10px; margin-bottom: 12px; overflow: hidden; }
   .kb-entry-header { padding: 10px 14px; background: var(--gray-50); border-bottom: 1px solid var(--gray-200); display: flex; align-items: center; justify-content: space-between; gap: 10px; }
   .kb-entry-name { font-size: 13px; font-weight: 600; color: var(--gray-700); background: transparent; border: none; outline: none; font-family: var(--sans); flex: 1; }
+  .kb-entry-meta { font-size: 11px; color: var(--gray-500); white-space: nowrap; }
   .kb-entry textarea { border: none; border-radius: 0; background: var(--white); font-size: 14px; min-height: 90px; resize: vertical; }
-  .kb-entry textarea:focus { border: none; background: #fffdf5; }
   .btn-sm { padding: 5px 12px; font-size: 12px; font-weight: 600; border-radius: 6px; border: 1.5px solid var(--gray-200); background: var(--white); color: var(--gray-600); cursor: pointer; transition: all 0.15s; font-family: var(--sans); }
   .btn-sm.danger:hover { border-color: var(--red-mid); color: var(--red); background: var(--red-light); }
   .btn-add { width: 100%; padding: 10px; background: var(--white); border: 1.5px dashed var(--gray-300); border-radius: 10px; color: var(--gray-500); font-family: var(--sans); font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.15s; }
@@ -132,13 +203,30 @@
   .kb-export-btn:hover { border-color: var(--gray-300); background: var(--gray-50); }
   .kb-spinner { width: 16px; height: 16px; border: 2.5px solid rgba(255,255,255,0.4); border-top-color: white; border-radius: 50%; animation: spin 0.7s linear infinite; display: none; }
   .kb-spinner.active { display: block; }
-  .save-toast { position: fixed; bottom: 24px; right: 24px; background: var(--green); color: white; padding: 12px 20px; border-radius: 10px; font-size: 14px; font-weight: 600; opacity: 0; transition: opacity 0.2s; pointer-events: none; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+  .save-toast { position: fixed; bottom: 24px; right: 24px; background: var(--green); color: white; padding: 12px 20px; border-radius: 10px; font-size: 14px; font-weight: 600; opacity: 0; transition: opacity 0.2s; pointer-events: none; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 999; }
   .save-toast.show { opacity: 1; }
-  @media (max-width: 768px) { .triage-layout { grid-template-columns: 1fr; } }
+  .empty-state { text-align: center; padding: 24px; color: var(--gray-500); font-size: 14px; }
+  @media (max-width: 768px) { .triage-layout { grid-template-columns: 1fr; } .dept-grid { grid-template-columns: 1fr; } .meta-row { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
 
+<!-- ── NURSE SELECTOR MODAL ── -->
+<div class="modal-overlay" id="nurseModal">
+  <div class="modal-box">
+    <h2>Who's on shift?</h2>
+    <p>Select your name to attach your identity to triage records and knowledge base changes. This saves automatically for next time.</p>
+    <div class="nurse-btns" id="nurseBtns"></div>
+    <div class="modal-divider"></div>
+    <p style="font-size:13px;color:var(--gray-500);margin-bottom:10px;">Not listed? Add your name:</p>
+    <div class="modal-input-row">
+      <input class="modal-input" type="text" id="newNurseInput" placeholder="Your full name...">
+      <button class="modal-confirm-btn" onclick="addAndSelectNurse()">Add &amp; Select</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── TOPBAR ── -->
 <div class="topbar">
   <div class="topbar-brand">
     <div class="brand-icon">R</div>
@@ -151,10 +239,16 @@
     <button class="tab-btn active" onclick="switchTab('triage', this)">Triage</button>
     <button class="tab-btn" onclick="switchTab('kb', this)">Knowledge Base</button>
   </div>
-  <div class="status-badge" id="statusBadge">Ready</div>
+  <div class="topbar-right">
+    <div class="nurse-chip" onclick="showNurseModal()" title="Switch nurse">
+      <div class="nurse-dot"></div>
+      <span id="nurseChipName">Select nurse</span>
+    </div>
+    <div class="status-badge" id="statusBadge">Ready</div>
+  </div>
 </div>
 
-<!-- TRIAGE TAB -->
+<!-- ── TRIAGE TAB ── -->
 <div class="tab-panel active" id="tab-triage">
   <div class="triage-layout">
     <div>
@@ -181,25 +275,50 @@
   </div>
 </div>
 
-<!-- KB TAB -->
+<!-- ── KB TAB ── -->
 <div class="tab-panel" id="tab-kb">
   <div class="kb-layout">
     <div class="kb-header">
       <h2>Knowledge Base</h2>
-      <p>Add your text-expanders, protocols, URLs, and clinical notes here. Changes are saved to the cloud and shared with your entire team instantly. Write in plain English — for example: "Change the TDEE URL to: https://newurl.com" or paste a full protocol.</p>
+      <p>Add text-expanders, protocols, and clinical notes. Everything syncs to the team automatically the moment you submit.</p>
     </div>
 
-    <div class="kb-sync-bar" id="syncBar">
-      <span id="syncMsg">Loading shared knowledge base...</span>
+    <div class="kb-sync-bar" id="syncBar"><span id="syncMsg">Loading...</span></div>
+
+    <!-- Quick Add Snippet -->
+    <div class="snippet-add-box">
+      <div class="snippet-add-header">
+        <span>+ Add Text Expander / Protocol Snippet</span>
+      </div>
+      <div class="snippet-add-body">
+        <input class="snippet-title-input" type="text" id="snippetTitle" placeholder="Title (e.g. Nausea — extended, Plateau follow-up questions)">
+        <textarea class="snippet-content-area" id="snippetContent" placeholder="Paste your text expander or protocol here. Write in plain English — the AI reads this directly when drafting responses.&#10;&#10;You can also write instructions like: 'Change the TDEE URL to: https://newurl.com' or 'Always recommend X before Y for constipation.'"></textarea>
+        <div class="snippet-submit-row">
+          <button class="snippet-submit-btn" id="snippetSubmitBtn" onclick="submitSnippet()">
+            <span id="snippetSubmitTxt">Save &amp; Sync to Team</span>
+            <div class="spinner" id="snippetSpinner" style="border-color:rgba(255,255,255,0.4);border-top-color:white;"></div>
+          </button>
+        </div>
+      </div>
     </div>
 
+    <!-- Snippets List -->
+    <div class="snippets-section">
+      <div class="snippets-section-header">
+        <span class="snippets-section-title">Saved Snippets</span>
+        <span style="font-size:12px;color:var(--gray-500);" id="snippetCount">Loading...</span>
+      </div>
+      <div id="snippetsList"><div class="empty-state">Loading snippets...</div></div>
+    </div>
+
+    <!-- Advanced KB sections -->
     <div class="kb-section">
       <div class="kb-section-header">
-        <span class="kb-section-title">Clinical Protocols &amp; Text Expanders</span>
-        <span style="font-size:12px;color:var(--gray-500);">Used when drafting responses</span>
+        <span class="kb-section-title">Clinical Protocols</span>
+        <span style="font-size:12px;color:var(--gray-500);">Core protocols baked into AI</span>
       </div>
       <div class="kb-section-body" id="protocols-list"></div>
-      <div style="padding: 0 20px 16px;"><button class="btn-add" onclick="addEntry('protocols')">+ Add Protocol or Text Expander</button></div>
+      <div style="padding: 0 20px 16px;"><button class="btn-add" onclick="addEntry('protocols')">+ Add Protocol</button></div>
     </div>
 
     <div class="kb-section">
@@ -208,22 +327,22 @@
         <span style="font-size:12px;color:var(--gray-500);">Links referenced in responses</span>
       </div>
       <div class="kb-section-body" id="urls-list"></div>
-      <div style="padding: 0 20px 16px;"><button class="btn-add" onclick="addEntry('urls')">+ Add URL or Resource</button></div>
+      <div style="padding: 0 20px 16px;"><button class="btn-add" onclick="addEntry('urls')">+ Add URL</button></div>
     </div>
 
     <div class="kb-section">
       <div class="kb-section-header">
-        <span class="kb-section-title">Routing &amp; Non-Clinical Rules</span>
-        <span style="font-size:12px;color:var(--gray-500);">How to handle billing, shipping, etc.</span>
+        <span class="kb-section-title">Routing Rules</span>
+        <span style="font-size:12px;color:var(--gray-500);">Non-clinical handling</span>
       </div>
       <div class="kb-section-body" id="routing-list"></div>
-      <div style="padding: 0 20px 16px;"><button class="btn-add" onclick="addEntry('routing')">+ Add Routing Rule</button></div>
+      <div style="padding: 0 20px 16px;"><button class="btn-add" onclick="addEntry('routing')">+ Add Rule</button></div>
     </div>
 
     <div class="kb-section">
       <div class="kb-section-header">
-        <span class="kb-section-title">General Notes &amp; Updates</span>
-        <span style="font-size:12px;color:var(--gray-500);">Anything else for the AI to know</span>
+        <span class="kb-section-title">General Notes</span>
+        <span style="font-size:12px;color:var(--gray-500);">Any other instructions</span>
       </div>
       <div class="kb-section-body" id="notes-list"></div>
       <div style="padding: 0 20px 16px;"><button class="btn-add" onclick="addEntry('notes')">+ Add Note</button></div>
@@ -235,15 +354,12 @@
         <div class="kb-spinner" id="kbSpinner"></div>
       </button>
       <button class="kb-export-btn" onclick="exportKB()">Export Backup</button>
-      <label class="kb-export-btn" style="cursor:pointer;">
-        Import Backup
-        <input type="file" accept=".json" style="display:none;" onchange="importKB(event)">
-      </label>
+      <label class="kb-export-btn" style="cursor:pointer;">Import Backup<input type="file" accept=".json" style="display:none;" onchange="importKB(event)"></label>
     </div>
   </div>
 </div>
 
-<div class="save-toast" id="saveToast">Knowledge base synced to team</div>
+<div class="save-toast" id="saveToast">Synced to team</div>
 
 <script>
 // ── BASE SYSTEM PROMPT ────────────────────────────────────────────────────────
@@ -254,101 +370,185 @@ OUTPUT: Return ONLY a valid JSON object. No markdown, no prose outside the JSON,
 JSON structure:
 {
   "non_clinical_flag": boolean,
-  "non_clinical_items": ["list of billing/shipping/payment/account items, empty array if none"],
-  "routing_language": "1-2 sentence routing message if non_clinical_flag is true, empty string if false",
+  "non_clinical_items": ["billing/shipping/payment/account items found, empty if none"],
+  "routing_language": "1-2 sentence routing message if non_clinical_flag true, else empty string",
   "clinical_category": "one of: GI side effects, Weight plateau, No early weight loss, Food noise / cravings, Hair loss, Fatigue, Heartburn / reflux, Diarrhea, Injection / administration, Dosing question, Skin/site reaction, Medication storage, Urgent - escalate, General / multiple",
   "urgency": "one of: routine, same-day, urgent",
-  "clinical_facts": ["3-6 concise strings: medication name, dose in mg and units if stated, week of therapy, specific symptoms, duration, relevant history, anything already tried"],
-  "missing_info": ["critical missing info needed before giving good advice. ALWAYS include dose in mg and units if not stated for any side effect question. Empty array if sufficient."],
-  "follow_up_questions": ["specific questions to ask patient if missing_info not empty. Empty array if not needed."],
-  "draft_response": "Full response in RN voice using clinical protocols. Personalized. If missing_info not empty, draft asks follow-up questions. If all info present, give complete actionable advice. 150 words max. No bullet points — flowing prose with paragraph breaks using newline characters."
+  "clinical_facts": ["3-6 strings: medication name, dose in mg and units if stated, week of therapy, symptoms, duration, history, anything tried"],
+  "missing_info": ["critical missing info. ALWAYS include dose in mg and units if not stated for any side effect question. Empty if sufficient."],
+  "follow_up_questions": ["specific questions if missing_info not empty. Empty array if not needed."],
+  "draft_response": "Full RN-voice response. Personalized. If missing_info not empty, ask follow-up questions. If all present, give complete actionable advice. 150 words max. No bullet points — flowing prose with paragraph breaks using newline characters."
 }
 
-DOSE CHECK RULE: For ANY message involving side effects, ALWAYS check whether the patient stated their current dose in mg and units. If not, add to missing_info and ask: "Could you confirm what dose you are currently on, in mg and units? This helps us verify you are dosing correctly."
+DOSE CHECK RULE: For ANY side effect message, ALWAYS check if patient stated dose in mg and units. If not, add to missing_info and ask: "Could you confirm your current dose in mg and units? This helps us verify you are dosing correctly."
 
-URGENCY: urgent = pancreatitis (severe upper abdominal pain radiating to back), persistent severe vomiting, tachycardia, thyroid symptoms, suicidal ideation, severe hypoglycemia unresponsive to food. same-day = moderate-severe GI affecting intake, injection site with warmth/spreading redness/fever, storage error for imminent dose, shakiness/sweating/confusion, diarrhea more than 3 days. routine = weight concerns, mild side effects, hair loss, general questions, food noise.
+URGENCY: urgent = pancreatitis (severe upper abdominal pain radiating to back), persistent severe vomiting, tachycardia, thyroid symptoms (neck mass/hoarseness/dysphagia), suicidal ideation, severe hypoglycemia unresponsive to food. same-day = moderate-severe GI affecting intake, injection site infection signs, storage error for imminent dose, shakiness/sweating/confusion, diarrhea 3+ days. routine = weight concerns, mild side effects, hair loss, general questions, food noise, dosing questions.
 
 === CORE CLINICAL PROTOCOLS ===
-NAUSEA: Delayed gastric emptying. Smaller meals, slower eating, food in containers in fridge to graze, avoid fatty/greasy/acidic/heavy foods. OTC: Tums, Pepto Bismol, Famotadine/Pepcid. Rx: Ondansetron/Zofran — if recommending, ALWAYS ask for local pharmacy name, address, phone number. Missing info triggers: severity affecting intake, duration, current foods, dose.
-HEARTBURN/REFLUX: Delayed gastric emptying and overeating. OTC: Pepcid/famotadine, Prilosec/omeprazole, Nexium/esomeprazole, Pepto Bismol, Tums. Decrease fatty/greasy/acidic foods, coffee/energy drinks/sodas. Eat slowly, smaller bites, split meals.
-DIARRHEA: Bland diet (bananas, rice, bread, crackers). Increase fiber. Imodium per label. Pepto Bismol. Hydration: Pedialyte, Gatorade, coconut water. RED FLAGS for ER: blood in stool, severe abdominal pain, diarrhea more than 3 days affecting daily living.
-FATIGUE: Too-low calorie intake. RED FLAG: shakiness/sweating/confusion = hypoglycemia — fruit juice, peanut butter and bread, milk, regular soda immediately. Recommendations: calorie tracking on MyFitnessPal, 60-100oz water/day, electrolytes, multivitamin plus B12, slow-burning carbs, light exercise. Missing info triggers: daily calorie intake, water intake, tracking app.
-HAIR LOSS: Telogen effluvium — common, expected, temporary. Hair regrows next growth cycle. Multivitamin, protein, green leafy vegetables.
-WEIGHT PLATEAU: Normalize fluctuations. Once-weekly weigh-ins same day/time/scale. TDEE at https://tdee.is/ to avoid starvation mode. Tape measure and clothing fit as metrics. ALWAYS ask if not answered: food noise/cravings returning? calories per day and tracking app? 60oz+ water daily? fiber intake? protein per day? exercise routine?
-FOOD NOISE: Half-life — food noise returns day 4-5 post-injection, normal. Adequate protein, small snacks all day, slow-burning carbs, whole foods, fiber, 1oz water per pound bodyweight, multivitamin plus probiotic, 15-30 min walks. TDEE: https://tdee.is/. Weigh once per week only.
-INJECTION/SITE: Rotate between abdomen, thigh, upper arm. Hard bumps = lipohypertrophy from insufficient rotation. Pink/red without warmth = local reaction, monitor. Warmth + spreading redness + fever = infection, escalate same-day.
-MEDICATION STORAGE: Refrigerate, do not freeze. 14 hours out of fridge generally acceptable. Flag same-day if dose is imminent.
+NAUSEA: Delayed gastric emptying. Smaller meals, slower eating, food in containers in fridge to graze, avoid fatty/greasy/acidic/heavy foods. OTC: Tums, Pepto Bismol, Famotadine/Pepcid. Rx: Ondansetron/Zofran — if recommending, ALWAYS ask for local pharmacy name, address, phone number.
+HEARTBURN/REFLUX: OTC: Pepcid/famotadine, Prilosec/omeprazole, Nexium/esomeprazole, Pepto Bismol, Tums. Decrease fatty/greasy/acidic foods, coffee/energy drinks/sodas. Eat slowly, smaller bites, split meals.
+DIARRHEA: Bland diet (bananas, rice, bread, crackers). Increase fiber. Imodium per label. Pepto Bismol. Hydration: Pedialyte, Gatorade, coconut water. RED FLAGS for ER: blood in stool, severe abdominal pain, diarrhea 3+ days affecting daily living.
+FATIGUE: Too-low calorie intake. RED FLAG: shakiness/sweating/confusion = hypoglycemia — fruit juice, peanut butter and bread, milk, regular soda immediately. Recommendations: calorie tracking on MyFitnessPal, 60-100oz water/day, electrolytes, multivitamin plus B12, slow-burning carbs, light exercise.
+HAIR LOSS: Telogen effluvium — common, expected, temporary. Multivitamin, protein, green leafy vegetables.
+WEIGHT PLATEAU: Normalize fluctuations. Once-weekly weigh-ins same day/time/scale. TDEE at https://tdee.is/. Tape measure and clothing fit as metrics. ALWAYS ask if not answered: food noise/cravings? calories/day and tracking app? 60oz+ water? fiber? protein? exercise routine?
+FOOD NOISE: Half-life — food noise returns day 4-5 post-injection, normal. Adequate protein, small snacks, slow-burning carbs, whole foods, fiber, 1oz water per pound bodyweight, multivitamin plus probiotic, 15-30 min walks. TDEE: https://tdee.is/.
+INJECTION/SITE: Rotate abdomen/thigh/upper arm. Hard bumps = lipohypertrophy. Pink/red without warmth = local reaction, monitor. Warmth + spreading redness + fever = infection, escalate same-day.
+MEDICATION STORAGE: Refrigerate, do not freeze. 14 hours out generally acceptable. Flag same-day if dose is imminent.
 VOICE: Warm but efficient. Specific and actionable. Brand names alongside generic. Normalize common side effects. Reference TDEE https://tdee.is/ for weight discussions. Never bullet points in draft_response.`;
 
-// ── KNOWLEDGE BASE ────────────────────────────────────────────────────────────
+const TIMEFRAME_OPTIONS = [
+  { value: 'routine', label: 'Routine — Next Available', cls: 'routine' },
+  { value: '24h', label: 'Within 24 Hours', cls: 'same-day' },
+  { value: '24-72h', label: 'Within 24–72 Hours', cls: 'same-day' },
+  { value: '72h', label: 'Within 72 Hours', cls: 'same-day' },
+  { value: 'same-day', label: 'Same Day Response', cls: 'same-day' },
+  { value: 'urgent', label: 'URGENT — Escalate Now', cls: 'urgent' },
+];
+
+// ── NURSE MANAGEMENT ──────────────────────────────────────────────────────────
+const KNOWN_NURSES_KEY = 'rn_triage_nurses';
+const CURRENT_NURSE_KEY = 'rn_triage_current_nurse';
+let currentNurse = localStorage.getItem(CURRENT_NURSE_KEY) || '';
+
+function getNurses() {
+  return JSON.parse(localStorage.getItem(KNOWN_NURSES_KEY) || '[]');
+}
+function saveNurses(list) {
+  localStorage.setItem(KNOWN_NURSES_KEY, JSON.stringify(list));
+}
+
+function showNurseModal() {
+  var nurses = getNurses();
+  var btns = document.getElementById('nurseBtns');
+  btns.innerHTML = nurses.length ? nurses.map(function(n) {
+    return '<button class="nurse-btn' + (n === currentNurse ? ' selected' : '') + '" onclick="selectNurse(\'' + esc(n) + '\')">' + esc(n) + '</button>';
+  }).join('') : '<p style="font-size:13px;color:var(--gray-500);">No nurses added yet.</p>';
+  document.getElementById('nurseModal').classList.remove('hidden');
+}
+
+function selectNurse(name) {
+  currentNurse = name;
+  localStorage.setItem(CURRENT_NURSE_KEY, name);
+  document.getElementById('nurseChipName').textContent = name;
+  document.getElementById('nurseModal').classList.add('hidden');
+}
+
+function addAndSelectNurse() {
+  var input = document.getElementById('newNurseInput');
+  var name = input.value.trim();
+  if (!name) return;
+  var nurses = getNurses();
+  if (!nurses.includes(name)) { nurses.push(name); saveNurses(nurses); }
+  input.value = '';
+  selectNurse(name);
+}
+
+function initNurse() {
+  if (currentNurse) {
+    document.getElementById('nurseChipName').textContent = currentNurse;
+    document.getElementById('nurseModal').classList.add('hidden');
+  } else {
+    showNurseModal();
+  }
+}
+
+// ── KB DATA ───────────────────────────────────────────────────────────────────
 const DEFAULT_KB = {
   protocols: [
     { name: "Nausea — extended advice", text: "Eating smaller meals and waiting longer between bites is recommended. Remember that eating shouldn't be a race. Try putting food in plastic containers or baggies and putting them in the fridge, and removing them as needed to snack on. Little snacks and small meals all day will help. If you've been eating fatty, greasy, acidic or heavy foods, removing that from your diet is also recommended. I always suggest Tums and Pepto Bismol for symptoms of nausea, because it can also be related to heartburn/acid reflux and indigestion. Another over the counter medication you can try is famotidine (Pepcid) which is used for reflux and GERD, but it can help calm the nausea as well. We can request a prescription for ondansetron (Zofran) which is an anti-emetic — please send me your local pharmacy name, address, and phone number." },
     { name: "Hair loss", text: "This is a common side effect of GLP medications, usually related to a nutrient deficiency due to lowering of calories. This is called telogen effluvium. Most of the time your hair will begin growing back during the next growth cycle. I recommend getting in more vitamins and minerals through a multi-vitamin, getting plenty of protein, and green leafy vegetables." },
-    { name: "Weight plateau — questions", text: "Do you mind answering a few questions for me so I can give you some customized advice? Are you finding yourself having cravings during the day, and food noise returning? How many calories do you eat per day presently, and are you tracking on an app like LoseIt or MyFitnessPal? Are you drinking at a minimum of 60oz of water per day? Are you eating fiber through a supplement or fruits and vegetables? How much protein are you getting per day? What does your exercise routine look like? Quick tip: I recommend using this website: https://tdee.is/ — calculating your TDEE is important so you can reduce your calorie intake appropriately." },
     { name: "Heartburn", text: "Heartburn is a common side effect of GLP medications, more often than not caused by ingesting too much food or liquid, causing reflux due to delayed gastric emptying. Take Pepcid (famotadine) or another OTC like Prilosec (omeprazole) or Nexium (esomeprazole). Pepto Bismol and Tums can assist as well. Decrease fatty, greasy, or acidic food ingestion. Eat slowly with smaller bites. Decrease coffee, energy drinks, and sodas." },
     { name: "Fatigue", text: "Fatigue is often caused by a decrease in calorie intake and the body not having enough fuel. Track your calories on MyFitnessPal. Drink 60-100oz of water daily. Regular exercise such as a walk 3+ times per week will boost energy through endorphins. Try Gatorade or Pedialyte to replace electrolytes. Add a multi-vitamin and B12. Try slow burning carbohydrates like brown rice, sweet potatoes, broccoli, and lentils. If you feel weak, sweaty, confused, or shaky, drink some fruit juice, eat peanut butter with bread, some milk, or a regular sugar soda — you may be experiencing low blood sugar." },
-    { name: "Diarrhea", text: "Decrease fatty, greasy foods and eat a very bland diet — bananas, rice, bread, and crackers. Increase fiber to help bind materials. Take Imodium per label directions, starting with the low dose. Pepto Bismol is a great choice as well. Drink plenty of fluids and electrolytes — Pedialyte, Gatorade, coconut water, or water with an electrolyte additive. If you experience blood in your stool, severe abdominal pain, or diarrhea for more than 3 days affecting daily living, please get checked at an urgent care or emergency room." },
+    { name: "Diarrhea", text: "Decrease fatty, greasy foods and eat a very bland diet — bananas, rice, bread, and crackers. Increase fiber. Take Imodium per label directions, starting with the low dose. Pepto Bismol is a great choice as well. Drink plenty of fluids and electrolytes. If you experience blood in your stool, severe abdominal pain, or diarrhea for more than 3 days affecting daily living, please get checked at an urgent care or emergency room." },
     { name: "Food noise / cravings", text: "It is normal, even expected, to have food noise or hunger return by day 4-5 after an injection. The half-life of the medication is around that 5 day mark. I recommend using an app like LoseIt to track calories and stay at a healthy TDEE level (https://tdee.is/). Make sure you're getting enough protein, take small bites of food all day, focus on slow-burning carbohydrates, eat high quality non-processed whole foods, increase fiber, drink 1oz of water per pound of bodyweight, add a multi-vitamin and probiotic, and try to add some exercise every day or two. I always suggest weighing only once per week, on the same day, at the same time, on the same scale." }
   ],
-  urls: [
-    { name: "TDEE Calculator", text: "https://tdee.is/ — use for all weight loss, plateau, and calorie discussions" }
-  ],
-  routing: [
-    { name: "Non-clinical routing message", text: "Thank you for reaching out — I've flagged your billing/shipping question and am routing it to our support team who will follow up with you directly. I'll address your clinical question separately below." }
-  ],
-  notes: [
-    { name: "Dose verification", text: "Always ask for dose in mg and units if not provided in a side effect message. This helps verify the patient is dosing correctly and has not accidentally doubled or halved their dose." }
-  ]
+  urls: [{ name: "TDEE Calculator", text: "https://tdee.is/ — use for all weight loss, plateau, and calorie discussions" }],
+  routing: [{ name: "Non-clinical routing message", text: "Thank you for reaching out — I've flagged your billing/shipping question and am routing it to our support team who will follow up with you directly. I'll address your clinical question separately below." }],
+  notes: [{ name: "Dose verification", text: "Always ask for dose in mg and units if not provided in a side effect message." }]
 };
 
 let kb = JSON.parse(JSON.stringify(DEFAULT_KB));
+let snippets = [];
+let currentHistoryId = null;
 
 function getKBPrompt() {
-  var sections = [];
-  if (kb.protocols && kb.protocols.length) sections.push('=== ADDITIONAL PROTOCOLS ===\n' + kb.protocols.map(function(e){return '['+e.name+']\n'+e.text;}).join('\n\n'));
-  if (kb.urls && kb.urls.length) sections.push('=== URLS ===\n' + kb.urls.map(function(e){return e.name+': '+e.text;}).join('\n'));
-  if (kb.routing && kb.routing.length) sections.push('=== ROUTING RULES ===\n' + kb.routing.map(function(e){return '['+e.name+']\n'+e.text;}).join('\n\n'));
-  if (kb.notes && kb.notes.length) sections.push('=== NOTES ===\n' + kb.notes.map(function(e){return '['+e.name+']\n'+e.text;}).join('\n\n'));
-  return sections.join('\n\n');
+  var parts = [];
+  if (kb.protocols && kb.protocols.length) parts.push('=== PROTOCOLS ===\n' + kb.protocols.map(function(e){return '['+e.name+']\n'+e.text;}).join('\n\n'));
+  if (kb.urls && kb.urls.length) parts.push('=== URLS ===\n' + kb.urls.map(function(e){return e.name+': '+e.text;}).join('\n'));
+  if (kb.routing && kb.routing.length) parts.push('=== ROUTING ===\n' + kb.routing.map(function(e){return '['+e.name+']\n'+e.text;}).join('\n\n'));
+  if (kb.notes && kb.notes.length) parts.push('=== NOTES ===\n' + kb.notes.map(function(e){return '['+e.name+']\n'+e.text;}).join('\n\n'));
+  if (snippets && snippets.length) parts.push('=== TEAM SNIPPETS ===\n' + snippets.map(function(s){return '['+s.title+' — added by '+s.nurse_name+']\n'+s.content;}).join('\n\n'));
+  return parts.join('\n\n');
 }
 
-// ── SUPABASE SYNC ─────────────────────────────────────────────────────────────
-function setSyncBar(state, msg) {
-  var bar = document.getElementById('syncBar');
-  bar.className = 'kb-sync-bar' + (state ? ' ' + state : '');
-  document.getElementById('syncMsg').textContent = msg;
+// ── SUPABASE CALLS ────────────────────────────────────────────────────────────
+async function api(endpoint, method, body) {
+  var opts = { method: method || 'GET', headers: { 'Content-Type': 'application/json' } };
+  if (body) opts.body = JSON.stringify(body);
+  var res = await fetch('/.netlify/functions/kb' + endpoint, opts);
+  return res.json().catch(function() { return {}; });
 }
 
 async function loadKBFromServer() {
   try {
     setSyncBar('', 'Loading shared knowledge base...');
-    var res = await fetch('/.netlify/functions/kb', { method: 'GET' });
-    var rows = await res.json();
-    if (!Array.isArray(rows) || rows.length === 0) {
-      // First load — seed with defaults then save
-      setSyncBar('synced', 'No shared data yet — loading defaults. Save to sync with your team.');
-      renderKB();
-      return;
+    var rows = await api('/kb');
+    if (Array.isArray(rows) && rows.length > 0) {
+      var newKB = { protocols: [], urls: [], routing: [], notes: [] };
+      rows.forEach(function(row) { if (newKB[row.section]) newKB[row.section].push({ name: row.name, text: row.content }); });
+      kb = newKB;
     }
-    // Rebuild kb object from flat rows
-    var newKB = { protocols: [], urls: [], routing: [], notes: [] };
-    rows.forEach(function(row) {
-      if (newKB[row.section]) {
-        newKB[row.section].push({ name: row.name, text: row.content });
-      }
-    });
-    kb = newKB;
-    setSyncBar('synced', 'Synced with team — last updated ' + new Date().toLocaleTimeString());
+    setSyncBar('synced', 'Synced · ' + new Date().toLocaleTimeString());
     renderKB();
-  } catch(err) {
-    setSyncBar('error', 'Could not connect to shared database. Changes will save locally only.');
+  } catch(e) {
+    setSyncBar('error', 'Could not load KB');
     renderKB();
   }
 }
 
+async function loadSnippets() {
+  try {
+    var data = await api('/snippets');
+    snippets = Array.isArray(data) ? data : [];
+    renderSnippets();
+  } catch(e) {
+    snippets = [];
+    renderSnippets();
+  }
+}
+
+async function submitSnippet() {
+  var title = document.getElementById('snippetTitle').value.trim();
+  var content = document.getElementById('snippetContent').value.trim();
+  if (!title || !content) { alert('Please enter both a title and content.'); return; }
+  if (!currentNurse) { showNurseModal(); return; }
+
+  var btn = document.getElementById('snippetSubmitBtn');
+  var txt = document.getElementById('snippetSubmitTxt');
+  var spin = document.getElementById('snippetSpinner');
+  btn.disabled = true; txt.textContent = 'Saving...'; spin.className = 'spinner active';
+
+  try {
+    await api('/snippets', 'POST', { title: title, content: content, nurse_name: currentNurse });
+    document.getElementById('snippetTitle').value = '';
+    document.getElementById('snippetContent').value = '';
+    await loadSnippets();
+    showToast('Snippet saved and synced to team');
+  } catch(e) {
+    alert('Error saving snippet: ' + e.message);
+  } finally {
+    btn.disabled = false; txt.textContent = 'Save & Sync to Team'; spin.className = 'spinner';
+  }
+}
+
+async function deleteSnippet(id) {
+  if (!confirm('Delete this snippet?')) return;
+  await api('/snippets', 'DELETE', { id: id });
+  await loadSnippets();
+}
+
 async function saveKB() {
-  // Collect current values from DOM
+  // Sync DOM values
   document.querySelectorAll('.kb-entry textarea').forEach(function(ta) {
     var s = ta.getAttribute('data-section'); var i = parseInt(ta.getAttribute('data-index'));
     if (kb[s] && kb[s][i] !== undefined) kb[s][i].text = ta.value;
@@ -358,50 +558,71 @@ async function saveKB() {
     if (kb[s] && kb[s][i] !== undefined) kb[s][i].name = input.value;
   });
 
-  // Build flat entries array for Supabase
-  var entries = [];
-  var pos = 0;
+  var entries = []; var pos = 0;
   ['protocols','urls','routing','notes'].forEach(function(section) {
     (kb[section] || []).forEach(function(entry) {
-      entries.push({ section: section, name: entry.name, content: entry.text, position: pos++ });
+      entries.push({ section: section, name: entry.name, content: entry.text, position: pos++, nurse_name: currentNurse || 'Unknown', updated_at: new Date().toISOString() });
     });
   });
 
-  var saveBtn = document.getElementById('kbSaveBtn');
-  var saveTxt = document.getElementById('kbSaveTxt');
-  var saveSpinner = document.getElementById('kbSpinner');
-  saveBtn.disabled = true;
-  saveTxt.textContent = 'Syncing...';
-  saveSpinner.className = 'kb-spinner active';
+  var btn = document.getElementById('kbSaveBtn');
+  var txt = document.getElementById('kbSaveTxt');
+  var spin = document.getElementById('kbSpinner');
+  btn.disabled = true; txt.textContent = 'Syncing...'; spin.className = 'kb-spinner active';
 
   try {
-    await fetch('/.netlify/functions/kb', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ entries: entries })
-    });
-    setSyncBar('synced', 'Synced with team — ' + new Date().toLocaleTimeString());
-    var toast = document.getElementById('saveToast');
-    toast.classList.add('show');
-    setTimeout(function() { toast.classList.remove('show'); }, 2500);
-  } catch(err) {
-    setSyncBar('error', 'Sync failed — ' + err.message);
+    await api('/kb', 'POST', { entries: entries });
+    setSyncBar('synced', 'Synced · ' + new Date().toLocaleTimeString());
+    showToast('Knowledge base synced to team');
+  } catch(e) {
+    setSyncBar('error', 'Sync failed');
   } finally {
-    saveBtn.disabled = false;
-    saveTxt.textContent = 'Save & Sync to Team';
-    saveSpinner.className = 'kb-spinner';
+    btn.disabled = false; txt.textContent = 'Save & Sync to Team'; spin.className = 'kb-spinner';
   }
 }
 
+async function saveHistoryRecord(parsed, patientMessage) {
+  if (!currentNurse) return null;
+  try {
+    var result = await api('/history', 'POST', {
+      nurse_name: currentNurse,
+      patient_message: patientMessage,
+      clinical_category: parsed.clinical_category,
+      urgency_original: parsed.urgency,
+      urgency_override: null,
+      non_clinical_flag: parsed.non_clinical_flag,
+      non_clinical_items: parsed.non_clinical_items || [],
+      routing_language: parsed.routing_language || '',
+      clinical_facts: parsed.clinical_facts || [],
+      missing_info: parsed.missing_info || [],
+      follow_up_questions: parsed.follow_up_questions || [],
+      draft_response: parsed.draft_response || ''
+    });
+    if (Array.isArray(result) && result[0]) return result[0].id;
+    return null;
+  } catch(e) { return null; }
+}
+
+async function saveUrgencyOverride(id, value) {
+  if (!id) return;
+  try {
+    await api('/history', 'POST', { action: 'update_urgency', id: id, urgency_override: value });
+  } catch(e) {}
+}
+
 // ── KB UI ─────────────────────────────────────────────────────────────────────
+function setSyncBar(state, msg) {
+  var bar = document.getElementById('syncBar');
+  bar.className = 'kb-sync-bar' + (state ? ' ' + state : '');
+  document.getElementById('syncMsg').textContent = msg;
+}
+
 function renderKB() {
   ['protocols','urls','routing','notes'].forEach(function(section) {
     var list = document.getElementById(section + '-list');
     if (!list) return;
     list.innerHTML = '';
-    (kb[section] || []).forEach(function(entry, i) {
-      list.appendChild(makeEntryEl(section, i, entry));
-    });
+    (kb[section] || []).forEach(function(entry, i) { list.appendChild(makeEntryEl(section, i, entry)); });
   });
 }
 
@@ -410,10 +631,10 @@ function makeEntryEl(section, i, entry) {
   div.className = 'kb-entry';
   div.innerHTML =
     '<div class="kb-entry-header">' +
-      '<input class="kb-entry-name" type="text" value="' + esc(entry.name) + '" placeholder="Entry name..." data-section="' + section + '" data-index="' + i + '">' +
+      '<input class="kb-entry-name" type="text" value="' + esc(entry.name) + '" data-section="' + section + '" data-index="' + i + '" placeholder="Entry name...">' +
       '<button class="btn-sm danger" onclick="removeEntry(\'' + section + '\',' + i + ')">Remove</button>' +
     '</div>' +
-    '<textarea data-section="' + section + '" data-index="' + i + '" style="min-height:90px;border:none;border-radius:0;background:var(--white);font-size:14px;resize:vertical;">' + esc(entry.text) + '</textarea>';
+    '<textarea data-section="' + section + '" data-index="' + i + '" style="border:none;border-radius:0;background:var(--white);font-size:14px;min-height:90px;resize:vertical;">' + esc(entry.text) + '</textarea>';
   return div;
 }
 
@@ -423,26 +644,43 @@ function addEntry(section) {
   renderKB();
 }
 
-function removeEntry(section, i) {
-  kb[section].splice(i, 1);
-  renderKB();
+function removeEntry(section, i) { kb[section].splice(i, 1); renderKB(); }
+
+function renderSnippets() {
+  var list = document.getElementById('snippetsList');
+  var count = document.getElementById('snippetCount');
+  count.textContent = snippets.length + ' snippet' + (snippets.length !== 1 ? 's' : '');
+  if (!snippets.length) {
+    list.innerHTML = '<div class="empty-state">No snippets yet. Add your first text-expander above.</div>';
+    return;
+  }
+  list.innerHTML = snippets.map(function(s) {
+    var date = new Date(s.created_at).toLocaleDateString();
+    return '<div class="snippet-item">' +
+      '<div class="snippet-item-header">' +
+        '<span class="snippet-item-title">' + esc(s.title) + '</span>' +
+        '<span class="snippet-item-meta">Added by ' + esc(s.nurse_name) + ' · ' + date + '</span>' +
+      '</div>' +
+      '<div class="snippet-item-text">' + esc(s.content).substring(0, 200) + (s.content.length > 200 ? '...' : '') + '</div>' +
+      '<div class="snippet-item-actions">' +
+        '<button class="btn-xs danger" onclick="deleteSnippet(\'' + s.id + '\')">Delete</button>' +
+      '</div>' +
+    '</div>';
+  }).join('');
 }
 
 function exportKB() {
-  var blob = new Blob([JSON.stringify(kb, null, 2)], { type: 'application/json' });
-  var a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'rn-triage-kb-backup.json';
-  a.click();
+  var blob = new Blob([JSON.stringify({ kb: kb, snippets: snippets }, null, 2)], { type: 'application/json' });
+  var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'rn-triage-kb-backup.json'; a.click();
 }
 
 function importKB(e) {
-  var file = e.target.files[0];
-  if (!file) return;
+  var file = e.target.files[0]; if (!file) return;
   var reader = new FileReader();
   reader.onload = function(ev) {
     try {
-      kb = JSON.parse(ev.target.result);
+      var data = JSON.parse(ev.target.result);
+      if (data.kb) kb = data.kb;
       renderKB();
       setSyncBar('', 'Backup imported — click Save & Sync to share with team');
     } catch(err) { alert('Invalid backup file.'); }
@@ -456,14 +694,14 @@ function switchTab(name, btn) {
   document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
   document.getElementById('tab-' + name).classList.add('active');
   btn.classList.add('active');
-  if (name === 'kb') loadKBFromServer();
+  if (name === 'kb') { loadKBFromServer(); loadSnippets(); }
 }
 
 // ── TRIAGE ────────────────────────────────────────────────────────────────────
 function clearAll() {
   document.getElementById('msgInput').value = '';
   document.getElementById('results').innerHTML = '<div class="placeholder"><div class="placeholder-icon">&#9889;</div><div class="placeholder-text">Paste a patient message and click Run Triage</div></div>';
-  setStatus('ready');
+  setStatus('ready'); currentHistoryId = null;
 }
 
 function setStatus(s) {
@@ -481,23 +719,16 @@ function setLoading(on) {
 async function runTriage() {
   var msg = document.getElementById('msgInput').value.trim();
   if (!msg) return;
-  setLoading(true);
-  setStatus('processing');
+  if (!currentNurse) { showNurseModal(); return; }
+  setLoading(true); setStatus('processing'); currentHistoryId = null;
   document.getElementById('results').innerHTML = '<div class="placeholder"><div class="spinner active" style="width:24px;height:24px;border-color:var(--gray-300);border-top-color:var(--blue);"></div><div class="placeholder-text" style="margin-top:12px;">Analyzing message...</div></div>';
 
-  var kbSection = getKBPrompt();
-  var fullPrompt = BASE_SYSTEM_PROMPT + (kbSection ? '\n\n' + kbSection : '');
+  var fullPrompt = BASE_SYSTEM_PROMPT + '\n\n' + getKBPrompt();
 
   try {
     var response = await fetch('/.netlify/functions/triage', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-5',
-        max_tokens: 1400,
-        system: fullPrompt,
-        messages: [{ role: 'user', content: 'Patient message:\n\n' + msg }]
-      })
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'claude-sonnet-4-5', max_tokens: 1400, system: fullPrompt, messages: [{ role: 'user', content: 'Patient message:\n\n' + msg }] })
     });
     var data = await response.json();
     if (data.error) throw new Error(typeof data.error === 'string' ? data.error : (data.error.message || JSON.stringify(data.error)));
@@ -506,6 +737,8 @@ async function runTriage() {
     var parsed = JSON.parse(rawText.replace(/```json|```/g, '').trim());
     renderResults(parsed);
     setStatus('complete');
+    // Save to history in background
+    saveHistoryRecord(parsed, msg).then(function(id) { currentHistoryId = id; });
   } catch(err) {
     document.getElementById('results').innerHTML = '<div class="error-box"><strong>Error:</strong> ' + esc(err.message) + '</div>';
     setStatus('error');
@@ -514,23 +747,70 @@ async function runTriage() {
   }
 }
 
-function urgencyClass(u) { return u === 'urgent' ? 'urgency-urgent' : u === 'same-day' ? 'urgency-same-day' : 'urgency-routine'; }
-function urgencyLabel(u) { return u === 'urgent' ? 'URGENT — Escalate Now' : u === 'same-day' ? 'Same-Day Response Needed' : 'Routine — Next Available'; }
+function buildTimeframeSelect(urgency, historyId) {
+  var mapped = urgency === 'urgent' ? 'urgent' : urgency === 'same-day' ? 'same-day' : 'routine';
+  var opts = TIMEFRAME_OPTIONS.map(function(o) {
+    return '<option value="' + o.value + '"' + (o.value === mapped ? ' selected' : '') + '>' + o.label + '</option>';
+  }).join('');
+  var cls = urgency === 'urgent' ? 'urgent' : urgency === 'same-day' ? 'same-day' : 'routine';
+  return '<div class="timeframe-row">' +
+    '<select class="timeframe-select ' + cls + '" id="timeframeSelect" onchange="onTimeframeChange(this)">' + opts + '</select>' +
+    '<button class="timeframe-save-btn" id="timeframeSaveBtn" onclick="saveTimeframe()">Save</button>' +
+  '</div>';
+}
+
+function onTimeframeChange(sel) {
+  var v = sel.value;
+  sel.className = 'timeframe-select ' + (v === 'urgent' ? 'urgent' : v === 'routine' ? 'routine' : 'same-day');
+  var btn = document.getElementById('timeframeSaveBtn');
+  btn.textContent = 'Save'; btn.className = 'timeframe-save-btn';
+}
+
+async function saveTimeframe() {
+  var sel = document.getElementById('timeframeSelect');
+  var btn = document.getElementById('timeframeSaveBtn');
+  if (!sel) return;
+  btn.textContent = 'Saving...'; btn.disabled = true;
+  if (currentHistoryId) await saveUrgencyOverride(currentHistoryId, sel.value);
+  btn.textContent = 'Saved'; btn.className = 'timeframe-save-btn saved'; btn.disabled = false;
+}
 
 function renderResults(d) {
   var html = '';
-  if (d.non_clinical_flag) {
-    html += '<div class="result-card" style="border-color:var(--amber-mid);"><div class="rc-header"><span class="rc-label" style="color:var(--amber);">Non-Clinical Content Flagged</span><span class="pill pill-amber">Route Away</span></div><div class="rc-body"><ul class="facts-list" style="margin-bottom:12px;">' + d.non_clinical_items.map(function(i){return '<li style="color:var(--amber);">'+esc(i)+'</li>';}).join('') + '</ul><div class="routing-box"><div class="routing-box-label">Suggested Routing Message</div><p>' + esc(d.routing_language) + '</p></div><button class="copy-btn" data-copy="' + esc(d.routing_language) + '">Copy Routing Message</button></div></div>';
+
+  // ── Departments card ──
+  var deptHtml = '<div class="result-card"><div class="rc-header"><span class="rc-label">Departments</span></div><div class="rc-body"><div class="dept-grid">';
+  if (d.non_clinical_flag && d.non_clinical_items && d.non_clinical_items.length) {
+    deptHtml += '<div class="dept-box flagged"><div class="dept-box-label">Non-Clinical — Route Away</div><div class="dept-box-value">' + d.non_clinical_items.map(esc).join('<br>') + '</div></div>';
+    if (d.routing_language) {
+      deptHtml += '<div class="dept-box flagged"><div class="dept-box-label">Routing Message</div><div class="dept-box-value" style="font-style:italic;">' + esc(d.routing_language) + '</div></div>';
+    }
+    deptHtml += '</div>';
+    deptHtml += '<button class="copy-btn" style="margin-top:10px;" data-copy="' + esc(d.routing_language) + '">Copy Routing Message</button>';
   } else {
-    html += '<div class="result-card" style="border-color:var(--green-mid);"><div class="rc-header"><span class="rc-label" style="color:var(--green);">No Non-Clinical Content</span><span class="pill pill-green">Clinical Only</span></div><div class="rc-body"><p style="color:var(--gray-500);font-size:14px;">All content is clinical. No routing needed.</p></div></div>';
+    deptHtml += '<div class="dept-box"><div class="dept-box-label">Clinical Team</div><div class="dept-box-value">All content clinical — no routing needed</div></div>';
+    deptHtml += '<div class="dept-box"><div class="dept-box-label">Billed To</div><div class="dept-box-value">Nursing / Clinical</div></div>';
+    deptHtml += '</div>';
   }
+  deptHtml += '</div></div>';
+  html += deptHtml;
 
-  html += '<div class="result-card"><div class="rc-header"><span class="rc-label">Classification</span></div><div class="rc-body"><div class="meta-row"><div class="meta-box"><div class="meta-box-label">Clinical Category</div><div class="meta-box-value">' + esc(d.clinical_category) + '</div></div><div class="meta-box"><div class="meta-box-label">Response Timeframe</div><div class="meta-box-value ' + urgencyClass(d.urgency) + '">' + urgencyLabel(d.urgency) + '</div></div></div><div style="margin-top:14px;"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--gray-500);margin-bottom:8px;">Key Clinical Facts</div><ul class="facts-list">' + d.clinical_facts.map(function(f){return '<li>'+esc(f)+'</li>';}).join('') + '</ul></div></div></div>';
+  // ── Classification + timeframe card ──
+  html += '<div class="result-card"><div class="rc-header"><span class="rc-label">Classification</span></div><div class="rc-body">' +
+    '<div class="meta-row">' +
+      '<div class="meta-box"><div class="meta-box-label">Clinical Category</div><div class="meta-box-value">' + esc(d.clinical_category) + '</div></div>' +
+      '<div class="meta-box"><div class="meta-box-label">Response Timeframe</div>' + buildTimeframeSelect(d.urgency) + '</div>' +
+    '</div>' +
+    '<div style="margin-top:14px;"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--gray-500);margin-bottom:8px;">Key Clinical Facts</div>' +
+    '<ul class="facts-list">' + d.clinical_facts.map(function(f){return '<li>'+esc(f)+'</li>';}).join('') + '</ul></div>' +
+  '</div></div>';
 
+  // ── Missing info card ──
   if (d.missing_info && d.missing_info.length > 0) {
     html += '<div class="result-card" style="border-color:var(--purple-mid);"><div class="rc-header"><span class="rc-label" style="color:var(--purple);">Missing Info — Ask Patient First</span><span class="pill pill-purple">Follow-Up Needed</span></div><div class="rc-body"><div class="missing-box"><div class="missing-label">What\'s Missing</div><ul class="facts-list" style="margin-bottom:14px;">' + d.missing_info.map(function(m){return '<li style="color:var(--purple);">'+esc(m)+'</li>';}).join('') + '</ul><div class="missing-label">Questions to Send</div><ul class="questions-list">' + d.follow_up_questions.map(function(q){return '<li>'+esc(q)+'</li>';}).join('') + '</ul></div><button class="copy-btn" style="border-color:var(--purple-mid);" data-copy="' + esc(d.follow_up_questions.join('\n')) + '">Copy Questions</button></div></div>';
   }
 
+  // ── Draft response card ──
   var hasMissing = d.missing_info && d.missing_info.length > 0;
   html += '<div class="result-card" style="border-color:var(--teal-mid);"><div class="rc-header"><span class="rc-label" style="color:var(--teal);">' + (hasMissing ? 'Draft Response — Follow-Up Mode' : 'Draft Clinical Response') + '</span><span class="pill ' + (hasMissing ? 'pill-purple">Ask First' : 'pill-teal">Ready to Copy') + '</span></div><div class="rc-body"><div class="response-text">' + esc(d.draft_response).replace(/\n/g,'<br>') + '</div><button class="copy-btn" data-copy="' + esc(d.draft_response) + '">Copy Response</button></div></div>';
 
@@ -540,12 +820,16 @@ function renderResults(d) {
     btn.addEventListener('click', function() {
       navigator.clipboard.writeText(btn.getAttribute('data-copy')).then(function() {
         var orig = btn.textContent;
-        btn.textContent = '✓ Copied!';
-        btn.classList.add('copied');
+        btn.textContent = '✓ Copied!'; btn.classList.add('copied');
         setTimeout(function() { btn.textContent = orig; btn.classList.remove('copied'); }, 2000);
       });
     });
   });
+}
+
+function showToast(msg) {
+  var t = document.getElementById('saveToast'); t.textContent = msg; t.classList.add('show');
+  setTimeout(function() { t.classList.remove('show'); }, 2500);
 }
 
 function esc(str) {
@@ -553,8 +837,9 @@ function esc(str) {
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
-// Pre-load KB in background so triage tab has it ready
+initNurse();
 loadKBFromServer();
+loadSnippets();
 </script>
 </body>
 </html>
