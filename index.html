@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RN Triage · GLP-1 Telehealth</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0d0f12; --surface: #161a1f; --surface2: #1e2329;
+    --border: rgba(255,255,255,0.08); --border2: rgba(255,255,255,0.14);
+    --text: #e8eaed; --muted: #7a8290; --accent: #3b8bff;
+    --accent-dim: rgba(59,139,255,0.12); --green: #2ecc71;
+    --green-dim: rgba(46,204,113,0.12); --amber: #f59e0b;
+    --amber-dim: rgba(245,158,11,0.12); --red: #ef4444;
+    --red-dim: rgba(239,68,68,0.12); --teal: #14b8a6;
+    --teal-dim: rgba(20,184,166,0.12);
+    --mono: 'IBM Plex Mono', monospace; --sans: 'IBM Plex Sans', sans-serif;
+  }
+  body { background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 14px; min-height: 100vh; }
+  .app { display: flex; flex-direction: column; min-height: 100vh; }
+  .topbar { display: flex; align-items: center; justify-content: space-between; padding: 12px 20px; border-bottom: 1px solid var(--border); background: var(--surface); position: sticky; top: 0; z-index: 10; }
+  .topbar-left { display: flex; align-items: center; gap: 10px; }
+  .logo-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+  .logo-text { font-family: var(--mono); font-size: 13px; font-weight: 500; color: var(--text); letter-spacing: 0.04em; }
+  .logo-sub { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  .status-pill { font-family: var(--mono); font-size: 11px; padding: 3px 10px; border-radius: 20px; border: 1px solid var(--border2); color: var(--muted); }
+  .main { display: grid; grid-template-columns: 1fr 1fr; gap: 0; flex: 1; }
+  .panel { padding: 20px; }
+  .panel-left { border-right: 1px solid var(--border); }
+  .panel-label { font-family: var(--mono); font-size: 10px; font-weight: 500; letter-spacing: 0.1em; color: var(--muted); text-transform: uppercase; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+  .panel-label::before { content: '//'; color: var(--border2); }
+  textarea { width: 100%; height: 220px; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-family: var(--sans); font-size: 13px; line-height: 1.6; padding: 12px; resize: vertical; outline: none; transition: border-color 0.15s; }
+  textarea:focus { border-color: var(--border2); }
+  textarea::placeholder { color: var(--muted); }
+  .btn-row { display: flex; gap: 8px; margin-top: 10px; }
+  .btn-primary { flex: 1; padding: 10px 16px; background: var(--accent); border: none; border-radius: 6px; color: #fff; font-family: var(--sans); font-size: 13px; font-weight: 600; cursor: pointer; transition: opacity 0.15s, transform 0.1s; display: flex; align-items: center; justify-content: center; gap: 6px; }
+  .btn-primary:hover { opacity: 0.88; }
+  .btn-primary:active { transform: scale(0.98); }
+  .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn-ghost { padding: 10px 14px; background: transparent; border: 1px solid var(--border2); border-radius: 6px; color: var(--muted); font-family: var(--sans); font-size: 13px; cursor: pointer; transition: all 0.15s; }
+  .btn-ghost:hover { color: var(--text); border-color: var(--border2); background: var(--surface2); }
+  .spinner { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; display: none; }
+  .spinner.active { display: block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .results { display: flex; flex-direction: column; gap: 12px; }
+  .placeholder-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 260px; gap: 10px; color: var(--muted); }
+  .placeholder-icon { font-size: 28px; opacity: 0.3; }
+  .placeholder-text { font-family: var(--mono); font-size: 12px; }
+  .result-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; animation: fadeUp 0.25s ease forwards; opacity: 0; }
+  @keyframes fadeUp { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+  .result-card:nth-child(2) { animation-delay: 0.06s; }
+  .result-card:nth-child(3) { animation-delay: 0.12s; }
+  .result-card:nth-child(4) { animation-delay: 0.18s; }
+  .card-header { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+  .card-title { font-family: var(--mono); font-size: 10px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; }
+  .card-badge { font-family: var(--mono); font-size: 10px; font-weight: 500; padding: 2px 8px; border-radius: 4px; }
+  .badge-clear { background: var(--green-dim); color: var(--green); }
+  .badge-flag { background: var(--amber-dim); color: var(--amber); }
+  .badge-urgent { background: var(--red-dim); color: var(--red); }
+  .badge-cat { background: var(--accent-dim); color: var(--accent); }
+  .badge-teal { background: var(--teal-dim); color: var(--teal); }
+  .card-body { padding: 12px; }
+  .card-body p { font-size: 13px; line-height: 1.65; color: var(--text); }
+  .facts-list { list-style: none; display: flex; flex-direction: column; gap: 5px; }
+  .facts-list li { font-size: 13px; line-height: 1.5; color: var(--text); padding-left: 14px; position: relative; }
+  .facts-list li::before { content: '›'; position: absolute; left: 0; color: var(--accent); font-weight: 600; }
+  .routing-box { background: var(--amber-dim); border: 1px solid rgba(245,158,11,0.2); border-radius: 6px; padding: 10px 12px; margin-top: 8px; }
+  .routing-box .rb-label { font-family: var(--mono); font-size: 10px; color: var(--amber); letter-spacing: 0.06em; margin-bottom: 5px; }
+  .routing-box p { font-size: 12px; line-height: 1.6; color: rgba(245,158,11,0.85); font-style: italic; }
+  .response-area { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 12px; font-size: 13px; line-height: 1.7; color: var(--text); white-space: pre-wrap; font-family: var(--sans); min-height: 80px; }
+  .copy-btn { margin-top: 8px; width: 100%; padding: 8px; background: transparent; border: 1px solid var(--border2); border-radius: 6px; color: var(--muted); font-family: var(--mono); font-size: 11px; cursor: pointer; transition: all 0.15s; letter-spacing: 0.05em; }
+  .copy-btn:hover { background: var(--surface); color: var(--text); border-color: var(--accent); }
+  .copy-btn.copied { color: var(--green); border-color: var(--green); }
+  .error-state { background: var(--red-dim); border: 1px solid rgba(239,68,68,0.2); border-radius: 6px; padding: 12px; font-size: 13px; color: var(--red); line-height: 1.6; }
+  @media (max-width: 680px) { .main { grid-template-columns: 1fr; } .panel-left { border-right: none; border-bottom: 1px solid var(--border); } }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="logo-dot"></div>
+      <div>
+        <div class="logo-text">RN TRIAGE</div>
+        <div class="logo-sub">GLP-1 Telehealth · Clinical Message Processor</div>
+      </div>
+    </div>
+    <div class="status-pill" id="statusPill">ready</div>
+  </div>
+  <div class="main">
+    <div class="panel panel-left">
+      <div class="panel-label">Patient message input</div>
+      <textarea id="msgInput" placeholder="Paste the patient's message here — the full thing, however long.&#10;&#10;Examples:&#10;· GI side effects + billing question in same message&#10;· Weight plateau concerns&#10;· Injection site questions&#10;· Missed dose / dose timing&#10;· 'I haven't lost anything yet' messages"></textarea>
+      <div class="btn-row">
+        <button class="btn-primary" id="triageBtn" onclick="runTriage()">
+          <span id="btnText">Run triage</span>
+          <div class="spinner" id="btnSpinner"></div>
+        </button>
+        <button class="btn-ghost" onclick="clearAll()">Clear</button>
+      </div>
+      <div style="margin-top: 16px;">
+        <div class="panel-label">Quick inserts</div>
+        <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px;">
+          <button class="btn-ghost" style="font-size: 11px; padding: 5px 10px;" onclick="insertSample('gi')">GI side effects</button>
+          <button class="btn-ghost" style="font-size: 11px; padding: 5px 10px;" onclick="insertSample('plateau')">Weight plateau</button>
+          <button class="btn-ghost" style="font-size: 11px; padding: 5px 10px;" onclick="insertSample('mixed')">Mixed (billing+clinical)</button>
+          <button class="btn-ghost" style="font-size: 11px; padding: 5px 10px;" onclick="insertSample('injection')">Injection concern</button>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-label">Triage output</div>
+      <div class="results" id="results">
+        <div class="placeholder-state">
+          <div class="placeholder-icon">⌁</div>
+          <div class="placeholder-text">awaiting message input</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+const SAMPLES = {
+  gi: `Hi, I'm on week 3 of tirzepatide 5mg. The nausea is really bad, especially in the mornings. I feel like I can't eat anything without feeling sick. I've been trying to eat small meals but even a few crackers make me nauseous. I also have really bad constipation, like I haven't gone in 5 days. I'm drinking water but it's not helping. I did lose 4 lbs in the first two weeks which was exciting but the side effects are making me want to quit. Should I drop back to 2.5mg? Also I'm not sure if my next shipment is supposed to come this week or next, can you check on that?`,
+  plateau: `I started my GLP-1 journey 6 weeks ago and the first 3 weeks I lost 8 pounds which was amazing. But for the past 2.5 weeks I haven't lost a single pound. The scale hasn't moved at all. I'm eating between 1200-1400 calories a day, tracking everything in MyFitnessPal, doing 3x weekly walks. I'm still on 2.5mg and haven't gone up yet. Is the medication even still working? My friend started at the same time and she's already down 18 pounds. I'm getting really discouraged and wondering if I should just stop. My clothes do fit differently but the number on the scale is exactly the same. What am I doing wrong?`,
+  mixed: `Good morning! I have a few things. First the clinical stuff — I've been getting really bad acid reflux since starting semaglutide last month, way worse than before. I take it Sunday mornings and by Monday afternoon I'm getting this burning in my chest that lasts most of the day. I'm already on omeprazole 20mg once daily. Should I take that differently? I also have been really tired, like way more than normal, not sure if that's the medication. Second thing — my credit card got declined when you tried to charge me this month, I updated my payment info in the portal but I'm not sure it went through. Can an RN confirm that? And my package from 3 weeks ago still shows "label created" in the tracking, is that normal?`,
+  injection: `I've been doing my semaglutide injections in my stomach but I'm getting these hard bumps that last like a week after each shot. The last one got a little red too, not hot just kind of pink. I've been rotating sites but staying in the same general stomach area. Does this mean I'm doing it wrong? Should I switch to my thigh? Also I accidentally left my pen out of the fridge for about 14 hours yesterday, is it still okay to use? I'm supposed to inject tomorrow.`
+};
+
+function insertSample(key) { document.getElementById('msgInput').value = SAMPLES[key]; }
+
+function clearAll() {
+  document.getElementById('msgInput').value = '';
+  document.getElementById('results').innerHTML = `<div class="placeholder-state"><div class="placeholder-icon">⌁</div><div class="placeholder-text">awaiting message input</div></div>`;
+  setStatus('ready');
+}
+
+function setStatus(text) { document.getElementById('statusPill').textContent = text; }
+
+function setLoading(on) {
+  const btn = document.getElementById('triageBtn');
+  document.getElementById('btnText').textContent = on ? 'Processing...' : 'Run triage';
+  document.getElementById('btnSpinner').className = on ? 'spinner active' : 'spinner';
+  btn.disabled = on;
+}
+
+async function runTriage() {
+  const msg = document.getElementById('msgInput').value.trim();
+  if (!msg) return;
+  setLoading(true);
+  setStatus('processing');
+  const results = document.getElementById('results');
+  results.innerHTML = `<div style="display:flex;align-items:center;gap:10px;color:var(--muted);font-family:var(--mono);font-size:12px;padding:20px 0;"><div class="spinner active"></div>Analyzing message...</div>`;
+
+  const systemPrompt = `You are a clinical triage assistant for an RN working at a GLP-1 telehealth platform. Output structured JSON only — no prose, no markdown, no explanation outside the JSON.
+
+Return ONLY this JSON structure:
+{
+  "non_clinical_flag": true or false,
+  "non_clinical_items": ["list of billing/shipping/payment/account items, empty if none"],
+  "routing_language": "1-2 sentence routing message if non_clinical_flag is true, else empty string",
+  "clinical_category": one of: "GI side effects","Weight plateau","No early weight loss","Injection / administration","Dosing question","Skin/site reaction","Medication storage","Urgent - escalate","General / multiple",
+  "urgency": one of: "routine","same-day","urgent",
+  "clinical_facts": ["3-6 concise bullet strings: medication, dose, week of therapy, symptoms, duration, relevant history"],
+  "draft_response": "Warm, professional, personalized RN response to clinical content only. 3-5 sentences. Uses patient's specific details. Actionable. Under 120 words. No bullet points."
+}
+
+Urgency: urgent=pancreatitis/severe vomiting/tachycardia/thyroid symptoms. same-day=moderate GI/infection signs/storage error. routine=weight concerns/mild side effects.`;
+
+  try {
+    const response = await fetch("/.netlify/functions/triage", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 1000,
+        system: systemPrompt,
+        messages: [{ role: "user", content: `Patient message:\n\n${msg}` }]
+      })
+    });
+
+    const data = await response.json();
+    if (data.error) throw new Error(typeof data.error === 'string' ? data.error : data.error.message || JSON.stringify(data.error));
+    const rawText = data.content?.map(b => b.text || '').join('');
+    if (!rawText) throw new Error("Empty response from API.");
+    const parsed = JSON.parse(rawText.replace(/```json|```/g, '').trim());
+    renderResults(parsed);
+    setStatus('complete');
+  } catch (err) {
+    results.innerHTML = `<div class="error-state"><strong>Error:</strong> ${err.message}</div>`;
+    setStatus('error');
+  } finally {
+    setLoading(false);
+  }
+}
+
+function urgencyClass(u) {
+  return u === 'urgent' ? 'badge-urgent' : u === 'same-day' ? 'badge-flag' : 'badge-clear';
+}
+
+function renderResults(d) {
+  const nonClinical = d.non_clinical_flag ? `
+    <div class="result-card" style="border-color:rgba(245,158,11,0.25);">
+      <div class="card-header">
+        <div class="card-title" style="color:var(--amber);">Non-clinical content flagged</div>
+        <span class="card-badge badge-flag">ROUTE AWAY</span>
+      </div>
+      <div class="card-body">
+        <ul class="facts-list" style="margin-bottom:10px;">${d.non_clinical_items.map(i=>`<li style="color:var(--amber);">${i}</li>`).join('')}</ul>
+        <div class="routing-box">
+          <div class="rb-label">SUGGESTED ROUTING MESSAGE</div>
+          <p>${d.routing_language}</p>
+        </div>
+        <button class="copy-btn" onclick="copyText(this,${JSON.stringify(d.routing_language)})">COPY ROUTING MESSAGE</button>
+      </div>
+    </div>` : `
+    <div class="result-card" style="border-color:rgba(46,204,113,0.2);">
+      <div class="card-header">
+        <div class="card-title" style="color:var(--green);">No non-clinical content</div>
+        <span class="card-badge badge-clear">CLINICAL ONLY</span>
+      </div>
+      <div class="card-body"><p style="color:var(--muted);font-size:12px;">All content is clinical. No routing needed.</p></div>
+    </div>`;
+
+  const category = `
+    <div class="result-card">
+      <div class="card-header">
+        <div class="card-title">Category & urgency</div>
+        <div style="display:flex;gap:6px;">
+          <span class="card-badge badge-cat">${d.clinical_category}</span>
+          <span class="card-badge ${urgencyClass(d.urgency)}">${d.urgency.toUpperCase()}</span>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="panel-label" style="margin-bottom:8px;">Key clinical facts</div>
+        <ul class="facts-list">${d.clinical_facts.map(f=>`<li>${f}</li>`).join('')}</ul>
+      </div>
+    </div>`;
+
+  const draftResponse = `
+    <div class="result-card">
+      <div class="card-header">
+        <div class="card-title" style="color:var(--teal);">Draft clinical response</div>
+        <span class="card-badge badge-teal">READY TO COPY</span>
+      </div>
+      <div class="card-body">
+        <div class="response-area">${d.draft_response}</div>
+        <button class="copy-btn" onclick="copyText(this,${JSON.stringify(d.draft_response)})">COPY RESPONSE</button>
+      </div>
+    </div>`;
+
+  document.getElementById('results').innerHTML = nonClinical + category + draftResponse;
+}
+
+function copyText(btn, text) {
+  navigator.clipboard.writeText(text).then(() => {
+    const original = btn.textContent;
+    btn.textContent = '✓ COPIED';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = original; btn.classList.remove('copied'); }, 2000);
+  });
+}
+</script>
+</body>
+</html>
