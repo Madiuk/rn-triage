@@ -284,7 +284,7 @@
   <div class="kb-layout">
     <div class="kb-header">
       <h2>Knowledge Base</h2>
-      <p>Add text-expanders, protocols, URLs, and routing rules. Everything syncs to the team automatically when you save.</p>
+      <p>Add protocols, URLs, General notes, and routing rules. Everything syncs to the team automatically when you save.</p>
     </div>
 
     <div class="kb-sync-bar" id="syncBar"><span id="syncMsg">Loading...</span></div>
@@ -296,13 +296,13 @@
         <div class="entry-add-row">
           <input class="entry-title-input" type="text" id="entryTitle" placeholder="Title (e.g. Nausea — extended, Plateau questions)">
           <select class="entry-section-select" id="entrySection">
-            <option value="protocols">Clinical Protocol / Text Expander</option>
+            <option value="protocols">Clinical Protocol</option>
             <option value="urls">URL / Resource</option>
             <option value="routing">Routing Rule</option>
             <option value="notes">General Note</option>
           </select>
         </div>
-        <textarea class="entry-content-area" id="entryContent" placeholder="Paste your text expander or protocol here. Write exactly how you want the AI to understand it — preserve your formatting and line breaks. You can also write instructions like: 'Change the TDEE URL to: https://newurl.com'"></textarea>
+        <textarea class="entry-content-area" id="entryContent" placeholder="Paste your content here. Write exactly how you want the AI to understand it — preserve your formatting and line breaks. You can also write instructions like: 'Change the TDEE URL to: https://newurl.com'"></textarea>
         <div class="entry-submit-row">
           <button class="entry-submit-btn" id="entrySubmitBtn" onclick="submitEntry()">
             <span id="entrySubmitTxt">Save &amp; Sync to Team</span>
