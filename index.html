@@ -15,7 +15,8 @@
     --green-dim: rgba(46,204,113,0.12); --amber: #f59e0b;
     --amber-dim: rgba(245,158,11,0.12); --red: #ef4444;
     --red-dim: rgba(239,68,68,0.12); --teal: #14b8a6;
-    --teal-dim: rgba(20,184,166,0.12);
+    --teal-dim: rgba(20,184,166,0.12); --purple: #a78bfa;
+    --purple-dim: rgba(167,139,250,0.12);
     --mono: 'IBM Plex Mono', monospace; --sans: 'IBM Plex Sans', sans-serif;
   }
   body { background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 14px; min-height: 100vh; }
@@ -53,6 +54,7 @@
   .result-card:nth-child(2) { animation-delay: 0.06s; }
   .result-card:nth-child(3) { animation-delay: 0.12s; }
   .result-card:nth-child(4) { animation-delay: 0.18s; }
+  .result-card:nth-child(5) { animation-delay: 0.22s; }
   .card-header { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid var(--border); }
   .card-title { font-family: var(--mono); font-size: 10px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; }
   .card-badge { font-family: var(--mono); font-size: 10px; font-weight: 500; padding: 2px 8px; border-radius: 4px; }
@@ -61,11 +63,15 @@
   .badge-urgent { background: var(--red-dim); color: var(--red); }
   .badge-cat { background: var(--accent-dim); color: var(--accent); }
   .badge-teal { background: var(--teal-dim); color: var(--teal); }
+  .badge-purple { background: var(--purple-dim); color: var(--purple); }
   .card-body { padding: 12px; }
   .card-body p { font-size: 13px; line-height: 1.65; color: var(--text); }
   .facts-list { list-style: none; display: flex; flex-direction: column; gap: 5px; }
   .facts-list li { font-size: 13px; line-height: 1.5; color: var(--text); padding-left: 14px; position: relative; }
   .facts-list li::before { content: '›'; position: absolute; left: 0; color: var(--accent); font-weight: 600; }
+  .questions-list { list-style: none; display: flex; flex-direction: column; gap: 5px; }
+  .questions-list li { font-size: 13px; line-height: 1.5; color: var(--purple); padding-left: 14px; position: relative; }
+  .questions-list li::before { content: '?'; position: absolute; left: 0; color: var(--purple); font-weight: 600; font-family: var(--mono); font-size: 11px; top: 1px; }
   .routing-box { background: var(--amber-dim); border: 1px solid rgba(245,158,11,0.2); border-radius: 6px; padding: 10px 12px; margin-top: 8px; }
   .routing-box .rb-label { font-family: var(--mono); font-size: 10px; color: var(--amber); letter-spacing: 0.06em; margin-bottom: 5px; }
   .routing-box p { font-size: 12px; line-height: 1.6; color: rgba(245,158,11,0.85); font-style: italic; }
@@ -107,6 +113,8 @@
           <button class="btn-ghost" style="font-size: 11px; padding: 5px 10px;" onclick="insertSample('plateau')">Weight plateau</button>
           <button class="btn-ghost" style="font-size: 11px; padding: 5px 10px;" onclick="insertSample('mixed')">Mixed (billing+clinical)</button>
           <button class="btn-ghost" style="font-size: 11px; padding: 5px 10px;" onclick="insertSample('injection')">Injection concern</button>
+          <button class="btn-ghost" style="font-size: 11px; padding: 5px 10px;" onclick="insertSample('hair')">Hair loss</button>
+          <button class="btn-ghost" style="font-size: 11px; padding: 5px 10px;" onclick="insertSample('fatigue')">Fatigue</button>
         </div>
       </div>
     </div>
@@ -114,36 +122,79 @@
       <div class="panel-label">Triage output</div>
       <div class="results" id="results">
         <div class="placeholder-state">
-          <div class="placeholder-icon">⌁</div>
+          <div class="placeholder-icon">&#8961;</div>
           <div class="placeholder-text">awaiting message input</div>
         </div>
       </div>
     </div>
   </div>
 </div>
+
 <script>
 const SAMPLES = {
-  gi: `Hi, I'm on week 3 of tirzepatide 5mg. The nausea is really bad, especially in the mornings. I feel like I can't eat anything without feeling sick. I've been trying to eat small meals but even a few crackers make me nauseous. I also have really bad constipation, like I haven't gone in 5 days. I'm drinking water but it's not helping. I did lose 4 lbs in the first two weeks which was exciting but the side effects are making me want to quit. Should I drop back to 2.5mg? Also I'm not sure if my next shipment is supposed to come this week or next, can you check on that?`,
-  plateau: `I started my GLP-1 journey 6 weeks ago and the first 3 weeks I lost 8 pounds which was amazing. But for the past 2.5 weeks I haven't lost a single pound. The scale hasn't moved at all. I'm eating between 1200-1400 calories a day, tracking everything in MyFitnessPal, doing 3x weekly walks. I'm still on 2.5mg and haven't gone up yet. Is the medication even still working? My friend started at the same time and she's already down 18 pounds. I'm getting really discouraged and wondering if I should just stop. My clothes do fit differently but the number on the scale is exactly the same. What am I doing wrong?`,
-  mixed: `Good morning! I have a few things. First the clinical stuff — I've been getting really bad acid reflux since starting semaglutide last month, way worse than before. I take it Sunday mornings and by Monday afternoon I'm getting this burning in my chest that lasts most of the day. I'm already on omeprazole 20mg once daily. Should I take that differently? I also have been really tired, like way more than normal, not sure if that's the medication. Second thing — my credit card got declined when you tried to charge me this month, I updated my payment info in the portal but I'm not sure it went through. Can an RN confirm that? And my package from 3 weeks ago still shows "label created" in the tracking, is that normal?`,
-  injection: `I've been doing my semaglutide injections in my stomach but I'm getting these hard bumps that last like a week after each shot. The last one got a little red too, not hot just kind of pink. I've been rotating sites but staying in the same general stomach area. Does this mean I'm doing it wrong? Should I switch to my thigh? Also I accidentally left my pen out of the fridge for about 14 hours yesterday, is it still okay to use? I'm supposed to inject tomorrow.`
+  gi: "Hi, I'm on week 3 of tirzepatide 5mg. The nausea is really bad, especially in the mornings. I feel like I can't eat anything without feeling sick. I've been trying to eat small meals but even a few crackers make me nauseous. I also have really bad constipation, like I haven't gone in 5 days. I'm drinking water but it's not helping. I did lose 4 lbs in the first two weeks which was exciting but the side effects are making me want to quit. Should I drop back to 2.5mg? Also I'm not sure if my next shipment is supposed to come this week or next, can you check on that?",
+  plateau: "I started my GLP-1 journey 6 weeks ago and the first 3 weeks I lost 8 pounds which was amazing. But for the past 2.5 weeks I haven't lost a single pound. The scale hasn't moved at all. I'm eating between 1200-1400 calories a day, tracking everything in MyFitnessPal, doing 3x weekly walks. I'm still on 2.5mg and haven't gone up yet. Is the medication even still working? My friend started at the same time and she's already down 18 pounds. I'm getting really discouraged and wondering if I should just stop. My clothes do fit differently but the number on the scale is exactly the same. What am I doing wrong?",
+  mixed: "Good morning! I have a few things. First the clinical stuff — I've been getting really bad acid reflux since starting semaglutide last month, way worse than before. I take it Sunday mornings and by Monday afternoon I'm getting this burning in my chest that lasts most of the day. I'm already on omeprazole 20mg once daily. Should I take that differently? I also have been really tired, like way more than normal, not sure if that's the medication. Second thing — my credit card got declined when you tried to charge me this month, I updated my payment info in the portal but I'm not sure it went through. Can an RN confirm that? And my package from 3 weeks ago still shows label created in the tracking, is that normal?",
+  injection: "I've been doing my semaglutide injections in my stomach but I'm getting these hard bumps that last like a week after each shot. The last one got a little red too, not hot just kind of pink. I've been rotating sites but staying in the same general stomach area. Does this mean I'm doing it wrong? Should I switch to my thigh? Also I accidentally left my pen out of the fridge for about 14 hours yesterday, is it still okay to use? I'm supposed to inject tomorrow.",
+  hair: "I've been on semaglutide for about 3 months now and I've lost 18 pounds which is great. But for the last few weeks I've noticed a LOT more hair coming out in the shower and when I brush my hair. I'm kind of freaking out. Is this from the medication? Is it going to stop? Should I stop taking it?",
+  fatigue: "I've been on tirzepatide for 6 weeks, currently at 5mg. I feel exhausted all the time. Like I can barely get through the day. I'm sleeping 8 hours but still feel like I haven't slept. I've also noticed I feel a little shaky sometimes, especially in the afternoons. I've cut my calories way down, probably eating around 800 calories a day because I'm just not hungry. Is the fatigue from the medication?"
 };
+
+const SYSTEM_PROMPT = `You are a clinical triage assistant for an experienced RN working at a GLP-1 telehealth platform. You draft responses in the RN's established clinical voice — warm, practical, specific, and never generic. You have deep knowledge of this RN's protocols and preferred recommendations.
+
+OUTPUT: Return ONLY a valid JSON object. No markdown, no prose outside the JSON, no code fences.
+
+JSON structure:
+{
+  "non_clinical_flag": boolean,
+  "non_clinical_items": ["list of billing/shipping/payment/account items found, empty array if none"],
+  "routing_language": "If non_clinical_flag true: 1-2 sentence message routing non-clinical content to support team, acknowledging it separately from clinical care. If false: empty string.",
+  "clinical_category": "one of: GI side effects, Weight plateau, No early weight loss, Food noise / cravings, Hair loss, Fatigue, Heartburn / reflux, Diarrhea, Injection / administration, Dosing question, Skin/site reaction, Medication storage, Urgent - escalate, General / multiple",
+  "urgency": "one of: routine, same-day, urgent",
+  "clinical_facts": ["3-6 concise strings: medication name, dose, week of therapy, specific symptoms, duration, relevant history, anything already tried"],
+  "missing_info": ["list of critical missing details needed to give good advice. Empty array if message has enough info."],
+  "follow_up_questions": ["list of specific questions to ask patient if missing_info is not empty. Use the RN voice style. Empty array if not needed."],
+  "draft_response": "Full response in the RN voice using clinical protocols. Personalized with patient details. If missing_info is not empty, draft asks follow-up questions instead of giving full advice. If all info present, give complete actionable advice. 150 words max. No bullet points — write in flowing sentences with natural paragraph breaks using newline characters."
+}
+
+=== RN CLINICAL PROTOCOLS ===
+
+NAUSEA: Caused by delayed gastric emptying. Recommend smaller meals, slower eating, food in containers/baggies in fridge to graze throughout day, avoid fatty/greasy/acidic/heavy foods. OTC: Tums, Pepto Bismol, Famotadine/Pepcid. Rx option: Ondansetron/Zofran — if recommending, ALWAYS ask for local pharmacy name, address, and phone number. Missing info triggers: severity affecting intake, duration, current foods.
+
+HEARTBURN/REFLUX: Caused by delayed gastric emptying and overeating relative to stomach capacity. OTC: Pepcid/famotadine, Prilosec/omeprazole, Nexium/esomeprazole, Pepto Bismol, Tums. Dietary: decrease fatty/greasy/acidic foods, coffee/energy drinks/sodas. Eat slowly, smaller bites, split meals into sessions.
+
+DIARRHEA: Bland diet (bananas, rice, bread, crackers). Increase fiber. Imodium per label starting low dose. Pepto Bismol. Hydration critical: Pedialyte, Gatorade, coconut water, electrolyte water. RED FLAGS requiring ER/urgent care: blood in stool, severe abdominal pain, diarrhea more than 3 days affecting daily living.
+
+FATIGUE: Usually caused by too-low calorie intake. RED FLAG: shakiness, sweating, confusion = possible hypoglycemia — immediate action: fruit juice, peanut butter and bread, milk, regular soda. Recommendations: calorie tracking on MyFitnessPal, hydration 60-100oz/day, electrolytes (Gatorade/Pedialyte/coconut water), multivitamin plus B12, slow-burning carbs (brown rice, sweet potatoes, broccoli, lentils), light exercise like walks for endorphins. Missing info: daily calorie intake, water intake, whether tracking on app.
+
+HAIR LOSS: Telogen effluvium — reassure it is common, expected, and usually temporary. Hair regrows in next growth cycle. Recommendations: multivitamin, adequate protein, green leafy vegetables.
+
+WEIGHT PLATEAU: Normalize weight fluctuations. Metabolism can slow and retain water causing temporary scale increases. Recommend once-weekly weigh-ins only, same day/time/scale. TDEE calculator at https://tdee.is/ — important to avoid starvation mode from too large a deficit. Suggest tape measure and how clothes fit as additional metrics. ALWAYS ask these questions if patient has not answered them: Are you experiencing food noise or cravings returning during the day? How many calories per day and are you tracking on LoseIt or MyFitnessPal? Are you drinking at minimum 60oz of water per day? Are you eating fiber through supplement or fruits and vegetables? How much protein per day? What does your exercise routine look like?
+
+NO EARLY WEIGHT LOSS / FOOD NOISE: Half-life explanation — medication peaks then wanes, food noise returns around day 4-5 post-injection, this is normal. Recommendations: adequate protein, small snacks all day (nuts, seeds, protein bites), slow-burning carbs, whole non-processed foods, fiber, 1oz water per pound bodyweight, multivitamin plus probiotic, exercise including 15-30 min walks. TDEE: https://tdee.is/. Weigh once per week only.
+
+INJECTION/SITE REACTIONS: Rotate sites between abdomen, thigh, back of upper arm. Hard bumps = lipohypertrophy from insufficient rotation. Pink/red without warmth = local reaction, usually benign, monitor. Warmth plus spreading redness plus fever = possible infection, escalate same-day.
+
+MEDICATION STORAGE: Refrigerate pens, do not freeze. 14 hours out of fridge generally within acceptable range for most GLP-1 pens but flag for same-day if next dose is imminent.
+
+URGENCY: urgent = pancreatitis symptoms (severe upper abdominal pain radiating to back), persistent severe vomiting, tachycardia, thyroid symptoms (neck mass/hoarseness/dysphagia), suicidal ideation, severe hypoglycemia unresponsive to food. same-day = moderate-severe GI affecting intake, injection site with warmth/spreading redness/fever, storage error for imminent dose, shakiness/sweating/confusion, diarrhea more than 3 days. routine = weight concerns, mild side effects, hair loss, general questions, food noise.
+
+VOICE: Warm but efficient. Specific and actionable. Use brand names alongside generic names. Normalize common side effects without dismissing them. Reference TDEE calculator https://tdee.is/ for weight discussions. Never use bullet points in draft_response.`;
 
 function insertSample(key) { document.getElementById('msgInput').value = SAMPLES[key]; }
 
 function clearAll() {
   document.getElementById('msgInput').value = '';
-  document.getElementById('results').innerHTML = `<div class="placeholder-state"><div class="placeholder-icon">⌁</div><div class="placeholder-text">awaiting message input</div></div>`;
+  document.getElementById('results').innerHTML = '<div class="placeholder-state"><div class="placeholder-icon">&#8961;</div><div class="placeholder-text">awaiting message input</div></div>';
   setStatus('ready');
 }
 
 function setStatus(text) { document.getElementById('statusPill').textContent = text; }
 
 function setLoading(on) {
-  const btn = document.getElementById('triageBtn');
   document.getElementById('btnText').textContent = on ? 'Processing...' : 'Run triage';
   document.getElementById('btnSpinner').className = on ? 'spinner active' : 'spinner';
-  btn.disabled = on;
+  document.getElementById('triageBtn').disabled = on;
 }
 
 async function runTriage() {
@@ -152,44 +203,29 @@ async function runTriage() {
   setLoading(true);
   setStatus('processing');
   const results = document.getElementById('results');
-  results.innerHTML = `<div style="display:flex;align-items:center;gap:10px;color:var(--muted);font-family:var(--mono);font-size:12px;padding:20px 0;"><div class="spinner active"></div>Analyzing message...</div>`;
-
-  const systemPrompt = `You are a clinical triage assistant for an RN working at a GLP-1 telehealth platform. Output structured JSON only — no prose, no markdown, no explanation outside the JSON.
-
-Return ONLY this JSON structure:
-{
-  "non_clinical_flag": true or false,
-  "non_clinical_items": ["list of billing/shipping/payment/account items, empty if none"],
-  "routing_language": "1-2 sentence routing message if non_clinical_flag is true, else empty string",
-  "clinical_category": one of: "GI side effects","Weight plateau","No early weight loss","Injection / administration","Dosing question","Skin/site reaction","Medication storage","Urgent - escalate","General / multiple",
-  "urgency": one of: "routine","same-day","urgent",
-  "clinical_facts": ["3-6 concise bullet strings: medication, dose, week of therapy, symptoms, duration, relevant history"],
-  "draft_response": "Warm, professional, personalized RN response to clinical content only. 3-5 sentences. Uses patient's specific details. Actionable. Under 120 words. No bullet points."
-}
-
-Urgency: urgent=pancreatitis/severe vomiting/tachycardia/thyroid symptoms. same-day=moderate GI/infection signs/storage error. routine=weight concerns/mild side effects.`;
+  results.innerHTML = '<div style="display:flex;align-items:center;gap:10px;color:var(--muted);font-family:var(--mono);font-size:12px;padding:20px 0;"><div class="spinner active"></div>Analyzing message...</div>';
 
   try {
-    const response = await fetch("/.netlify/functions/triage", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+    const response = await fetch('/.netlify/functions/triage', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: "claude-sonnet-4-5",
-        max_tokens: 1000,
-        system: systemPrompt,
-        messages: [{ role: "user", content: `Patient message:\n\n${msg}` }]
+        model: 'claude-sonnet-4-5',
+        max_tokens: 1200,
+        system: SYSTEM_PROMPT,
+        messages: [{ role: 'user', content: 'Patient message:\n\n' + msg }]
       })
     });
 
     const data = await response.json();
-    if (data.error) throw new Error(typeof data.error === 'string' ? data.error : data.error.message || JSON.stringify(data.error));
-    const rawText = data.content?.map(b => b.text || '').join('');
-    if (!rawText) throw new Error("Empty response from API.");
+    if (data.error) throw new Error(typeof data.error === 'string' ? data.error : (data.error.message || JSON.stringify(data.error)));
+    const rawText = (data.content || []).map(function(b) { return b.text || ''; }).join('');
+    if (!rawText) throw new Error('Empty response from API.');
     const parsed = JSON.parse(rawText.replace(/```json|```/g, '').trim());
     renderResults(parsed);
     setStatus('complete');
   } catch (err) {
-    results.innerHTML = `<div class="error-state"><strong>Error:</strong> ${err.message}</div>`;
+    results.innerHTML = '<div class="error-state"><strong>Error:</strong> ' + err.message + '</div>';
     setStatus('error');
   } finally {
     setLoading(false);
@@ -197,69 +233,47 @@ Urgency: urgent=pancreatitis/severe vomiting/tachycardia/thyroid symptoms. same-
 }
 
 function urgencyClass(u) {
-  return u === 'urgent' ? 'badge-urgent' : u === 'same-day' ? 'badge-flag' : 'badge-clear';
+  if (u === 'urgent') return 'badge-urgent';
+  if (u === 'same-day') return 'badge-flag';
+  return 'badge-clear';
+}
+
+function esc(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 function renderResults(d) {
-  const nonClinical = d.non_clinical_flag ? `
-    <div class="result-card" style="border-color:rgba(245,158,11,0.25);">
-      <div class="card-header">
-        <div class="card-title" style="color:var(--amber);">Non-clinical content flagged</div>
-        <span class="card-badge badge-flag">ROUTE AWAY</span>
-      </div>
-      <div class="card-body">
-        <ul class="facts-list" style="margin-bottom:10px;">${d.non_clinical_items.map(i=>`<li style="color:var(--amber);">${i}</li>`).join('')}</ul>
-        <div class="routing-box">
-          <div class="rb-label">SUGGESTED ROUTING MESSAGE</div>
-          <p>${d.routing_language}</p>
-        </div>
-        <button class="copy-btn" onclick="copyText(this,${JSON.stringify(d.routing_language)})">COPY ROUTING MESSAGE</button>
-      </div>
-    </div>` : `
-    <div class="result-card" style="border-color:rgba(46,204,113,0.2);">
-      <div class="card-header">
-        <div class="card-title" style="color:var(--green);">No non-clinical content</div>
-        <span class="card-badge badge-clear">CLINICAL ONLY</span>
-      </div>
-      <div class="card-body"><p style="color:var(--muted);font-size:12px;">All content is clinical. No routing needed.</p></div>
-    </div>`;
+  var nonClinical = d.non_clinical_flag
+    ? '<div class="result-card" style="border-color:rgba(245,158,11,0.25);"><div class="card-header"><div class="card-title" style="color:var(--amber);">Non-clinical content flagged</div><span class="card-badge badge-flag">ROUTE AWAY</span></div><div class="card-body"><ul class="facts-list" style="margin-bottom:10px;">' + d.non_clinical_items.map(function(i){return '<li style="color:var(--amber);">'+esc(i)+'</li>';}).join('') + '</ul><div class="routing-box"><div class="rb-label">SUGGESTED ROUTING MESSAGE</div><p>' + esc(d.routing_language) + '</p></div><button class="copy-btn" data-copy="' + esc(d.routing_language) + '">COPY ROUTING MESSAGE</button></div></div>'
+    : '<div class="result-card" style="border-color:rgba(46,204,113,0.2);"><div class="card-header"><div class="card-title" style="color:var(--green);">No non-clinical content</div><span class="card-badge badge-clear">CLINICAL ONLY</span></div><div class="card-body"><p style="color:var(--muted);font-size:12px;">All content is clinical. No routing needed.</p></div></div>';
 
-  const category = `
-    <div class="result-card">
-      <div class="card-header">
-        <div class="card-title">Category & urgency</div>
-        <div style="display:flex;gap:6px;">
-          <span class="card-badge badge-cat">${d.clinical_category}</span>
-          <span class="card-badge ${urgencyClass(d.urgency)}">${d.urgency.toUpperCase()}</span>
-        </div>
-      </div>
-      <div class="card-body">
-        <div class="panel-label" style="margin-bottom:8px;">Key clinical facts</div>
-        <ul class="facts-list">${d.clinical_facts.map(f=>`<li>${f}</li>`).join('')}</ul>
-      </div>
-    </div>`;
+  var category = '<div class="result-card"><div class="card-header"><div class="card-title">Category & urgency</div><div style="display:flex;gap:6px;"><span class="card-badge badge-cat">' + esc(d.clinical_category) + '</span><span class="card-badge ' + urgencyClass(d.urgency) + '">' + esc(d.urgency.toUpperCase()) + '</span></div></div><div class="card-body"><div class="panel-label" style="margin-bottom:8px;">Key clinical facts</div><ul class="facts-list">' + d.clinical_facts.map(function(f){return '<li>'+esc(f)+'</li>';}).join('') + '</ul></div></div>';
 
-  const draftResponse = `
-    <div class="result-card">
-      <div class="card-header">
-        <div class="card-title" style="color:var(--teal);">Draft clinical response</div>
-        <span class="card-badge badge-teal">READY TO COPY</span>
-      </div>
-      <div class="card-body">
-        <div class="response-area">${d.draft_response}</div>
-        <button class="copy-btn" onclick="copyText(this,${JSON.stringify(d.draft_response)})">COPY RESPONSE</button>
-      </div>
-    </div>`;
+  var followUp = '';
+  if (d.missing_info && d.missing_info.length > 0) {
+    followUp = '<div class="result-card" style="border-color:rgba(167,139,250,0.25);"><div class="card-header"><div class="card-title" style="color:var(--purple);">Missing info — ask patient first</div><span class="card-badge badge-purple">FOLLOW-UP NEEDED</span></div><div class="card-body"><div class="panel-label" style="margin-bottom:8px;color:var(--purple);">What\'s missing</div><ul class="facts-list" style="margin-bottom:12px;">' + d.missing_info.map(function(m){return '<li style="color:var(--purple);">'+esc(m)+'</li>';}).join('') + '</ul><div class="panel-label" style="margin-bottom:8px;color:var(--purple);">Questions to send</div><ul class="questions-list">' + d.follow_up_questions.map(function(q){return '<li>'+esc(q)+'</li>';}).join('') + '</ul><button class="copy-btn" style="border-color:rgba(167,139,250,0.3);margin-top:10px;" data-copy="' + esc(d.follow_up_questions.join('\n')) + '">COPY QUESTIONS</button></div></div>';
+  }
 
-  document.getElementById('results').innerHTML = nonClinical + category + draftResponse;
-}
+  var hasMissing = d.missing_info && d.missing_info.length > 0;
+  var draftTitle = hasMissing ? 'Draft response (asks follow-up questions)' : 'Draft clinical response';
+  var draftBadge = hasMissing ? '<span class="card-badge badge-purple">ASK FIRST</span>' : '<span class="card-badge badge-teal">READY TO COPY</span>';
+  var draftHtml = esc(d.draft_response).replace(/\n/g, '<br>');
 
-function copyText(btn, text) {
-  navigator.clipboard.writeText(text).then(() => {
-    const original = btn.textContent;
-    btn.textContent = '✓ COPIED';
-    btn.classList.add('copied');
-    setTimeout(() => { btn.textContent = original; btn.classList.remove('copied'); }, 2000);
+  var draft = '<div class="result-card"><div class="card-header"><div class="card-title" style="color:var(--teal);">' + draftTitle + '</div>' + draftBadge + '</div><div class="card-body"><div class="response-area">' + draftHtml + '</div><button class="copy-btn" data-copy="' + esc(d.draft_response) + '">COPY RESPONSE</button></div></div>';
+
+  var el = document.getElementById('results');
+  el.innerHTML = nonClinical + category + followUp + draft;
+
+  el.querySelectorAll('.copy-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var text = btn.getAttribute('data-copy');
+      navigator.clipboard.writeText(text).then(function() {
+        var original = btn.textContent;
+        btn.textContent = 'COPIED';
+        btn.classList.add('copied');
+        setTimeout(function() { btn.textContent = original; btn.classList.remove('copied'); }, 2000);
+      });
+    });
   });
 }
 </script>
