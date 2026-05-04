@@ -35,34 +35,6 @@ exports.handler = async function (event) {
       }
     }
 
-    // ── Snippets ──────────────────────────────────────────────────────────────
-    if (path.includes("/snippets")) {
-      const base = SUPABASE_URL + "/rest/v1/snippets";
-      if (method === "GET") {
-        const res = await fetch(base + "?order=created_at.desc", { headers });
-        return { statusCode: 200, headers: { "Content-Type": "application/json" }, body: await res.text() };
-      }
-      if (method === "POST") {
-        const body = JSON.parse(event.body);
-        // Check if update (has id) or insert
-        if (body.id) {
-          const res = await fetch(base + "?id=eq." + body.id, {
-            method: "PATCH",
-            headers,
-            body: JSON.stringify({ title: body.title, content: body.content, nurse_name: body.nurse_name, updated_at: new Date().toISOString() })
-          });
-          return { statusCode: 200, headers: { "Content-Type": "application/json" }, body: await res.text() };
-        }
-        const res = await fetch(base, { method: "POST", headers, body: JSON.stringify(body) });
-        return { statusCode: 200, headers: { "Content-Type": "application/json" }, body: await res.text() };
-      }
-      if (method === "DELETE") {
-        const body = JSON.parse(event.body);
-        const res = await fetch(base + "?id=eq." + body.id, { method: "DELETE", headers });
-        return { statusCode: 200, headers: { "Content-Type": "application/json" }, body: "{}" };
-      }
-    }
-
     // ── Query history ─────────────────────────────────────────────────────────
     if (path.includes("/history")) {
       const base = SUPABASE_URL + "/rest/v1/query_history";
@@ -72,19 +44,58 @@ exports.handler = async function (event) {
       }
       if (method === "POST") {
         const body = JSON.parse(event.body);
-        // Check if urgency override update
+
+        // Urgency override
         if (body.action === "update_urgency") {
           const res = await fetch(base + "?id=eq." + body.id, {
-            method: "PATCH",
-            headers,
+            method: "PATCH", headers,
             body: JSON.stringify({ urgency_override: body.urgency_override })
           });
           return { statusCode: 200, headers: { "Content-Type": "application/json" }, body: await res.text() };
         }
+
+        // Downvote
+        if (body.action === "downvote") {
+          const res = await fetch(base + "?id=eq." + body.id, {
+            method: "PATCH", headers,
+            body: JSON.stringify({ downvoted: true, downvote_reason: body.reason || "" })
+          });
+          return { statusCode: 200, headers: { "Content-Type": "application/json" }, body: await res.text() };
+        }
+
+        // Save actual response sent + correction note
+        if (body.action === "save_actual") {
+          const res = await fetch(base + "?id=eq." + body.id, {
+            method: "PATCH", headers,
+            body: JSON.stringify({
+              actual_response_sent: body.actual_response,
+              correction_note: body.correction_note || ""
+            })
+          });
+          return { statusCode: 200, headers: { "Content-Type": "application/json" }, body: await res.text() };
+        }
+
         // Insert new record
         const res = await fetch(base, { method: "POST", headers, body: JSON.stringify(body) });
         return { statusCode: 200, headers: { "Content-Type": "application/json" }, body: await res.text() };
       }
+    }
+
+    // ── Anthropic proxy for correction analysis ───────────────────────────────
+    if (path.includes("/analyze")) {
+      const apiKey = process.env.ANTHROPIC_API_KEY;
+      if (!apiKey) return { statusCode: 500, body: JSON.stringify({ error: "API key not configured." }) };
+      const body = JSON.parse(event.body);
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify(body),
+      });
+      return { statusCode: res.status, headers: { "Content-Type": "application/json" }, body: await res.text() };
     }
 
     return { statusCode: 404, body: JSON.stringify({ error: "Not found" }) };
