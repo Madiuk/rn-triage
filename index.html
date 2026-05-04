@@ -280,7 +280,7 @@
   <div class="kb-layout">
     <div class="kb-header">
       <h2>Knowledge Base</h2>
-      <p>Add text-expanders, protocols, and clinical notes. Everything syncs to the team automatically the moment you submit.</p>
+      <p>Add content, side effects, protocols, and clinical notes. Everything syncs to the team automatically the moment you submit.</p>
     </div>
 
     <div class="kb-sync-bar" id="syncBar"><span id="syncMsg">Loading...</span></div>
@@ -288,11 +288,11 @@
     <!-- Quick Add Snippet -->
     <div class="snippet-add-box">
       <div class="snippet-add-header">
-        <span>+ Add Text Expander / Protocol Snippet</span>
+        <span>+ Upgrade Content</span>
       </div>
       <div class="snippet-add-body">
         <input class="snippet-title-input" type="text" id="snippetTitle" placeholder="Title (e.g. Nausea — extended, Plateau follow-up questions)">
-        <textarea class="snippet-content-area" id="snippetContent" placeholder="Paste your text expander or protocol here. Write in plain English — the AI reads this directly when drafting responses.&#10;&#10;You can also write instructions like: 'Change the TDEE URL to: https://newurl.com' or 'Always recommend X before Y for constipation.'"></textarea>
+        <textarea class="snippet-content-area" id="snippetContent" placeholder="Paste your content or protocol here. Write in plain English — the AI reads this directly when drafting responses.&#10;&#10;You can also write instructions like: 'Change the TDEE URL to: https://newurl.com' or 'Always recommend X before Y for constipation.'"></textarea>
         <div class="snippet-submit-row">
           <button class="snippet-submit-btn" id="snippetSubmitBtn" onclick="submitSnippet()">
             <span id="snippetSubmitTxt">Save &amp; Sync to Team</span>
@@ -651,7 +651,7 @@ function renderSnippets() {
   var count = document.getElementById('snippetCount');
   count.textContent = snippets.length + ' snippet' + (snippets.length !== 1 ? 's' : '');
   if (!snippets.length) {
-    list.innerHTML = '<div class="empty-state">No snippets yet. Add your first text-expander above.</div>';
+    list.innerHTML = '<div class="empty-state">No snippets yet. Add your first above.</div>';
     return;
   }
   list.innerHTML = snippets.map(function(s) {
