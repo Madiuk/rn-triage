@@ -5,217 +5,239 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>GLP-1 Clinical Triage</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap');
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  :root {
-    --white: #ffffff; --gray-50: #f8f9fa; --gray-100: #f1f3f5;
-    --gray-200: #e9ecef; --gray-300: #dee2e6; --gray-400: #ced4da;
-    --gray-500: #adb5bd; --gray-600: #6c757d; --gray-700: #495057;
-    --gray-800: #343a40; --gray-900: #212529;
-    --blue: #2563eb; --blue-light: #eff6ff; --blue-mid: #bfdbfe;
-    --green: #16a34a; --green-light: #f0fdf4; --green-mid: #bbf7d0;
-    --amber: #d97706; --amber-light: #fffbeb; --amber-mid: #fde68a;
-    --red: #dc2626; --red-light: #fef2f2; --red-mid: #fecaca;
-    --purple: #7c3aed; --purple-light: #f5f3ff; --purple-mid: #ddd6fe;
-    --teal: #0d9488; --teal-light: #f0fdfa; --teal-mid: #99f6e4;
-    --slate: #475569; --slate-light: #f8fafc; --slate-mid: #cbd5e1;
-    --orange: #ea580c; --orange-light: #fff7ed; --orange-mid: #fed7aa;
-    --sans: 'DM Sans', sans-serif;
-  }
-  body { background: var(--gray-100); color: var(--gray-900); font-family: var(--sans); font-size: 15px; min-height: 100vh; }
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --white:#fff;--gray-50:#f8f9fa;--gray-100:#f1f3f5;--gray-200:#e9ecef;
+  --gray-300:#dee2e6;--gray-400:#ced4da;--gray-500:#adb5bd;--gray-600:#6c757d;
+  --gray-700:#495057;--gray-800:#343a40;--gray-900:#212529;
+  --blue:#2563eb;--blue-l:#eff6ff;--blue-m:#bfdbfe;
+  --green:#16a34a;--green-l:#f0fdf4;--green-m:#bbf7d0;
+  --amber:#d97706;--amber-l:#fffbeb;--amber-m:#fde68a;
+  --red:#dc2626;--red-l:#fef2f2;--red-m:#fecaca;
+  --purple:#7c3aed;--purple-l:#f5f3ff;--purple-m:#ddd6fe;
+  --teal:#0d9488;--teal-l:#f0fdfa;--teal-m:#99f6e4;
+  --orange:#ea580c;--orange-l:#fff7ed;--orange-m:#fed7aa;
+  --sans:'DM Sans',sans-serif;
+  --fs-xs:13px;--fs-sm:14px;--fs-base:16px;--fs-md:17px;--fs-lg:19px;--fs-xl:22px;
+}
+body{background:var(--gray-100);color:var(--gray-900);font-family:var(--sans);font-size:var(--fs-base);min-height:100vh;}
 
-  /* MODAL */
-  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; display: flex; align-items: center; justify-content: center; }
-  .modal-overlay.hidden { display: none; }
-  .modal-box { background: var(--white); border-radius: 16px; padding: 32px; max-width: 460px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
-  .modal-box h2 { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
-  .modal-box p { font-size: 14px; color: var(--gray-600); margin-bottom: 20px; line-height: 1.6; }
-  .nurse-btns { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
-  .nurse-btn { padding: 12px 16px; border-radius: 10px; border: 1.5px solid var(--gray-200); background: var(--gray-50); font-family: var(--sans); font-size: 15px; font-weight: 500; color: var(--gray-800); cursor: pointer; text-align: left; transition: all 0.15s; }
-  .nurse-btn:hover { border-color: var(--blue); background: var(--blue-light); color: var(--blue); }
-  .nurse-btn.selected { border-color: var(--blue); background: var(--blue); color: white; }
-  .modal-divider { border: none; border-top: 1px solid var(--gray-200); margin: 14px 0; }
-  .modal-input-row { display: flex; gap: 8px; }
-  .modal-input { flex: 1; padding: 10px 14px; border: 1.5px solid var(--gray-200); border-radius: 8px; font-family: var(--sans); font-size: 14px; outline: none; }
-  .modal-input:focus { border-color: var(--blue); }
-  .modal-confirm-btn { padding: 10px 18px; background: var(--blue); border: none; border-radius: 8px; color: white; font-family: var(--sans); font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;display:flex;align-items:center;justify-content:center;}
+.modal-overlay.hidden{display:none;}
+.modal-box{background:var(--white);border-radius:16px;padding:32px;max-width:460px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.2);}
+.modal-box h2{font-size:var(--fs-lg);font-weight:700;margin-bottom:6px;}
+.modal-box p{font-size:var(--fs-sm);color:var(--gray-600);margin-bottom:20px;line-height:1.6;}
+.nurse-btns{display:flex;flex-direction:column;gap:8px;margin-bottom:16px;}
+.nurse-btn{padding:13px 16px;border-radius:10px;border:1.5px solid var(--gray-200);background:var(--gray-50);font-family:var(--sans);font-size:var(--fs-base);font-weight:500;color:var(--gray-800);cursor:pointer;text-align:left;transition:all .15s;}
+.nurse-btn:hover{border-color:var(--blue);background:var(--blue-l);color:var(--blue);}
+.nurse-btn.selected{border-color:var(--blue);background:var(--blue);color:white;}
+.modal-divider{border:none;border-top:1px solid var(--gray-200);margin:14px 0;}
+.modal-input-row{display:flex;gap:8px;}
+.modal-input{flex:1;padding:11px 14px;border:1.5px solid var(--gray-200);border-radius:8px;font-family:var(--sans);font-size:var(--fs-sm);outline:none;}
+.modal-input:focus{border-color:var(--blue);}
+.modal-confirm-btn{padding:11px 18px;background:var(--blue);border:none;border-radius:8px;color:white;font-family:var(--sans);font-size:var(--fs-sm);font-weight:600;cursor:pointer;white-space:nowrap;}
 
-  /* TOPBAR */
-  .topbar { background: var(--white); border-bottom: 1px solid var(--gray-200); padding: 0 24px; height: 60px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
-  .topbar-brand { display: flex; align-items: center; gap: 10px; }
-  .brand-icon { width: 34px; height: 34px; border-radius: 8px; background: var(--blue); display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700; color: white; }
-  .brand-name { font-size: 17px; font-weight: 700; letter-spacing: -0.3px; }
-  .brand-sub { font-size: 12px; color: var(--gray-500); margin-top: 1px; }
-  .topbar-right { display: flex; align-items: center; gap: 12px; }
-  .nurse-chip { display: flex; align-items: center; gap: 7px; padding: 5px 12px; background: var(--blue-light); border: 1.5px solid var(--blue-mid); border-radius: 20px; font-size: 13px; font-weight: 600; color: var(--blue); cursor: pointer; }
-  .nurse-chip:hover { background: var(--blue-mid); }
-  .nurse-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--blue); }
-  .tab-nav { display: flex; gap: 4px; }
-  .tab-btn { padding: 7px 16px; border-radius: 8px; border: none; font-family: var(--sans); font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.15s; color: var(--gray-600); background: transparent; }
-  .tab-btn:hover { background: var(--gray-100); color: var(--gray-800); }
-  .tab-btn.active { background: var(--blue); color: white; }
-  .status-badge { font-size: 12px; font-weight: 600; padding: 4px 12px; border-radius: 20px; border: 1.5px solid var(--gray-200); color: var(--gray-600); background: var(--gray-50); text-transform: uppercase; letter-spacing: 0.05em; }
-  .status-badge.processing { border-color: var(--blue-mid); color: var(--blue); background: var(--blue-light); }
-  .status-badge.complete { border-color: var(--green-mid); color: var(--green); background: var(--green-light); }
-  .status-badge.error { border-color: var(--red-mid); color: var(--red); background: var(--red-light); }
-  .tab-panel { display: none; }
-  .tab-panel.active { display: block; }
+/* TOPBAR */
+.topbar{background:var(--white);border-bottom:1px solid var(--gray-200);padding:0 24px;height:64px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:0 1px 3px rgba(0,0,0,.06);}
+.topbar-brand{display:flex;align-items:center;gap:10px;}
+.brand-icon{width:38px;height:38px;border-radius:9px;background:var(--blue);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:white;}
+.brand-name{font-size:var(--fs-md);font-weight:700;letter-spacing:-.3px;}
+.brand-sub{font-size:var(--fs-xs);color:var(--gray-500);margin-top:1px;}
+.topbar-right{display:flex;align-items:center;gap:12px;}
+.nurse-chip{display:flex;align-items:center;gap:7px;padding:6px 14px;background:var(--blue-l);border:1.5px solid var(--blue-m);border-radius:20px;font-size:var(--fs-sm);font-weight:600;color:var(--blue);cursor:pointer;}
+.nurse-chip:hover{background:var(--blue-m);}
+.nurse-dot{width:9px;height:9px;border-radius:50%;background:var(--blue);}
+.tab-nav{display:flex;gap:4px;}
+.tab-btn{padding:8px 18px;border-radius:8px;border:none;font-family:var(--sans);font-size:var(--fs-sm);font-weight:500;cursor:pointer;transition:all .15s;color:var(--gray-600);background:transparent;}
+.tab-btn:hover{background:var(--gray-100);color:var(--gray-800);}
+.tab-btn.active{background:var(--blue);color:white;}
+.status-badge{font-size:var(--fs-xs);font-weight:600;padding:5px 13px;border-radius:20px;border:1.5px solid var(--gray-200);color:var(--gray-600);background:var(--gray-50);text-transform:uppercase;letter-spacing:.05em;}
+.status-badge.processing{border-color:var(--blue-m);color:var(--blue);background:var(--blue-l);}
+.status-badge.complete{border-color:var(--green-m);color:var(--green);background:var(--green-l);}
+.status-badge.error{border-color:var(--red-m);color:var(--red);background:var(--red-l);}
+.tab-panel{display:none;}
+.tab-panel.active{display:block;}
 
-  /* TRIAGE */
-  .triage-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 20px 24px; max-width: 1400px; margin: 0 auto; }
-  .card { background: var(--white); border-radius: 14px; border: 1px solid var(--gray-200); box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
-  .card-header { padding: 16px 20px 14px; border-bottom: 1px solid var(--gray-100); display: flex; align-items: center; justify-content: space-between; }
-  .card-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--gray-500); }
-  .card-body { padding: 18px 20px; }
-  textarea { width: 100%; min-height: 200px; border: 1.5px solid var(--gray-200); border-radius: 10px; font-family: var(--sans); font-size: 15px; line-height: 1.65; color: var(--gray-800); padding: 14px 16px; resize: vertical; outline: none; transition: border-color 0.15s; background: var(--gray-50); }
-  textarea:focus { border-color: var(--blue); background: var(--white); }
-  textarea::placeholder { color: var(--gray-400); }
-  .btn-primary { width: 100%; margin-top: 12px; padding: 13px 20px; background: var(--blue); border: none; border-radius: 10px; color: white; font-family: var(--sans); font-size: 15px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.15s; }
-  .btn-primary:hover { background: #1d4ed8; }
-  .btn-primary:active { transform: scale(0.99); }
-  .btn-primary:disabled { background: var(--gray-300); cursor: not-allowed; }
-  .spinner { width: 16px; height: 16px; border: 2.5px solid rgba(255,255,255,0.4); border-top-color: white; border-radius: 50%; animation: spin 0.7s linear infinite; display: none; }
-  .spinner.active { display: block; }
-  @keyframes spin { to { transform: rotate(360deg); } }
+/* TRIAGE LAYOUT — full width, two column with generous right side */
+.triage-layout{display:grid;grid-template-columns:380px 1fr;gap:20px;padding:20px 24px;max-width:1600px;margin:0 auto;}
+.input-col{}
+.output-col{}
 
-  /* RESULTS */
-  .results { display: flex; flex-direction: column; gap: 14px; }
-  .result-card { background: var(--white); border-radius: 14px; border: 1.5px solid var(--gray-200); overflow: hidden; animation: fadeUp 0.2s ease forwards; opacity: 0; }
-  @keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
-  .result-card:nth-child(2) { animation-delay: 0.06s; }
-  .result-card:nth-child(3) { animation-delay: 0.11s; }
-  .result-card:nth-child(4) { animation-delay: 0.16s; }
-  .result-card:nth-child(5) { animation-delay: 0.21s; }
-  .result-card:nth-child(6) { animation-delay: 0.26s; }
-  .rc-header { padding: 12px 16px; border-bottom: 1px solid var(--gray-100); display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
-  .rc-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--gray-500); }
-  .rc-body { padding: 14px 16px; }
-  .pill { font-size: 12px; font-weight: 700; padding: 4px 12px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap; }
-  .pill-green { background: var(--green-light); color: var(--green); border: 1.5px solid var(--green-mid); }
-  .pill-purple { background: var(--purple-light); color: var(--purple); border: 1.5px solid var(--purple-mid); }
-  .pill-teal { background: var(--teal-light); color: var(--teal); border: 1.5px solid var(--teal-mid); }
-  .dept-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-  .dept-box { background: var(--green-light); border: 1.5px solid var(--green-mid); border-radius: 10px; padding: 10px 14px; }
-  .dept-box.flagged { background: var(--amber-light); border-color: var(--amber-mid); }
-  .dept-box-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--green); margin-bottom: 4px; }
-  .dept-box.flagged .dept-box-label { color: var(--amber); }
-  .dept-box-value { font-size: 13px; color: var(--gray-700); line-height: 1.5; }
-  .internal-note-box { background: var(--slate-light); border: 2px solid var(--slate-mid); border-radius: 10px; padding: 14px 16px; margin-top: 12px; }
-  .internal-note-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--slate); margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
-  .internal-note-label::before { content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--slate); }
-  .internal-note-text { font-size: 14px; color: var(--gray-800); line-height: 1.65; white-space: pre-wrap; }
-  .meta-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
-  .meta-box { background: var(--gray-50); border-radius: 10px; border: 1px solid var(--gray-200); padding: 12px 14px; }
-  .meta-box-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--gray-500); margin-bottom: 6px; }
-  .meta-box-value { font-size: 15px; font-weight: 600; color: var(--gray-800); }
-  .timeframe-row { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
-  .timeframe-select { flex: 1; padding: 7px 10px; border: 1.5px solid var(--gray-200); border-radius: 8px; font-family: var(--sans); font-size: 13px; font-weight: 600; color: var(--gray-800); background: var(--white); outline: none; cursor: pointer; }
-  .timeframe-select.routine { border-color: var(--green-mid); color: var(--green); background-color: var(--green-light); }
-  .timeframe-select.same-day { border-color: var(--amber-mid); color: var(--amber); background-color: var(--amber-light); }
-  .timeframe-select.urgent { border-color: var(--red-mid); color: var(--red); background-color: var(--red-light); }
-  .timeframe-save-btn { padding: 7px 12px; background: var(--blue); border: none; border-radius: 8px; color: white; font-family: var(--sans); font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: all 0.15s; }
-  .timeframe-save-btn:hover { background: #1d4ed8; }
-  .timeframe-save-btn.saved { background: var(--green); }
-  .facts-list { list-style: none; display: flex; flex-direction: column; gap: 7px; margin-top: 4px; }
-  .facts-list li { font-size: 15px; line-height: 1.55; color: var(--gray-700); padding-left: 18px; position: relative; }
-  .facts-list li::before { content: '›'; position: absolute; left: 0; color: var(--blue); font-weight: 700; font-size: 16px; top: -1px; }
-  .questions-list { list-style: disc; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
-  .questions-list li { font-size: 15px; line-height: 1.55; color: var(--gray-700); }
-  .response-text { background: var(--gray-50); border: 1.5px solid var(--gray-200); border-radius: 10px; padding: 16px; font-size: 15px; line-height: 1.75; color: var(--gray-800); white-space: pre-wrap; font-family: var(--sans); }
-  .copy-btn { margin-top: 10px; width: 100%; padding: 10px; background: var(--white); border: 1.5px solid var(--gray-200); border-radius: 8px; color: var(--gray-600); font-family: var(--sans); font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
-  .copy-btn:hover { border-color: var(--blue); color: var(--blue); background: var(--blue-light); }
-  .copy-btn.copied { border-color: var(--green); color: var(--green); background: var(--green-light); }
-  .copy-btn.slate { border-color: var(--slate-mid); color: var(--slate); }
-  .copy-btn.slate:hover { border-color: var(--slate); background: var(--slate-light); }
-  .missing-box { background: var(--purple-light); border: 1.5px solid var(--purple-mid); border-radius: 10px; padding: 14px 16px; }
-  .missing-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--purple); margin-bottom: 8px; }
-  .error-box { background: var(--red-light); border: 1.5px solid var(--red-mid); border-radius: 12px; padding: 16px; font-size: 15px; color: var(--red); line-height: 1.6; }
-  .placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px 20px; gap: 10px; color: var(--gray-400); }
-  .placeholder-icon { font-size: 36px; opacity: 0.4; }
-  .placeholder-text { font-size: 14px; }
+/* CARDS */
+.card{background:var(--white);border-radius:14px;border:1px solid var(--gray-200);box-shadow:0 1px 4px rgba(0,0,0,.05);}
+.card-header{padding:16px 20px 14px;border-bottom:1px solid var(--gray-100);display:flex;align-items:center;justify-content:space-between;}
+.card-title{font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--gray-500);}
+.card-body{padding:18px 20px;}
+textarea{width:100%;min-height:220px;border:1.5px solid var(--gray-200);border-radius:10px;font-family:var(--sans);font-size:var(--fs-base);line-height:1.65;color:var(--gray-800);padding:14px 16px;resize:vertical;outline:none;transition:border-color .15s;background:var(--gray-50);}
+textarea:focus{border-color:var(--blue);background:var(--white);}
+textarea::placeholder{color:var(--gray-400);}
+.btn-run{width:100%;margin-top:12px;padding:14px 20px;background:var(--blue);border:none;border-radius:10px;color:white;font-family:var(--sans);font-size:var(--fs-md);font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:all .15s;}
+.btn-run:hover{background:#1d4ed8;}
+.btn-run:active{transform:scale(.99);}
+.btn-run:disabled{background:var(--gray-300);cursor:not-allowed;}
+.spinner{width:16px;height:16px;border:2.5px solid rgba(255,255,255,.4);border-top-color:white;border-radius:50%;animation:spin .7s linear infinite;display:none;}
+.spinner.active{display:block;}
+@keyframes spin{to{transform:rotate(360deg);}}
 
-  /* FEEDBACK ROW */
-  .feedback-row { display: flex; align-items: center; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--gray-100); }
-  .downvote-btn { display: flex; align-items: center; gap: 5px; padding: 7px 12px; background: var(--white); border: 1.5px solid var(--gray-200); border-radius: 8px; color: var(--gray-500); font-family: var(--sans); font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s; }
-  .downvote-btn:hover { border-color: var(--red-mid); color: var(--red); background: var(--red-light); }
-  .downvote-btn.active { border-color: var(--red-mid); color: var(--red); background: var(--red-light); }
-  .feedback-label { font-size: 12px; color: var(--gray-400); flex: 1; }
+/* OUTPUT CARDS */
+.output-stack{display:flex;flex-direction:column;gap:14px;}
+.out-card{background:var(--white);border-radius:14px;border:1.5px solid var(--gray-200);overflow:hidden;animation:fadeUp .2s ease forwards;opacity:0;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+.out-card:nth-child(2){animation-delay:.05s;}
+.out-card:nth-child(3){animation-delay:.10s;}
+.out-card:nth-child(4){animation-delay:.15s;}
+.out-card:nth-child(5){animation-delay:.20s;}
+.out-card:nth-child(6){animation-delay:.25s;}
+.oc-header{padding:13px 18px;border-bottom:1px solid var(--gray-100);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;}
+.oc-label{font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--gray-500);}
+.oc-body{padding:16px 18px;}
 
-  /* DOWNVOTE PANEL */
-  .downvote-panel { display: none; background: var(--red-light); border: 1.5px solid var(--red-mid); border-radius: 10px; padding: 12px 14px; margin-top: 8px; }
-  .downvote-panel.open { display: block; }
-  .downvote-panel-label { font-size: 12px; font-weight: 700; color: var(--red); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
-  .downvote-reasons { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
-  .downvote-reason-btn { padding: 5px 12px; border-radius: 20px; border: 1.5px solid var(--red-mid); background: var(--white); color: var(--red); font-family: var(--sans); font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.15s; }
-  .downvote-reason-btn:hover, .downvote-reason-btn.selected { background: var(--red); color: white; border-color: var(--red); }
-  .downvote-submit { padding: 7px 16px; background: var(--red); border: none; border-radius: 8px; color: white; font-family: var(--sans); font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
-  .downvote-submit:hover { background: #b91c1c; }
+/* PILLS */
+.pill{font-size:var(--fs-xs);font-weight:700;padding:4px 12px;border-radius:20px;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap;}
+.pill-green{background:var(--green-l);color:var(--green);border:1.5px solid var(--green-m);}
+.pill-amber{background:var(--amber-l);color:var(--amber);border:1.5px solid var(--amber-m);}
+.pill-purple{background:var(--purple-l);color:var(--purple);border:1.5px solid var(--purple-m);}
+.pill-teal{background:var(--teal-l);color:var(--teal);border:1.5px solid var(--teal-m);}
+.pill-orange{background:var(--orange-l);color:var(--orange);border:1.5px solid var(--orange-m);}
 
-  /* ACTUAL RESPONSE PANEL */
-  .actual-response-card { border-color: var(--orange-mid) !important; }
-  .actual-textarea { min-height: 120px; font-size: 14px; }
-  .actual-submit-row { display: flex; gap: 8px; margin-top: 10px; align-items: flex-start; }
-  .actual-submit-btn { padding: 10px 18px; background: var(--orange); border: none; border-radius: 8px; color: white; font-family: var(--sans); font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: all 0.15s; display: flex; align-items: center; gap: 6px; }
-  .actual-submit-btn:hover { background: #c2410c; }
-  .actual-submit-btn:disabled { background: var(--gray-300); cursor: not-allowed; }
-  .learn-status { font-size: 12px; color: var(--gray-500); line-height: 1.5; flex: 1; }
-  .learn-status.success { color: var(--green); }
-  .learn-status.error { color: var(--red); }
+/* DEPARTMENTS */
+.dept-section{background:var(--amber-l);border:1.5px solid var(--amber-m);border-radius:10px;padding:14px 16px;}
+.dept-label{font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--amber);margin-bottom:6px;}
+.dept-items{font-size:var(--fs-sm);color:var(--gray-800);font-weight:600;margin-bottom:10px;line-height:1.6;}
+.routing-msg{font-size:var(--fs-base);color:#92400e;line-height:1.7;font-style:italic;padding:10px 12px;background:rgba(255,255,255,.6);border-radius:8px;margin-top:8px;}
 
-  /* KB TAB */
-  .kb-layout { max-width: 900px; margin: 0 auto; padding: 24px; }
-  .kb-header { margin-bottom: 20px; }
-  .kb-header h2 { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
-  .kb-header p { font-size: 15px; color: var(--gray-600); line-height: 1.6; }
-  .kb-sync-bar { display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: var(--blue-light); border: 1.5px solid var(--blue-mid); border-radius: 10px; margin-bottom: 20px; font-size: 13px; color: var(--blue); font-weight: 500; }
-  .kb-sync-bar.synced { background: var(--green-light); border-color: var(--green-mid); color: var(--green); }
-  .kb-sync-bar.error { background: var(--red-light); border-color: var(--red-mid); color: var(--red); }
-  .entry-add-box { background: var(--white); border-radius: 14px; border: 1px solid var(--gray-200); box-shadow: 0 1px 4px rgba(0,0,0,0.05); margin-bottom: 20px; overflow: hidden; }
-  .entry-add-header { padding: 14px 20px; background: var(--blue); }
-  .entry-add-header span { font-size: 15px; font-weight: 600; color: white; }
-  .entry-add-body { padding: 16px 20px; display: flex; flex-direction: column; gap: 10px; }
-  .entry-add-row { display: flex; gap: 10px; }
-  .entry-title-input { flex: 1; padding: 10px 14px; border: 1.5px solid var(--gray-200); border-radius: 8px; font-family: var(--sans); font-size: 14px; font-weight: 600; outline: none; }
-  .entry-title-input:focus { border-color: var(--blue); }
-  .entry-section-select { padding: 10px 14px; border: 1.5px solid var(--gray-200); border-radius: 8px; font-family: var(--sans); font-size: 14px; font-weight: 500; outline: none; cursor: pointer; background: var(--gray-50); min-width: 180px; }
-  .entry-section-select:focus { border-color: var(--blue); background: var(--white); }
-  .entry-content-area { width: 100%; min-height: 140px; padding: 12px 14px; border: 1.5px solid var(--gray-200); border-radius: 8px; font-family: var(--sans); font-size: 14px; line-height: 1.65; outline: none; resize: vertical; background: var(--gray-50); }
-  .entry-content-area:focus { border-color: var(--blue); background: var(--white); }
-  .entry-submit-row { display: flex; justify-content: flex-end; }
-  .entry-submit-btn { padding: 10px 24px; background: var(--blue); border: none; border-radius: 8px; color: white; font-family: var(--sans); font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.15s; }
-  .entry-submit-btn:hover { background: #1d4ed8; }
-  .entry-submit-btn:disabled { background: var(--gray-300); cursor: not-allowed; }
-  .kb-section { background: var(--white); border-radius: 14px; border: 1px solid var(--gray-200); box-shadow: 0 1px 4px rgba(0,0,0,0.05); margin-bottom: 16px; overflow: hidden; }
-  .kb-section-header { padding: 14px 20px; background: var(--gray-50); border-bottom: 1px solid var(--gray-200); display: flex; align-items: center; justify-content: space-between; }
-  .kb-section-title { font-size: 15px; font-weight: 600; color: var(--gray-800); }
-  .kb-section-body { padding: 12px 16px; }
-  .kb-entry { border: 1.5px solid var(--gray-200); border-radius: 10px; margin-bottom: 12px; overflow: hidden; }
-  .kb-entry:last-child { margin-bottom: 0; }
-  .kb-entry-header { padding: 8px 12px; background: var(--gray-50); border-bottom: 1px solid var(--gray-200); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-  .kb-entry-name { flex: 1; min-width: 120px; font-size: 13px; font-weight: 600; color: var(--gray-700); background: transparent; border: none; outline: none; font-family: var(--sans); padding: 2px 0; }
-  .kb-entry-name:focus { background: var(--white); border-radius: 4px; padding: 2px 6px; }
-  .kb-entry-author { font-size: 11px; color: var(--gray-400); white-space: nowrap; background: var(--gray-100); padding: 2px 8px; border-radius: 10px; }
-  .kb-entry-content { width: 100%; min-height: 100px; padding: 12px 14px; border: none; border-radius: 0; font-family: var(--sans); font-size: 14px; line-height: 1.7; color: var(--gray-800); resize: vertical; outline: none; background: var(--white); }
-  .kb-entry-content:focus { background: #fffdf5; }
-  .kb-entry-footer { padding: 6px 12px; background: var(--gray-50); border-top: 1px solid var(--gray-100); display: flex; justify-content: flex-end; gap: 6px; }
-  .btn-xs { padding: 4px 10px; font-size: 12px; font-weight: 600; border-radius: 6px; border: 1.5px solid var(--gray-200); background: var(--white); color: var(--gray-600); cursor: pointer; font-family: var(--sans); transition: all 0.15s; }
-  .btn-xs:hover { border-color: var(--gray-300); color: var(--gray-800); }
-  .btn-xs.danger:hover { border-color: var(--red-mid); color: var(--red); background: var(--red-light); }
-  .btn-xs.save { background: var(--blue); border-color: var(--blue); color: white; }
-  .btn-xs.save:hover { background: #1d4ed8; }
-  .btn-xs.saved { background: var(--green); border-color: var(--green); color: white; }
-  .kb-actions { display: flex; gap: 10px; margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--gray-200); }
-  .kb-save-btn { flex: 1; padding: 12px; background: var(--blue); border: none; border-radius: 10px; color: white; font-family: var(--sans); font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.15s; display: flex; align-items: center; justify-content: center; gap: 8px; }
-  .kb-save-btn:hover { background: #1d4ed8; }
-  .kb-save-btn:disabled { background: var(--gray-300); cursor: not-allowed; }
-  .kb-export-btn { padding: 12px 20px; background: var(--white); border: 1.5px solid var(--gray-200); border-radius: 10px; color: var(--gray-700); font-family: var(--sans); font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
-  .kb-export-btn:hover { border-color: var(--gray-300); background: var(--gray-50); }
-  .kb-spinner { width: 16px; height: 16px; border: 2.5px solid rgba(255,255,255,0.4); border-top-color: white; border-radius: 50%; animation: spin 0.7s linear infinite; display: none; }
-  .kb-spinner.active { display: block; }
-  .empty-state { text-align: center; padding: 20px; color: var(--gray-500); font-size: 13px; font-style: italic; }
-  .save-toast { position: fixed; bottom: 24px; right: 24px; background: var(--green); color: white; padding: 12px 20px; border-radius: 10px; font-size: 14px; font-weight: 600; opacity: 0; transition: opacity 0.2s; pointer-events: none; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 999; }
-  .save-toast.show { opacity: 1; }
-  @media (max-width: 768px) { .triage-layout { grid-template-columns: 1fr; } .dept-grid { grid-template-columns: 1fr; } .meta-row { grid-template-columns: 1fr; } .entry-add-row { flex-direction: column; } }
+/* CLASSIFICATION */
+.class-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;}
+.class-box{background:var(--gray-50);border-radius:10px;border:1px solid var(--gray-200);padding:13px 16px;}
+.class-box-label{font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--gray-500);margin-bottom:7px;}
+.editable-select{width:100%;padding:8px 10px;border:1.5px solid var(--gray-200);border-radius:8px;font-family:var(--sans);font-size:var(--fs-sm);font-weight:600;color:var(--gray-800);background:var(--white);outline:none;cursor:pointer;margin-top:4px;}
+.editable-select:focus{border-color:var(--blue);}
+.editable-select.routine{border-color:var(--green-m);color:var(--green);background:var(--green-l);}
+.editable-select.same-day{border-color:var(--amber-m);color:var(--amber);background:var(--amber-l);}
+.editable-select.urgent{border-color:var(--red-m);color:var(--red);background:var(--red-l);}
+.save-inline-btn{margin-top:6px;width:100%;padding:7px;background:var(--blue);border:none;border-radius:7px;color:white;font-family:var(--sans);font-size:var(--fs-xs);font-weight:600;cursor:pointer;transition:all .15s;}
+.save-inline-btn:hover{background:#1d4ed8;}
+.save-inline-btn.saved{background:var(--green);}
+
+/* FACTS */
+.facts-list{list-style:none;display:flex;flex-direction:column;gap:8px;margin-top:6px;}
+.facts-list li{font-size:var(--fs-base);line-height:1.55;color:var(--gray-700);padding-left:20px;position:relative;}
+.facts-list li::before{content:'›';position:absolute;left:0;color:var(--blue);font-weight:700;font-size:18px;top:-1px;}
+
+/* FOLLOW-UP QUESTIONS */
+.q-list{list-style:disc;padding-left:22px;display:flex;flex-direction:column;gap:9px;margin-top:6px;}
+.q-list li{font-size:var(--fs-base);line-height:1.6;color:var(--gray-700);}
+
+/* RESPONSE */
+.response-text{background:var(--gray-50);border:1.5px solid var(--gray-200);border-radius:10px;padding:16px 18px;font-size:var(--fs-base);line-height:1.8;color:var(--gray-800);white-space:pre-wrap;font-family:var(--sans);}
+
+/* COPY BTN */
+.copy-btn{margin-top:10px;width:100%;padding:11px;background:var(--white);border:1.5px solid var(--gray-200);border-radius:8px;color:var(--gray-600);font-family:var(--sans);font-size:var(--fs-sm);font-weight:600;cursor:pointer;transition:all .15s;}
+.copy-btn:hover{border-color:var(--blue);color:var(--blue);background:var(--blue-l);}
+.copy-btn.copied{border-color:var(--green);color:var(--green);background:var(--green-l);}
+
+/* FEEDBACK */
+.feedback-row{display:flex;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--gray-100);}
+.vote-btn{display:flex;align-items:center;gap:5px;padding:8px 14px;background:var(--white);border:1.5px solid var(--gray-200);border-radius:8px;color:var(--gray-600);font-family:var(--sans);font-size:var(--fs-sm);font-weight:500;cursor:pointer;transition:all .15s;}
+.vote-btn.up:hover,.vote-btn.up.active{border-color:var(--green-m);color:var(--green);background:var(--green-l);}
+.vote-btn.down:hover,.vote-btn.down.active{border-color:var(--red-m);color:var(--red);background:var(--red-l);}
+
+/* VOTE PANEL */
+.vote-panel{display:none;border-radius:10px;padding:14px 16px;margin-top:8px;}
+.vote-panel.open{display:block;}
+.vote-panel.up-panel{background:var(--green-l);border:1.5px solid var(--green-m);}
+.vote-panel.down-panel{background:var(--red-l);border:1.5px solid var(--red-m);}
+.vote-panel-label{font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;}
+.up-panel .vote-panel-label{color:var(--green);}
+.down-panel .vote-panel-label{color:var(--red);}
+.vote-reasons{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:12px;}
+.vote-reason-btn{padding:6px 13px;border-radius:20px;border:1.5px solid;background:var(--white);font-family:var(--sans);font-size:var(--fs-xs);font-weight:500;cursor:pointer;transition:all .15s;}
+.up-panel .vote-reason-btn{border-color:var(--green-m);color:var(--green);}
+.up-panel .vote-reason-btn:hover,.up-panel .vote-reason-btn.selected{background:var(--green);color:white;border-color:var(--green);}
+.down-panel .vote-reason-btn{border-color:var(--red-m);color:var(--red);}
+.down-panel .vote-reason-btn:hover,.down-panel .vote-reason-btn.selected{background:var(--red);color:white;border-color:var(--red);}
+.vote-submit-btn{padding:8px 18px;border:none;border-radius:8px;color:white;font-family:var(--sans);font-size:var(--fs-sm);font-weight:600;cursor:pointer;}
+.up-panel .vote-submit-btn{background:var(--green);}
+.down-panel .vote-submit-btn{background:var(--red);}
+
+/* CORRECTION — collapsed */
+.correction-toggle{width:100%;padding:11px 16px;background:var(--white);border:1.5px solid var(--gray-200);border-radius:8px;color:var(--gray-600);font-family:var(--sans);font-size:var(--fs-sm);font-weight:500;cursor:pointer;text-align:left;display:flex;align-items:center;gap:8px;transition:all .15s;margin-top:10px;}
+.correction-toggle:hover{border-color:var(--orange-m);color:var(--orange);background:var(--orange-l);}
+.correction-toggle .ct-arrow{margin-left:auto;transition:transform .2s;}
+.correction-toggle.open .ct-arrow{transform:rotate(180deg);}
+.correction-body{display:none;margin-top:10px;}
+.correction-body.open{display:block;}
+.correction-body textarea{min-height:110px;font-size:var(--fs-sm);}
+.correction-submit-row{display:flex;gap:8px;margin-top:10px;align-items:flex-start;}
+.correction-submit-btn{padding:10px 18px;background:var(--orange);border:none;border-radius:8px;color:white;font-family:var(--sans);font-size:var(--fs-sm);font-weight:600;cursor:pointer;white-space:nowrap;transition:all .15s;display:flex;align-items:center;gap:6px;}
+.correction-submit-btn:hover{background:#c2410c;}
+.correction-submit-btn:disabled{background:var(--gray-300);cursor:not-allowed;}
+.learn-status{font-size:var(--fs-xs);color:var(--gray-500);line-height:1.5;flex:1;}
+.learn-status.success{color:var(--green);}
+.learn-status.error{color:var(--red);}
+
+/* ERROR + PLACEHOLDER */
+.error-box{background:var(--red-l);border:1.5px solid var(--red-m);border-radius:12px;padding:18px;font-size:var(--fs-base);color:var(--red);line-height:1.6;}
+.placeholder{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:80px 20px;gap:12px;color:var(--gray-400);}
+.placeholder-icon{font-size:40px;opacity:.4;}
+.placeholder-text{font-size:var(--fs-base);}
+
+/* KB TAB */
+.kb-layout{max-width:960px;margin:0 auto;padding:24px;}
+.kb-header{margin-bottom:20px;}
+.kb-header h2{font-size:var(--fs-xl);font-weight:700;margin-bottom:6px;}
+.kb-header p{font-size:var(--fs-base);color:var(--gray-600);line-height:1.6;}
+.kb-sync-bar{display:flex;align-items:center;gap:10px;padding:11px 16px;background:var(--blue-l);border:1.5px solid var(--blue-m);border-radius:10px;margin-bottom:20px;font-size:var(--fs-sm);color:var(--blue);font-weight:500;}
+.kb-sync-bar.synced{background:var(--green-l);border-color:var(--green-m);color:var(--green);}
+.kb-sync-bar.error{background:var(--red-l);border-color:var(--red-m);color:var(--red);}
+.entry-add-box{background:var(--white);border-radius:14px;border:1px solid var(--gray-200);box-shadow:0 1px 4px rgba(0,0,0,.05);margin-bottom:20px;overflow:hidden;}
+.entry-add-header{padding:15px 20px;background:var(--blue);}
+.entry-add-header span{font-size:var(--fs-base);font-weight:600;color:white;}
+.entry-add-body{padding:18px 20px;display:flex;flex-direction:column;gap:11px;}
+.entry-add-row{display:flex;gap:10px;}
+.entry-title-input{flex:1;padding:11px 14px;border:1.5px solid var(--gray-200);border-radius:8px;font-family:var(--sans);font-size:var(--fs-sm);font-weight:600;outline:none;}
+.entry-title-input:focus{border-color:var(--blue);}
+.entry-section-select{padding:11px 14px;border:1.5px solid var(--gray-200);border-radius:8px;font-family:var(--sans);font-size:var(--fs-sm);font-weight:500;outline:none;cursor:pointer;background:var(--gray-50);min-width:200px;}
+.entry-section-select:focus{border-color:var(--blue);background:var(--white);}
+.entry-content-area{width:100%;min-height:150px;padding:13px 14px;border:1.5px solid var(--gray-200);border-radius:8px;font-family:var(--sans);font-size:var(--fs-sm);line-height:1.7;outline:none;resize:vertical;background:var(--gray-50);}
+.entry-content-area:focus{border-color:var(--blue);background:var(--white);}
+.entry-submit-row{display:flex;justify-content:flex-end;}
+.entry-submit-btn{padding:11px 26px;background:var(--blue);border:none;border-radius:8px;color:white;font-family:var(--sans);font-size:var(--fs-base);font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px;transition:all .15s;}
+.entry-submit-btn:hover{background:#1d4ed8;}
+.entry-submit-btn:disabled{background:var(--gray-300);cursor:not-allowed;}
+.kb-section{background:var(--white);border-radius:14px;border:1px solid var(--gray-200);box-shadow:0 1px 4px rgba(0,0,0,.05);margin-bottom:16px;overflow:hidden;}
+.kb-section-header{padding:15px 20px;background:var(--gray-50);border-bottom:1px solid var(--gray-200);display:flex;align-items:center;justify-content:space-between;}
+.kb-section-title{font-size:var(--fs-base);font-weight:600;color:var(--gray-800);}
+.kb-section-body{padding:14px 18px;}
+.kb-entry{border:1.5px solid var(--gray-200);border-radius:10px;margin-bottom:12px;overflow:hidden;}
+.kb-entry:last-child{margin-bottom:0;}
+.kb-entry-header{padding:9px 13px;background:var(--gray-50);border-bottom:1px solid var(--gray-200);display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.kb-entry-name{flex:1;min-width:120px;font-size:var(--fs-sm);font-weight:600;color:var(--gray-700);background:transparent;border:none;outline:none;font-family:var(--sans);padding:2px 0;}
+.kb-entry-name:focus{background:var(--white);border-radius:4px;padding:2px 6px;}
+.kb-entry-author{font-size:var(--fs-xs);color:var(--gray-400);white-space:nowrap;background:var(--gray-100);padding:3px 9px;border-radius:10px;}
+.kb-entry-content{width:100%;min-height:100px;padding:13px 14px;border:none;border-radius:0;font-family:var(--sans);font-size:var(--fs-sm);line-height:1.75;color:var(--gray-800);resize:vertical;outline:none;background:var(--white);}
+.kb-entry-content:focus{background:#fffdf5;}
+.kb-entry-footer{padding:7px 13px;background:var(--gray-50);border-top:1px solid var(--gray-100);display:flex;justify-content:flex-end;gap:6px;}
+.btn-xs{padding:5px 11px;font-size:var(--fs-xs);font-weight:600;border-radius:6px;border:1.5px solid var(--gray-200);background:var(--white);color:var(--gray-600);cursor:pointer;font-family:var(--sans);transition:all .15s;}
+.btn-xs:hover{border-color:var(--gray-300);color:var(--gray-800);}
+.btn-xs.danger:hover{border-color:var(--red-m);color:var(--red);background:var(--red-l);}
+.btn-xs.save{background:var(--blue);border-color:var(--blue);color:white;}
+.btn-xs.save:hover{background:#1d4ed8;}
+.btn-xs.saved{background:var(--green);border-color:var(--green);color:white;}
+.kb-actions{display:flex;gap:10px;margin-top:20px;padding-top:20px;border-top:1px solid var(--gray-200);}
+.kb-save-btn{flex:1;padding:13px;background:var(--blue);border:none;border-radius:10px;color:white;font-family:var(--sans);font-size:var(--fs-base);font-weight:600;cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center;gap:8px;}
+.kb-save-btn:hover{background:#1d4ed8;}
+.kb-save-btn:disabled{background:var(--gray-300);cursor:not-allowed;}
+.kb-export-btn{padding:13px 20px;background:var(--white);border:1.5px solid var(--gray-200);border-radius:10px;color:var(--gray-700);font-family:var(--sans);font-size:var(--fs-sm);font-weight:600;cursor:pointer;transition:all .15s;}
+.kb-export-btn:hover{border-color:var(--gray-300);background:var(--gray-50);}
+.kb-spinner{width:16px;height:16px;border:2.5px solid rgba(255,255,255,.4);border-top-color:white;border-radius:50%;animation:spin .7s linear infinite;display:none;}
+.kb-spinner.active{display:block;}
+.empty-state{text-align:center;padding:22px;color:var(--gray-500);font-size:var(--fs-sm);font-style:italic;}
+.save-toast{position:fixed;bottom:24px;right:24px;background:var(--green);color:white;padding:13px 22px;border-radius:10px;font-size:var(--fs-sm);font-weight:600;opacity:0;transition:opacity .2s;pointer-events:none;box-shadow:0 4px 12px rgba(0,0,0,.15);z-index:999;}
+.save-toast.show{opacity:1;}
+@media(max-width:900px){.triage-layout{grid-template-columns:1fr;}.class-grid{grid-template-columns:1fr;}.entry-add-row{flex-direction:column;}}
 </style>
 </head>
 <body>
@@ -223,10 +245,10 @@
 <div class="modal-overlay" id="nurseModal">
   <div class="modal-box">
     <h2>Who's on shift?</h2>
-    <p>Select your name to attach your identity to triage records and knowledge base changes.</p>
+    <p>Select your name to attach your identity to triage records and knowledge base entries.</p>
     <div class="nurse-btns" id="nurseBtns"></div>
     <div class="modal-divider"></div>
-    <p style="font-size:13px;color:var(--gray-500);margin-bottom:10px;">Not listed? Add your name:</p>
+    <p style="font-size:var(--fs-xs);color:var(--gray-500);margin-bottom:10px;">Not listed? Add your name:</p>
     <div class="modal-input-row">
       <input class="modal-input" type="text" id="newNurseInput" placeholder="Your full name...">
       <button class="modal-confirm-btn" onclick="addAndSelectNurse()">Add &amp; Select</button>
@@ -255,22 +277,23 @@
   </div>
 </div>
 
+<!-- TRIAGE TAB -->
 <div class="tab-panel active" id="tab-triage">
   <div class="triage-layout">
-    <div>
-      <div class="card">
+    <div class="input-col">
+      <div class="card" style="position:sticky;top:80px;">
         <div class="card-header"><span class="card-title">Patient Message</span></div>
         <div class="card-body">
           <textarea id="msgInput" placeholder="Paste the patient's full message here."></textarea>
-          <button class="btn-primary" id="triageBtn" onclick="runTriage()">
+          <button class="btn-run" id="triageBtn" onclick="runTriage()">
             <span id="btnText">Run Triage</span>
             <div class="spinner" id="btnSpinner"></div>
           </button>
         </div>
       </div>
     </div>
-    <div>
-      <div class="results" id="results">
+    <div class="output-col">
+      <div class="output-stack" id="results">
         <div class="placeholder">
           <div class="placeholder-icon">&#9889;</div>
           <div class="placeholder-text">Paste a patient message and click Run Triage</div>
@@ -280,6 +303,7 @@
   </div>
 </div>
 
+<!-- KB TAB -->
 <div class="tab-panel" id="tab-kb">
   <div class="kb-layout">
     <div class="kb-header">
@@ -309,19 +333,19 @@
       </div>
     </div>
     <div class="kb-section">
-      <div class="kb-section-header"><span class="kb-section-title">Clinical Protocols &amp; Response Guides</span><span style="font-size:12px;color:var(--gray-500);">Click any field to edit, then Save</span></div>
+      <div class="kb-section-header"><span class="kb-section-title">Clinical Protocols &amp; Response Guides</span><span style="font-size:var(--fs-xs);color:var(--gray-500);">Click any field to edit, then Save</span></div>
       <div class="kb-section-body" id="protocols-list"></div>
     </div>
     <div class="kb-section">
-      <div class="kb-section-header"><span class="kb-section-title">URLs &amp; Resources</span><span style="font-size:12px;color:var(--gray-500);">Editable</span></div>
+      <div class="kb-section-header"><span class="kb-section-title">URLs &amp; Resources</span><span style="font-size:var(--fs-xs);color:var(--gray-500);">Editable</span></div>
       <div class="kb-section-body" id="urls-list"></div>
     </div>
     <div class="kb-section">
-      <div class="kb-section-header"><span class="kb-section-title">Routing Rules</span><span style="font-size:12px;color:var(--gray-500);">Editable</span></div>
+      <div class="kb-section-header"><span class="kb-section-title">Routing Rules</span><span style="font-size:var(--fs-xs);color:var(--gray-500);">Editable</span></div>
       <div class="kb-section-body" id="routing-list"></div>
     </div>
     <div class="kb-section">
-      <div class="kb-section-header"><span class="kb-section-title">General Notes</span><span style="font-size:12px;color:var(--gray-500);">Editable</span></div>
+      <div class="kb-section-header"><span class="kb-section-title">General Notes</span><span style="font-size:var(--fs-xs);color:var(--gray-500);">Editable</span></div>
       <div class="kb-section-body" id="notes-list"></div>
     </div>
     <div class="kb-actions">
@@ -335,31 +359,35 @@
   </div>
 </div>
 
-<div class="save-toast" id="saveToast">Synced to team</div>
+<div class="save-toast" id="saveToast">Synced</div>
 
 <script>
-const BASE_SYSTEM_PROMPT = `GLP-1 telehealth triage AI. Output ONLY valid JSON, no markdown, no prose outside JSON.
+// Today's date injected at runtime so AI never uses stale year
+const TODAY = new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
 
-JSON schema:
-{"non_clinical_flag":bool,"non_clinical_items":["..."],"routing_language":"string","internal_note":"string","clinical_category":"GI side effects|Weight plateau|No early weight loss|Food noise/cravings|Hair loss|Fatigue|Heartburn/reflux|Diarrhea|Injection/administration|Dosing question|Skin/site reaction|Medication storage|Urgent-escalate|General/multiple","urgency":"routine|same-day|urgent","clinical_facts":["3-6 items"],"missing_info":["..."],"follow_up_questions":["..."],"draft_response":"string"}
+const BASE_PROMPT = `GLP-1 telehealth triage AI. Today's date is ${TODAY}. Always use the current year when interpreting or referencing dates. Output ONLY valid JSON — no markdown, no prose outside JSON.
+
+JSON schema (all fields required):
+{"non_clinical_flag":bool,"non_clinical_items":["..."],"routing_language":"string","clinical_category":"GI side effects|Weight plateau|No early weight loss|Food noise/cravings|Hair loss|Fatigue|Heartburn/reflux|Diarrhea|Injection/administration|Dosing question|Skin/site reaction|Medication storage|Urgent-escalate|General/multiple","urgency":"routine|same-day|urgent","clinical_facts":["3-6 items"],"follow_up_questions":["..."],"draft_response":"string"}
 
 RULES:
 non_clinical_flag: true if billing/shipping/payment/account content present.
-routing_language: 1-2 sentences routing non-clinical items to support; empty if not needed.
-internal_note: 2-3 sentence directive for support staff added to Bask chat; empty if no handoff. State what patient needs, what nursing handled, what support must do.
+routing_language: When routing is needed, write a clear message to send the patient AND a directive for the support staff member being added in Bask (what they need to do). Combine both into 3-4 sentences. Empty string if no routing needed.
+clinical_category: pick closest match from list.
 urgency: urgent=pancreatitis/severe persistent vomiting/tachycardia/thyroid mass/suicidal ideation/hypoglycemia unresponsive to food. same-day=severe GI affecting intake/injection site infection/imminent dose storage error/shakiness+sweating+confusion/diarrhea 3+days. routine=all else.
-clinical_facts: extract medication, dose in mg+units, therapy week, symptoms, duration, history, treatments tried.
-missing_info: list gaps. ALWAYS flag missing dose (mg+units) for any side effect message.
-follow_up_questions: one per missing_info item. Include "Can you confirm your current dose in mg and units? This helps us verify correct dosing." if dose missing.
-draft_response: warm, specific, actionable RN voice. Patient's own details. No bullet points — prose with line breaks. 120 words max. Clinical only. If missing_info present, ask questions instead of advice.`;
+clinical_facts: extract medication name, dose in mg+units if stated, therapy week, symptoms, duration, history, treatments tried.
+follow_up_questions: list ONLY specific questions to ask patient — combine missing info and questions into one list. ALWAYS include dose question if dose not stated: "Can you confirm your current dose in mg and units? This helps us verify you are dosing correctly." Keep each question on one line.
+draft_response: warm, specific, actionable RN voice. Patient's own details. No bullet points — prose with line breaks (\\n). 120 words max. Clinical content only. If follow_up_questions present due to missing info, ask those instead of giving advice.`;
 
-const TIMEFRAME_OPTIONS = [
-  {value:'routine',label:'Routine — Next Available',cls:'routine'},
-  {value:'24h',label:'Within 24 Hours',cls:'same-day'},
-  {value:'24-72h',label:'Within 24–72 Hours',cls:'same-day'},
-  {value:'72h',label:'Within 72 Hours',cls:'same-day'},
-  {value:'same-day',label:'Same Day Response',cls:'same-day'},
-  {value:'urgent',label:'URGENT — Escalate Now',cls:'urgent'},
+const CATEGORIES = ['GI side effects','Weight plateau','No early weight loss','Food noise/cravings','Hair loss','Fatigue','Heartburn/reflux','Diarrhea','Injection/administration','Dosing question','Skin/site reaction','Medication storage','Urgent-escalate','General/multiple'];
+
+const TIMEFRAMES = [
+  {v:'routine',l:'Routine — Next Available',c:'routine'},
+  {v:'24h',l:'Within 24 Hours',c:'same-day'},
+  {v:'24-72h',l:'Within 24–72 Hours',c:'same-day'},
+  {v:'72h',l:'Within 72 Hours',c:'same-day'},
+  {v:'same-day',l:'Same Day Response',c:'same-day'},
+  {v:'urgent',l:'URGENT — Escalate Now',c:'urgent'},
 ];
 
 const DEFAULT_KB = {
@@ -370,35 +398,35 @@ const DEFAULT_KB = {
     {name:"Fatigue",nurse_name:"System",text:"Fatigue is often caused by a decrease in calorie intake and the body not having enough fuel to operate properly.\n\nTrack your calories on MyFitnessPal — if you're in too much of a deficit, add more food. Drink 60-100oz of water daily. Regular exercise such as a walk 3+ times per week will boost energy through endorphins. Try Gatorade or Pedialyte to replace electrolytes. Add a multi-vitamin and B12. Try slow burning carbohydrates like brown rice, sweet potatoes, broccoli, and lentils.\n\nIf you feel weak, sweaty, confused, or shaky, drink some fruit juice, eat peanut butter with bread, some milk, or a regular sugar soda — you may be experiencing low blood sugar."},
     {name:"Diarrhea",nurse_name:"System",text:"Decrease fatty, greasy foods and eat a very bland diet — bananas, rice, bread, and crackers. Increase fiber to help bind materials. Take Imodium per label directions, starting with the low dose. Pepto Bismol is a great choice as well.\n\nDrink plenty of fluids and electrolytes — Pedialyte, Gatorade, coconut water, or water with an electrolyte additive.\n\nIf you experience blood in your stool, severe abdominal pain, or diarrhea for more than 3 days affecting daily living, please get checked at an urgent care or emergency room."},
     {name:"Food noise / cravings",nurse_name:"System",text:"It is normal, even expected, to have food noise or hunger return by day 4-5 after an injection. The half-life of the medication is around that 5 day mark.\n\nI recommend using an app like LoseIt to track calories and stay at a healthy TDEE level (https://tdee.is/). Make sure you're getting enough protein, take small bites of food all day, focus on slow-burning carbohydrates, eat high quality non-processed whole foods, increase fiber, drink 1oz of water per pound of bodyweight, add a multi-vitamin and probiotic, and try to add some exercise every day or two.\n\nI always suggest weighing only once per week, on the same day, at the same time, on the same scale."},
-    {name:"Weight plateau — questions",nurse_name:"System",text:"Do you mind answering a few questions for me so I can give you some customized advice?\n\n- Are you finding yourself having cravings during the day, and food noise returning?\n- How many calories do you eat per day presently, and are you tracking on an app like LoseIt or MyFitnessPal?\n- Are you drinking at a minimum of 60oz of water per day?\n- Are you eating fiber through a supplement or fruits and vegetables?\n- How much protein are you getting per day?\n- What does your exercise routine look like?\n\nQuick tip: Once you've started tracking your calories, I recommend using this website: https://tdee.is/ — calculating your TDEE is important so you can reduce your calorie intake appropriately."}
+    {name:"Weight plateau — questions",nurse_name:"System",text:"Do you mind answering a few questions for me so I can give you some customized advice?\n\n- Are you finding yourself having cravings during the day, and food noise returning?\n- How many calories do you eat per day presently, and are you tracking on an app like LoseIt or MyFitnessPal?\n- Are you drinking at a minimum of 60oz of water per day?\n- Are you eating fiber through a supplement or fruits and vegetables?\n- How much protein are you getting per day?\n- What does your exercise routine look like?\n\nQuick tip: I recommend using https://tdee.is/ — calculating your TDEE is important so you can reduce your calorie intake appropriately."}
   ],
   urls:[{name:"TDEE Calculator",nurse_name:"System",text:"https://tdee.is/ — reference for all weight loss, plateau, and calorie discussions"}],
   routing:[{name:"Non-clinical routing message",nurse_name:"System",text:"Thank you for reaching out — I've flagged your billing/shipping question and am routing it to our support team who will follow up with you directly. I'll address your clinical question separately below."}],
-  notes:[{name:"Dose verification",nurse_name:"System",text:"Always ask for dose in mg and units if not provided in a side effect message. This helps verify the patient is dosing correctly and has not accidentally doubled or halved their dose."}]
+  notes:[{name:"Dose verification",nurse_name:"System",text:"Always ask for dose in mg and units if not provided in a side effect message. This helps verify the patient is dosing correctly."}]
 };
 
 let kb = JSON.parse(JSON.stringify(DEFAULT_KB));
 let currentHistoryId = null;
 let currentNurse = localStorage.getItem('rn_triage_current_nurse') || '';
-let selectedDownvoteReason = '';
+let selectedUpReason = '', selectedDownReason = '';
 
-function getKBPrompt() {
-  var parts = [];
-  if(kb.protocols&&kb.protocols.length) parts.push('=== PROTOCOLS ===\n'+kb.protocols.map(function(e){return '['+e.name+']\n'+e.text;}).join('\n\n'));
-  if(kb.urls&&kb.urls.length) parts.push('=== URLS ===\n'+kb.urls.map(function(e){return e.name+': '+e.text;}).join('\n'));
-  if(kb.routing&&kb.routing.length) parts.push('=== ROUTING ===\n'+kb.routing.map(function(e){return '['+e.name+']\n'+e.text;}).join('\n\n'));
-  if(kb.notes&&kb.notes.length) parts.push('=== NOTES ===\n'+kb.notes.map(function(e){return '['+e.name+']\n'+e.text;}).join('\n\n'));
-  return parts.join('\n\n');
+function getKBPrompt(){
+  var p=[];
+  if(kb.protocols&&kb.protocols.length) p.push('=== PROTOCOLS ===\n'+kb.protocols.map(function(e){return '['+e.name+']\n'+e.text;}).join('\n\n'));
+  if(kb.urls&&kb.urls.length) p.push('=== URLS ===\n'+kb.urls.map(function(e){return e.name+': '+e.text;}).join('\n'));
+  if(kb.routing&&kb.routing.length) p.push('=== ROUTING ===\n'+kb.routing.map(function(e){return '['+e.name+']\n'+e.text;}).join('\n\n'));
+  if(kb.notes&&kb.notes.length) p.push('=== NOTES ===\n'+kb.notes.map(function(e){return '['+e.name+']\n'+e.text;}).join('\n\n'));
+  return p.join('\n\n');
 }
 
-// ── NURSE ─────────────────────────────────────────────────────────────────────
+// NURSE
 function getNurses(){return JSON.parse(localStorage.getItem('rn_triage_nurses')||'[]');}
 function saveNurses(l){localStorage.setItem('rn_triage_nurses',JSON.stringify(l));}
 function showNurseModal(){
   var nurses=getNurses();
   document.getElementById('nurseBtns').innerHTML=nurses.length
     ?nurses.map(function(n){return '<button class="nurse-btn'+(n===currentNurse?' selected':'')+'" onclick="selectNurse(\''+esc(n)+'\')">'+esc(n)+'</button>';}).join('')
-    :'<p style="font-size:13px;color:var(--gray-500);">No nurses added yet.</p>';
+    :'<p style="font-size:var(--fs-xs);color:var(--gray-500);">No nurses added yet.</p>';
   document.getElementById('nurseModal').classList.remove('hidden');
 }
 function selectNurse(name){
@@ -419,29 +447,29 @@ function initNurse(){
   else showNurseModal();
 }
 
-// ── API ───────────────────────────────────────────────────────────────────────
+// API
 async function api(endpoint,method,body){
   var opts={method:method||'GET',headers:{'Content-Type':'application/json'}};
   if(body)opts.body=JSON.stringify(body);
-  var res=await fetch('/.netlify/functions/kb'+endpoint,opts);
-  return res.json().catch(function(){return{};});
+  var r=await fetch('/.netlify/functions/kb'+endpoint,opts);
+  return r.json().catch(function(){return{};});
 }
 
 async function loadKBFromServer(){
   try{
-    setSyncBar('','Loading shared knowledge base...');
+    setSyncBar('','Loading...');
     var rows=await api('/kb');
     if(Array.isArray(rows)&&rows.length>0){
-      var newKB={protocols:[],urls:[],routing:[],notes:[]};
+      var nkb={protocols:[],urls:[],routing:[],notes:[]};
       rows.forEach(function(row){
-        var s=newKB[row.section]?row.section:(row.section==='snippets'?'notes':null);
-        if(s)newKB[s].push({name:row.name,text:row.content,nurse_name:row.nurse_name||'Unknown'});
+        var s=nkb[row.section]?row.section:(row.section==='snippets'?'notes':null);
+        if(s)nkb[s].push({name:row.name,text:row.content,nurse_name:row.nurse_name||'Unknown'});
       });
-      kb=newKB;
+      kb=nkb;
     }
     setSyncBar('synced','Synced · '+new Date().toLocaleTimeString());
     renderKB();
-  }catch(e){setSyncBar('error','Could not load knowledge base');renderKB();}
+  }catch(e){setSyncBar('error','Could not load');renderKB();}
 }
 
 function syncKBFromDOM(){
@@ -484,8 +512,8 @@ async function submitEntry(){
     await saveKBSilent();
     document.getElementById('entryTitle').value='';
     document.getElementById('entryContent').value='';
-    renderKB();showToast('Entry saved and synced to team');
-  }catch(e){alert('Error saving: '+e.message);}
+    renderKB();showToast('Saved and synced');
+  }catch(e){alert('Error: '+e.message);}
   finally{btn.disabled=false;txt.textContent='Save & Sync to Team';spin.className='spinner';}
 }
 
@@ -496,7 +524,7 @@ async function saveKB(){
   try{
     await api('/kb','POST',{entries:buildEntries()});
     setSyncBar('synced','Synced · '+new Date().toLocaleTimeString());
-    showToast('Knowledge base synced to team');
+    showToast('Knowledge base synced');
   }catch(e){setSyncBar('error','Sync failed');}
   finally{btn.disabled=false;txt.textContent='Save & Sync to Team';spin.className='kb-spinner';}
 }
@@ -509,55 +537,39 @@ async function saveHistoryRecord(parsed,msg){
       clinical_category:parsed.clinical_category,urgency_original:parsed.urgency,urgency_override:null,
       non_clinical_flag:parsed.non_clinical_flag,non_clinical_items:parsed.non_clinical_items||[],
       routing_language:parsed.routing_language||'',clinical_facts:parsed.clinical_facts||[],
-      missing_info:parsed.missing_info||[],follow_up_questions:parsed.follow_up_questions||[],
+      missing_info:[],follow_up_questions:parsed.follow_up_questions||[],
       draft_response:parsed.draft_response||''
     });
     return Array.isArray(r)&&r[0]?r[0].id:null;
   }catch(e){return null;}
 }
 
-async function saveUrgencyOverride(id,value){
-  if(!id)return;
-  try{await api('/history','POST',{action:'update_urgency',id:id,urgency_override:value});}catch(e){}
-}
-
-// ── KB UI ─────────────────────────────────────────────────────────────────────
+// KB UI
 function setSyncBar(state,msg){
   document.getElementById('syncBar').className='kb-sync-bar'+(state?' '+state:'');
   document.getElementById('syncMsg').textContent=msg;
 }
-
 function renderKB(){
   ['protocols','urls','routing','notes'].forEach(function(section){
     var list=document.getElementById(section+'-list');
     if(!list)return;
     list.innerHTML='';
     var items=kb[section]||[];
-    if(!items.length){list.innerHTML='<div class="empty-state">No entries yet. Add one above.</div>';return;}
+    if(!items.length){list.innerHTML='<div class="empty-state">No entries yet.</div>';return;}
     items.forEach(function(entry,i){list.appendChild(makeEntryEl(section,i,entry));});
   });
 }
-
 function makeEntryEl(section,i,entry){
-  var div=document.createElement('div');
-  div.className='kb-entry';
-  var authorLabel=entry.nurse_name?entry.nurse_name:'Unknown';
-  div.innerHTML=
-    '<div class="kb-entry-header">'+
-      '<input class="kb-entry-name" type="text" value="'+esc(entry.name)+'" data-section="'+section+'" data-index="'+i+'" placeholder="Entry name...">'+
-      '<span class="kb-entry-author">&#128100; '+esc(authorLabel)+'</span>'+
-    '</div>'+
+  var div=document.createElement('div');div.className='kb-entry';
+  div.innerHTML='<div class="kb-entry-header"><input class="kb-entry-name" type="text" value="'+esc(entry.name)+'" data-section="'+section+'" data-index="'+i+'" placeholder="Entry name..."><span class="kb-entry-author">&#128100; '+esc(entry.nurse_name||'Unknown')+'</span></div>'+
     '<textarea class="kb-entry-content" data-section="'+section+'" data-index="'+i+'">'+esc(entry.text)+'</textarea>'+
     '<div class="kb-entry-footer"><button class="btn-xs save" onclick="saveEntryInline(\''+section+'\','+i+',this)">Save</button><button class="btn-xs danger" onclick="removeEntry(\''+section+'\','+i+')">Delete</button></div>';
   return div;
 }
-
 async function saveEntryInline(section,i,btn){
-  syncKBFromDOM();btn.textContent='Saving...';btn.disabled=true;
-  // Preserve existing author, update only if current nurse is set
-  if(currentNurse&&kb[section]&&kb[section][i]){
-    kb[section][i].nurse_name=currentNurse;
-  }
+  syncKBFromDOM();
+  if(currentNurse&&kb[section]&&kb[section][i])kb[section][i].nurse_name=currentNurse;
+  btn.textContent='Saving...';btn.disabled=true;
   try{
     await saveKBSilent();
     btn.textContent='Saved';btn.className='btn-xs saved';
@@ -566,28 +578,22 @@ async function saveEntryInline(section,i,btn){
     renderKB();
   }catch(e){btn.textContent='Save';btn.disabled=false;}
 }
-
-function removeEntry(section,i){
-  if(!confirm('Delete this entry?'))return;
-  kb[section].splice(i,1);renderKB();
-}
-
+function removeEntry(section,i){if(!confirm('Delete this entry?'))return;kb[section].splice(i,1);renderKB();}
 function exportKB(){
   var blob=new Blob([JSON.stringify({kb:kb},null,2)],{type:'application/json'});
-  var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='glp1-triage-kb-backup.json';a.click();
+  var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='glp1-kb-backup.json';a.click();
 }
-
 function importKB(e){
   var file=e.target.files[0];if(!file)return;
   var reader=new FileReader();
   reader.onload=function(ev){
-    try{var data=JSON.parse(ev.target.result);if(data.kb)kb=data.kb;renderKB();setSyncBar('','Backup imported — click Save & Sync');}
+    try{var data=JSON.parse(ev.target.result);if(data.kb)kb=data.kb;renderKB();setSyncBar('','Imported — save to sync');}
     catch(err){alert('Invalid backup file.');}
   };
   reader.readAsText(file);
 }
 
-// ── TABS ──────────────────────────────────────────────────────────────────────
+// TABS
 function switchTab(name,btn){
   document.querySelectorAll('.tab-panel').forEach(function(p){p.classList.remove('active');});
   document.querySelectorAll('.tab-btn').forEach(function(b){b.classList.remove('active');});
@@ -596,7 +602,7 @@ function switchTab(name,btn){
   if(name==='kb')loadKBFromServer();
 }
 
-// ── TRIAGE ────────────────────────────────────────────────────────────────────
+// TRIAGE
 function setStatus(s){
   var el=document.getElementById('statusBadge');
   el.textContent=s==='ready'?'Ready':s==='processing'?'Processing...':s==='complete'?'Complete':'Error';
@@ -612,21 +618,21 @@ async function runTriage(){
   var msg=document.getElementById('msgInput').value.trim();
   if(!msg)return;
   if(!currentNurse){showNurseModal();return;}
-  setLoading(true);setStatus('processing');currentHistoryId=null;selectedDownvoteReason='';
-  document.getElementById('results').innerHTML='<div class="placeholder"><div class="spinner active" style="width:24px;height:24px;border-color:var(--gray-300);border-top-color:var(--blue);"></div><div class="placeholder-text" style="margin-top:12px;">Analyzing message...</div></div>';
+  setLoading(true);setStatus('processing');currentHistoryId=null;selectedUpReason='';selectedDownReason='';
+  document.getElementById('results').innerHTML='<div class="placeholder"><div class="spinner active" style="width:26px;height:26px;border-color:var(--gray-300);border-top-color:var(--blue);"></div><div class="placeholder-text" style="margin-top:14px;">Analyzing message...</div></div>';
   var kbContent=getKBPrompt();
-  var systemPrompt=kbContent?BASE_SYSTEM_PROMPT+'\n\n'+kbContent:BASE_SYSTEM_PROMPT;
+  var sysPrompt=kbContent?BASE_PROMPT+'\n\n'+kbContent:BASE_PROMPT;
   try{
-    var response=await fetch('/.netlify/functions/triage',{
+    var res=await fetch('/.netlify/functions/triage',{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({model:'claude-haiku-4-5',max_tokens:900,system:systemPrompt,messages:[{role:'user',content:msg}]})
+      body:JSON.stringify({model:'claude-haiku-4-5',max_tokens:900,system:sysPrompt,messages:[{role:'user',content:msg}]})
     });
-    var data=await response.json();
+    var data=await res.json();
     if(data.error)throw new Error(typeof data.error==='string'?data.error:(data.error.message||JSON.stringify(data.error)));
-    var rawText=(data.content||[]).map(function(b){return b.text||'';}).join('');
-    if(!rawText)throw new Error('Empty response from API.');
-    var parsed=JSON.parse(rawText.replace(/```json|```/g,'').trim());
-    renderResults(parsed,msg);
+    var raw=(data.content||[]).map(function(b){return b.text||'';}).join('');
+    if(!raw)throw new Error('Empty response from API.');
+    var parsed=JSON.parse(raw.replace(/```json|```/g,'').trim());
+    renderResults(parsed);
     setStatus('complete');
     saveHistoryRecord(parsed,msg).then(function(id){currentHistoryId=id;});
   }catch(err){
@@ -635,202 +641,241 @@ async function runTriage(){
   }finally{setLoading(false);}
 }
 
+function buildCategorySelect(current){
+  return '<select class="editable-select" id="categorySelect" onchange="onCategoryChange(this)">'+
+    CATEGORIES.map(function(c){return '<option value="'+esc(c)+'"'+(c===current?' selected':'')+'>'+esc(c)+'</option>';}).join('')+
+  '</select>'+
+  '<button class="save-inline-btn" id="categorySaveBtn" onclick="saveCategory()">Save correction</button>';
+}
+
+function onCategoryChange(sel){
+  var btn=document.getElementById('categorySaveBtn');
+  if(btn){btn.textContent='Save correction';btn.className='save-inline-btn';}
+}
+
+async function saveCategory(){
+  var sel=document.getElementById('categorySelect');
+  var btn=document.getElementById('categorySaveBtn');
+  if(!sel)return;
+  btn.textContent='Saving...';btn.disabled=true;
+  if(currentHistoryId)await api('/history','POST',{action:'update_category',id:currentHistoryId,category:sel.value});
+  btn.textContent='Saved ✓';btn.className='save-inline-btn saved';btn.disabled=false;
+}
+
 function buildTimeframeSelect(urgency){
   var mapped=urgency==='urgent'?'urgent':urgency==='same-day'?'same-day':'routine';
-  var cls=urgency==='urgent'?'urgent':urgency==='same-day'?'same-day':'routine';
-  var opts=TIMEFRAME_OPTIONS.map(function(o){return '<option value="'+o.value+'"'+(o.value===mapped?' selected':'')+'>'+o.label+'</option>';}).join('');
-  return '<div class="timeframe-row"><select class="timeframe-select '+cls+'" id="timeframeSelect" onchange="onTimeframeChange(this)">'+opts+'</select><button class="timeframe-save-btn" id="timeframeSaveBtn" onclick="saveTimeframe()">Save</button></div>';
+  return '<select class="editable-select '+mapped+'" id="timeframeSelect" onchange="onTimeframeChange(this)">'+
+    TIMEFRAMES.map(function(o){return '<option value="'+o.v+'"'+(o.v===mapped?' selected':'')+'>'+o.l+'</option>';}).join('')+
+  '</select>'+
+  '<button class="save-inline-btn" id="timeframeSaveBtn" onclick="saveTimeframe()">Save correction</button>';
 }
 
 function onTimeframeChange(sel){
   var v=sel.value;
-  sel.className='timeframe-select '+(v==='urgent'?'urgent':v==='routine'?'routine':'same-day');
+  sel.className='editable-select '+(v==='urgent'?'urgent':v==='routine'?'routine':'same-day');
   var btn=document.getElementById('timeframeSaveBtn');
-  if(btn){btn.textContent='Save';btn.className='timeframe-save-btn';}
+  if(btn){btn.textContent='Save correction';btn.className='save-inline-btn';}
 }
 
 async function saveTimeframe(){
   var sel=document.getElementById('timeframeSelect'),btn=document.getElementById('timeframeSaveBtn');
   if(!sel)return;
   btn.textContent='Saving...';btn.disabled=true;
-  if(currentHistoryId)await saveUrgencyOverride(currentHistoryId,sel.value);
-  btn.textContent='Saved';btn.className='timeframe-save-btn saved';btn.disabled=false;
+  if(currentHistoryId)await api('/history','POST',{action:'update_urgency',id:currentHistoryId,urgency_override:sel.value});
+  btn.textContent='Saved ✓';btn.className='save-inline-btn saved';btn.disabled=false;
 }
 
-// ── DOWNVOTE ──────────────────────────────────────────────────────────────────
-function toggleDownvote(){
-  var btn=document.getElementById('downvoteBtn');
-  var panel=document.getElementById('downvotePanel');
-  btn.classList.toggle('active');
-  panel.classList.toggle('open');
+// VOTING
+function toggleVotePanel(type){
+  var upBtn=document.getElementById('upvoteBtn'),downBtn=document.getElementById('downvoteBtn');
+  var upPanel=document.getElementById('upvotePanel'),downPanel=document.getElementById('downvotePanel');
+  if(type==='up'){
+    var open=upPanel.classList.contains('open');
+    upPanel.classList.toggle('open',!open);
+    downPanel.classList.remove('open');
+    upBtn.classList.toggle('active',!open);
+    downBtn.classList.remove('active');
+  }else{
+    var open2=downPanel.classList.contains('open');
+    downPanel.classList.toggle('open',!open2);
+    upPanel.classList.remove('open');
+    downBtn.classList.toggle('active',!open2);
+    upBtn.classList.remove('active');
+  }
 }
 
-function selectDownvoteReason(reason,el){
-  selectedDownvoteReason=reason;
-  document.querySelectorAll('.downvote-reason-btn').forEach(function(b){b.classList.remove('selected');});
+function selectVoteReason(type,reason,el){
+  if(type==='up'){selectedUpReason=reason;}else{selectedDownReason=reason;}
+  var prefix=type===  'up'?'.up-panel':'.down-panel';
+  document.querySelectorAll(prefix+' .vote-reason-btn').forEach(function(b){b.classList.remove('selected');});
   el.classList.add('selected');
 }
 
-async function submitDownvote(){
-  if(!selectedDownvoteReason){alert('Please select a reason.');return;}
-  if(!currentHistoryId){
-    showToast('Save a triage first before downvoting');return;
-  }
+async function submitVote(type){
+  var reason=type==='up'?selectedUpReason:selectedDownReason;
+  if(!reason){alert('Please select a reason.');return;}
+  if(!currentHistoryId){showToast('Run a triage first');return;}
+  var action=type==='up'?'upvote':'downvote';
   try{
-    await api('/history','POST',{action:'downvote',id:currentHistoryId,reason:selectedDownvoteReason});
-    var btn=document.getElementById('downvoteBtn');
-    btn.innerHTML='&#128078; Downvoted';btn.style.background='var(--red-light)';btn.style.color='var(--red)';btn.disabled=true;
-    document.getElementById('downvotePanel').classList.remove('open');
-    showToast('Feedback saved — thank you');
+    await api('/history','POST',{action:action,id:currentHistoryId,reason:reason});
+    var btn=document.getElementById(type+'voteBtn');
+    btn.innerHTML=type==='up'?'&#128077; Liked':'&#128078; Flagged';
+    btn.classList.add('active');btn.disabled=true;
+    document.getElementById(type+'votePanel').classList.remove('open');
+    showToast('Feedback saved');
   }catch(e){showToast('Error saving feedback');}
 }
 
-// ── ACTUAL RESPONSE + LEARNING ────────────────────────────────────────────────
-async function submitActualResponse(){
-  var actual=document.getElementById('actualResponseInput').value.trim();
+// CORRECTION
+function toggleCorrection(){
+  var toggle=document.getElementById('correctionToggle');
+  var body=document.getElementById('correctionBody');
+  toggle.classList.toggle('open');
+  body.classList.toggle('open');
+  toggle.querySelector('.ct-arrow').textContent=body.classList.contains('open')?'▲':'▼';
+}
+
+async function submitCorrection(){
+  var actual=document.getElementById('correctionInput').value.trim();
   if(!actual){alert('Please paste the response you actually sent.');return;}
-  var btn=document.getElementById('actualSubmitBtn');
-  var status=document.getElementById('learnStatus');
+  var btn=document.getElementById('correctionSubmitBtn');
+  var status=document.getElementById('correctionStatus');
   btn.disabled=true;btn.querySelector('span').textContent='Analyzing...';
   status.textContent='';status.className='learn-status';
-
   try{
-    // Step 1: Save actual response to DB
-    if(currentHistoryId){
-      await api('/history','POST',{
-        action:'save_actual',
-        id:currentHistoryId,
-        actual_response:actual,
-        correction_note:''
-      });
-    }
-
-    // Step 2: Use AI to analyze the difference and generate a learning note
-    var aiDraft=document.getElementById('aiDraftText').textContent;
+    if(currentHistoryId)await api('/history','POST',{action:'save_actual',id:currentHistoryId,actual_response:actual,correction_note:''});
+    var aiDraft=document.getElementById('aiDraftText')?document.getElementById('aiDraftText').innerText:'';
     var analyzeRes=await fetch('/.netlify/functions/kb/analyze',{
       method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
-        model:'claude-haiku-4-5',
-        max_tokens:300,
-        system:'You are a clinical AI learning assistant. Compare an AI-generated draft response with the actual response sent by a nurse. Identify the key differences and produce a concise learning note (2-4 sentences max) that can be added to the AI knowledge base to improve future responses. Focus on: tone differences, advice additions or removals, specific clinical details added, or structural changes. Output only the learning note as plain text — no labels, no preamble.',
-        messages:[{role:'user',content:'AI draft:\n'+aiDraft+'\n\nActual response sent by nurse:\n'+actual}]
+        model:'claude-haiku-4-5',max_tokens:200,
+        system:'Compare an AI draft response with the actual response sent by a nurse. Output 1-3 sentences summarizing what changed and what the AI should do differently next time. Plain text only — no labels, no preamble.',
+        messages:[{role:'user',content:'AI draft:\n'+aiDraft+'\n\nActual sent:\n'+actual}]
       })
     });
     var analyzeData=await analyzeRes.json();
-    var learningNote=(analyzeData.content||[]).map(function(b){return b.text||'';}).join('').trim();
-
-    if(learningNote){
-      // Step 3: Save learning note to DB record
-      if(currentHistoryId){
-        await api('/history','POST',{action:'save_actual',id:currentHistoryId,actual_response:actual,correction_note:learningNote});
-      }
-
-      // Step 4: Auto-add to KB General Notes so it influences future responses
-      var noteTitle='Response correction — '+new Date().toLocaleDateString();
+    var note=(analyzeData.content||[]).map(function(b){return b.text||'';}).join('').trim();
+    if(note){
+      if(currentHistoryId)await api('/history','POST',{action:'save_actual',id:currentHistoryId,actual_response:actual,correction_note:note});
       if(!kb.notes)kb.notes=[];
-      kb.notes.push({name:noteTitle,text:learningNote,nurse_name:currentNurse});
+      kb.notes.push({name:'Correction '+new Date().toLocaleDateString(),text:note,nurse_name:currentNurse});
       await saveKBSilent();
-
-      status.textContent='✓ Saved and added to knowledge base: "'+learningNote.substring(0,80)+(learningNote.length>80?'...':'')+'"';
+      status.textContent='✓ Learned: "'+note.substring(0,90)+(note.length>90?'...':'')+'"';
       status.className='learn-status success';
     }else{
-      status.textContent='✓ Response saved.';
-      status.className='learn-status success';
+      status.textContent='✓ Response saved.';status.className='learn-status success';
     }
-    document.getElementById('actualResponseInput').value='';
-  }catch(e){
-    status.textContent='Error: '+e.message;
-    status.className='learn-status error';
-  }finally{
-    btn.disabled=false;btn.querySelector('span').textContent='Submit & Learn';
-  }
+    document.getElementById('correctionInput').value='';
+  }catch(e){status.textContent='Error: '+e.message;status.className='learn-status error';}
+  finally{btn.disabled=false;btn.querySelector('span').textContent='Submit & Learn';}
 }
 
-// ── RENDER RESULTS ────────────────────────────────────────────────────────────
-function renderResults(d,originalMsg){
+// RENDER
+function renderResults(d){
   var html='';
 
-  // Departments
-  html+='<div class="result-card"><div class="rc-header"><span class="rc-label">Departments</span></div><div class="rc-body">';
+  // Routing/Departments — only show if non-clinical content present
   if(d.non_clinical_flag&&d.non_clinical_items&&d.non_clinical_items.length){
-    html+='<div class="dept-grid">';
-    html+='<div class="dept-box flagged"><div class="dept-box-label">Non-Clinical — Route Away</div><div class="dept-box-value">'+d.non_clinical_items.map(esc).join('<br>')+'</div></div>';
-    if(d.routing_language)html+='<div class="dept-box flagged"><div class="dept-box-label">Routing Message</div><div class="dept-box-value" style="font-style:italic;">'+esc(d.routing_language)+'</div></div>';
-    html+='</div>';
-    html+='<button class="copy-btn" style="margin-top:10px;" data-copy="'+esc(d.routing_language)+'">Copy Routing Message</button>';
-    if(d.internal_note){
-      html+='<div class="internal-note-box"><div class="internal-note-label">Internal Note for Bask</div><div class="internal-note-text">'+esc(d.internal_note)+'</div></div>';
-      html+='<button class="copy-btn slate" style="margin-top:8px;" data-copy="'+esc(d.internal_note)+'">Copy Internal Note</button>';
-    }
-  }else{
-    html+='<div class="dept-grid">';
-    html+='<div class="dept-box"><div class="dept-box-label">Clinical Team</div><div class="dept-box-value">All content clinical — no routing needed</div></div>';
-    html+='<div class="dept-box"><div class="dept-box-label">Assigned To</div><div class="dept-box-value">Nursing / Clinical</div></div>';
-    html+='</div>';
-  }
-  html+='</div></div>';
-
-  // Classification
-  html+='<div class="result-card"><div class="rc-header"><span class="rc-label">Classification</span></div><div class="rc-body">'+
-    '<div class="meta-row">'+
-      '<div class="meta-box"><div class="meta-box-label">Clinical Category</div><div class="meta-box-value">'+esc(d.clinical_category)+'</div></div>'+
-      '<div class="meta-box"><div class="meta-box-label">Response Timeframe</div>'+buildTimeframeSelect(d.urgency)+'</div>'+
-    '</div>'+
-    '<div><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--gray-500);margin-bottom:8px;">Key Clinical Facts</div>'+
-    '<ul class="facts-list">'+d.clinical_facts.map(function(f){return '<li>'+esc(f)+'</li>';}).join('')+'</ul></div>'+
-  '</div></div>';
-
-  // Missing info
-  if(d.missing_info&&d.missing_info.length>0){
-    html+='<div class="result-card" style="border-color:var(--purple-mid);"><div class="rc-header"><span class="rc-label" style="color:var(--purple);">Missing Info — Ask Patient First</span><span class="pill pill-purple">Follow-Up Needed</span></div><div class="rc-body"><div class="missing-box"><div class="missing-label">What\'s Missing</div><ul class="facts-list" style="margin-bottom:14px;">'+d.missing_info.map(function(m){return '<li style="color:var(--purple);">'+esc(m)+'</li>';}).join('')+'</ul><div class="missing-label">Questions to Send</div><ul class="questions-list">'+d.follow_up_questions.map(function(q){return '<li>'+esc(q)+'</li>';}).join('')+'</ul></div><button class="copy-btn" style="border-color:var(--purple-mid);margin-top:10px;" data-copy="'+esc(d.follow_up_questions.join('\n'))+'">Copy Questions</button></div></div>';
-  }
-
-  // Draft response + feedback
-  var hasMissing=d.missing_info&&d.missing_info.length>0;
-  var draftText=d.draft_response||'';
-  html+='<div class="result-card" style="border-color:var(--teal-mid);">'+
-    '<div class="rc-header">'+
-      '<span class="rc-label" style="color:var(--teal);">'+(hasMissing?'Draft Response — Follow-Up Mode':'Draft Clinical Response')+'</span>'+
-      '<span class="pill '+(hasMissing?'pill-purple">Ask First':'pill-teal">Ready to Copy')+'</span>'+
-    '</div>'+
-    '<div class="rc-body">'+
-      '<div class="response-text" id="aiDraftText">'+esc(draftText).replace(/\n/g,'<br>')+'</div>'+
-      '<button class="copy-btn" data-copy="'+esc(draftText)+'">Copy Response</button>'+
-      '<div class="feedback-row">'+
-        '<button class="downvote-btn" id="downvoteBtn" onclick="toggleDownvote()">&#128078; Flag this response</button>'+
-        '<span class="feedback-label">Not quite right? Flag it and tell us why.</span>'+
-      '</div>'+
-      '<div class="downvote-panel" id="downvotePanel">'+
-        '<div class="downvote-panel-label">What was wrong with this response?</div>'+
-        '<div class="downvote-reasons">'+
-          '<button class="downvote-reason-btn" onclick="selectDownvoteReason(\'Wrong category\',this)">Wrong category</button>'+
-          '<button class="downvote-reason-btn" onclick="selectDownvoteReason(\'Wrong clinical advice\',this)">Wrong clinical advice</button>'+
-          '<button class="downvote-reason-btn" onclick="selectDownvoteReason(\'Wrong tone\',this)">Wrong tone</button>'+
-          '<button class="downvote-reason-btn" onclick="selectDownvoteReason(\'Missing key info\',this)">Missing key info</button>'+
-          '<button class="downvote-reason-btn" onclick="selectDownvoteReason(\'Incorrect urgency\',this)">Incorrect urgency</button>'+
-          '<button class="downvote-reason-btn" onclick="selectDownvoteReason(\'Other\',this)">Other</button>'+
+    html+='<div class="out-card" style="border-color:var(--amber-m);">'+
+      '<div class="oc-header"><span class="oc-label" style="color:var(--amber);">Non-Clinical — Route Away</span><span class="pill pill-amber">Routing Needed</span></div>'+
+      '<div class="oc-body">'+
+        '<div class="dept-section">'+
+          '<div class="dept-label">Flagged items</div>'+
+          '<div class="dept-items">'+d.non_clinical_items.map(esc).join('<br>')+'</div>'+
+          (d.routing_language?'<div class="routing-msg">'+esc(d.routing_language)+'</div>':'')+''+
         '</div>'+
-        '<button class="downvote-submit" onclick="submitDownvote()">Submit Feedback</button>'+
+        (d.routing_language?'<button class="copy-btn" style="margin-top:12px;" data-copy="'+esc(d.routing_language)+'">Copy Routing Message</button>':'')+
       '</div>'+
+    '</div>';
+  }
+
+  // Classification — category + timeframe both editable
+  html+='<div class="out-card">'+
+    '<div class="oc-header"><span class="oc-label">Classification</span></div>'+
+    '<div class="oc-body">'+
+      '<div class="class-grid">'+
+        '<div class="class-box">'+
+          '<div class="class-box-label">Clinical Category — editable</div>'+
+          buildCategorySelect(d.clinical_category)+
+        '</div>'+
+        '<div class="class-box">'+
+          '<div class="class-box-label">Response Timeframe — editable</div>'+
+          buildTimeframeSelect(d.urgency)+
+        '</div>'+
+      '</div>'+
+      '<div style="margin-top:4px;"><div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--gray-500);margin-bottom:8px;">Key Clinical Facts</div>'+
+      '<ul class="facts-list">'+d.clinical_facts.map(function(f){return '<li>'+esc(f)+'</li>';}).join('')+'</ul></div>'+
     '</div>'+
   '</div>';
 
-  // What was actually sent box
-  html+='<div class="result-card actual-response-card">'+
-    '<div class="rc-header">'+
-      '<span class="rc-label" style="color:var(--orange);">What Did You Actually Send?</span>'+
-      '<span class="pill" style="background:var(--orange-light);color:var(--orange);border:1.5px solid var(--orange-mid);">Optional — Teaches AI</span>'+
-    '</div>'+
-    '<div class="rc-body">'+
-      '<p style="font-size:13px;color:var(--gray-500);margin-bottom:10px;">Paste the response you actually sent to the patient. The AI will compare it to the draft, identify what you changed, and automatically add a learning note to the knowledge base to improve future responses.</p>'+
-      '<textarea class="actual-textarea" id="actualResponseInput" placeholder="Paste the exact message you sent to the patient..."></textarea>'+
-      '<div class="actual-submit-row">'+
-        '<button class="actual-submit-btn" id="actualSubmitBtn" onclick="submitActualResponse()">'+
-          '<span>Submit &amp; Learn</span>'+
-          '<div class="spinner" id="actualSpinner"></div>'+
-        '</button>'+
-        '<div class="learn-status" id="learnStatus"></div>'+
+  // Follow-up questions — only if present (merged missing info + questions)
+  if(d.follow_up_questions&&d.follow_up_questions.length>0){
+    html+='<div class="out-card" style="border-color:var(--purple-m);">'+
+      '<div class="oc-header"><span class="oc-label" style="color:var(--purple);">Ask Patient Before Responding</span><span class="pill pill-purple">Info Needed</span></div>'+
+      '<div class="oc-body">'+
+        '<ul class="q-list">'+d.follow_up_questions.map(function(q){return '<li>'+esc(q)+'</li>';}).join('')+'</ul>'+
+        '<button class="copy-btn" style="border-color:var(--purple-m);margin-top:12px;" data-copy="'+esc(d.follow_up_questions.join('\n'))+'">Copy Questions</button>'+
       '</div>'+
+    '</div>';
+  }
+
+  // Draft response + voting + correction
+  var hasMissing=d.follow_up_questions&&d.follow_up_questions.length>0;
+  var draftText=d.draft_response||'';
+  html+='<div class="out-card" style="border-color:var(--teal-m);">'+
+    '<div class="oc-header">'+
+      '<span class="oc-label" style="color:var(--teal);">'+(hasMissing?'Draft — Follow-Up Mode':'Draft Clinical Response')+'</span>'+
+      '<span class="pill '+(hasMissing?'pill-purple">Ask First':'pill-teal">Ready to Copy')+'</span>'+
+    '</div>'+
+    '<div class="oc-body">'+
+      '<div class="response-text" id="aiDraftText">'+esc(draftText).replace(/\n/g,'<br>')+'</div>'+
+      '<button class="copy-btn" data-copy="'+esc(draftText)+'">Copy Response</button>'+
+
+      // Voting row
+      '<div class="feedback-row">'+
+        '<button class="vote-btn up" id="upvoteBtn" onclick="toggleVotePanel(\'up\')">&#128077; This is good</button>'+
+        '<button class="vote-btn down" id="downvoteBtn" onclick="toggleVotePanel(\'down\')">&#128078; Flag this response</button>'+
+      '</div>'+
+
+      // Upvote panel
+      '<div class="vote-panel up-panel" id="upvotePanel">'+
+        '<div class="vote-panel-label">What worked well?</div>'+
+        '<div class="vote-reasons">'+
+          ['Accurate advice','Good tone','Right category','Caught the dose issue','Complete response','Saved me time'].map(function(r){
+            return '<button class="vote-reason-btn" onclick="selectVoteReason(\'up\',\''+r+'\',this)">'+r+'</button>';
+          }).join('')+
+        '</div>'+
+        '<button class="vote-submit-btn" onclick="submitVote(\'up\')">Submit</button>'+
+      '</div>'+
+
+      // Downvote panel
+      '<div class="vote-panel down-panel" id="downvotePanel">'+
+        '<div class="vote-panel-label">What was wrong?</div>'+
+        '<div class="vote-reasons">'+
+          ['Wrong category','Wrong advice','Wrong tone','Missing key info','Incorrect urgency','Other'].map(function(r){
+            return '<button class="vote-reason-btn" onclick="selectVoteReason(\'down\',\''+r+'\',this)">'+r+'</button>';
+          }).join('')+
+        '</div>'+
+        '<button class="vote-submit-btn" onclick="submitVote(\'down\')">Submit</button>'+
+      '</div>'+
+
+      // Correction — collapsed by default
+      '<button class="correction-toggle" id="correctionToggle" onclick="toggleCorrection()">'+
+        '&#9998; What did you actually send? <em style="font-size:var(--fs-xs);color:var(--gray-500);">(optional — teaches AI)</em>'+
+        '<span class="ct-arrow">▼</span>'+
+      '</button>'+
+      '<div class="correction-body" id="correctionBody">'+
+        '<p style="font-size:var(--fs-xs);color:var(--gray-500);margin-bottom:10px;">Paste the response you actually sent. The AI will identify what changed and add a learning note to the knowledge base.</p>'+
+        '<textarea id="correctionInput" style="min-height:110px;font-size:var(--fs-sm);" placeholder="Paste the exact message you sent to the patient..."></textarea>'+
+        '<div class="correction-submit-row">'+
+          '<button class="correction-submit-btn" id="correctionSubmitBtn" onclick="submitCorrection()">'+
+            '<span>Submit &amp; Learn</span>'+
+            '<div class="spinner" id="correctionSpinner"></div>'+
+          '</button>'+
+          '<div class="learn-status" id="correctionStatus"></div>'+
+        '</div>'+
+      '</div>'+
+
     '</div>'+
   '</div>';
 
