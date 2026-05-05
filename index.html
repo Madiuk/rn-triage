@@ -112,6 +112,14 @@ textarea::placeholder{color:var(--gray-400);}
 .class-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;}
 .class-box{background:var(--gray-50);border-radius:10px;border:1px solid var(--gray-200);padding:13px 16px;}
 .class-box-label{font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--gray-500);margin-bottom:7px;}
+.severity-badge{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:6px;font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-top:8px;}
+.severity-badge .sev-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.sev-severe{background:var(--red-l);color:var(--red);border:1.5px solid var(--red-m);}
+.sev-severe .sev-dot{background:var(--red);}
+.sev-medium{background:var(--amber-l);color:var(--amber);border:1.5px solid var(--amber-m);}
+.sev-medium .sev-dot{background:var(--amber);}
+.sev-low{background:var(--green-l);color:var(--green);border:1.5px solid var(--green-m);}
+.sev-low .sev-dot{background:var(--green);}
 .editable-select{width:100%;padding:8px 10px;border:1.5px solid var(--gray-200);border-radius:8px;font-family:var(--sans);font-size:var(--fs-sm);font-weight:600;color:var(--gray-800);background:var(--white);outline:none;cursor:pointer;margin-top:4px;}
 .editable-select:focus{border-color:var(--blue);}
 .editable-select.routine{border-color:var(--green-m);color:var(--green);background:var(--green-l);}
@@ -764,6 +772,56 @@ async function submitCorrection(){
 }
 
 // RENDER
+function extractSeverity(facts){
+  // Scan clinical_facts for a severity tag written by the AI
+  if(!facts||!facts.length) return null;
+  for(var i=0;i<facts.length;i++){
+    var f=facts[i].toLowerCase();
+    if(f.includes('side effect severity')||f.includes('severity:')){
+      if(f.includes('severe')) return {level:'SEVERE',cls:'sev-severe',label:'Severe'};
+      if(f.includes('medium')) return {level:'MEDIUM',cls:'sev-medium',label:'Medium'};
+      if(f.includes('low'))    return {level:'LOW',cls:'sev-low',label:'Low / Mild'};
+    }
+    // Also catch severity implied by the category itself even without explicit tag
+  }
+  // Fallback: infer from category
+  return null;
+}
+
+function buildSeverityBadge(facts, category){
+  var sev = extractSeverity(facts);
+  // If AI didn't tag it, infer from category
+  if(!sev){
+    var cat = (category||'').toLowerCase();
+    var severeCategories = ['urgent-escalate'];
+    var mediumCategories = ['gi side effects','diarrhea','heartburn/reflux','fatigue'];
+    var lowCategories = ['hair loss','food noise/cravings','no early weight loss','weight plateau','dosing question','injection/administration','skin/site reaction','medication storage'];
+    if(severeCategories.some(function(c){return cat.includes(c);}))
+      sev={level:'SEVERE',cls:'sev-severe',label:'Severe'};
+    else if(mediumCategories.some(function(c){return cat.includes(c);}))
+      sev={level:'MEDIUM',cls:'sev-medium',label:'Medium'};
+    else if(lowCategories.some(function(c){return cat.includes(c);}))
+      sev={level:'LOW',cls:'sev-low',label:'Low / Mild'};
+  }
+  if(!sev) return '';
+  // Extract symptom name from the severity fact line if present
+  var symptomLabel = '';
+  if(facts){
+    for(var i=0;i<facts.length;i++){
+      var f = facts[i];
+      if(f.toLowerCase().includes('side effect severity')||f.toLowerCase().includes('severity:')){
+        // e.g. "Side effect severity: MEDIUM — moderate nausea"
+        var dashIdx = f.indexOf('—');
+        if(dashIdx>-1) symptomLabel = f.substring(dashIdx+1).trim();
+        break;
+      }
+    }
+  }
+  return '<div class="severity-badge '+sev.cls+'"><div class="sev-dot"></div>'+
+    sev.label+(symptomLabel?' — '+esc(symptomLabel):'')+
+  '</div>';
+}
+
 function renderResults(d){
   var html='';
 
@@ -785,6 +843,7 @@ function renderResults(d){
   }
 
   // ── Classification card ───────────────────────────────────────────────────
+  var severityBadge = buildSeverityBadge(d.clinical_facts, d.clinical_category);
   html+='<div class="out-card">'+
     '<div class="oc-header"><span class="oc-label">Classification</span></div>'+
     '<div class="oc-body">'+
@@ -798,6 +857,7 @@ function renderResults(d){
           buildTimeframeSelect(d.urgency)+
         '</div>'+
       '</div>'+
+      (severityBadge?'<div style="margin-top:4px;"><div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:6px;">Side Effect Severity</div>'+severityBadge+'</div>':'')+
     '</div>'+
   '</div>';
 
