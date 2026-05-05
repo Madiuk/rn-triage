@@ -34,6 +34,13 @@ exports.handler = async function (event) {
     // Query history
     if (path.includes("/history")) {
       const base = SUPABASE_URL + "/rest/v1/query_history";
+      if (method === "GET") {
+        const r = await fetch(
+          base + "?or=(actual_response_sent.not.is.null,correction_note.not.is.null)&order=created_at.desc&limit=100",
+          { headers: h }
+        );
+        return { statusCode: 200, headers: { "Content-Type": "application/json" }, body: await r.text() };
+      }
       if (method === "POST") {
         const body = JSON.parse(event.body);
 
