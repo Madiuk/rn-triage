@@ -163,13 +163,6 @@ textarea::placeholder{color:var(--gray-400);}
 .down-panel .vote-submit-btn{background:var(--red);}
 
 /* CORRECTION — collapsed */
-.correction-toggle{width:100%;padding:11px 16px;background:var(--white);border:1.5px solid var(--gray-200);border-radius:8px;color:var(--gray-600);font-family:var(--sans);font-size:var(--fs-sm);font-weight:500;cursor:pointer;text-align:left;display:flex;align-items:center;gap:8px;transition:all .15s;margin-top:10px;}
-.correction-toggle:hover{border-color:var(--orange-m);color:var(--orange);background:var(--orange-l);}
-.correction-toggle .ct-arrow{margin-left:auto;transition:transform .2s;}
-.correction-toggle.open .ct-arrow{transform:rotate(180deg);}
-.correction-body{display:none;margin-top:10px;}
-.correction-body.open{display:block;}
-.correction-body textarea{min-height:110px;font-size:var(--fs-sm);}
 .correction-submit-row{display:flex;gap:8px;margin-top:10px;align-items:flex-start;}
 .correction-submit-btn{padding:10px 18px;background:var(--orange);border:none;border-radius:8px;color:white;font-family:var(--sans);font-size:var(--fs-sm);font-weight:600;cursor:pointer;white-space:nowrap;transition:all .15s;display:flex;align-items:center;gap:6px;}
 .correction-submit-btn:hover{background:#c2410c;}
@@ -382,7 +375,7 @@ const TODAY = new Date().toLocaleDateString('en-US',{year:'numeric',month:'long'
 const BASE_PROMPT = `GLP-1 telehealth triage AI. Today's date is ${TODAY}. Always use the current year when interpreting or referencing dates. Output ONLY valid JSON — no markdown, no prose outside JSON.
 
 JSON schema (all fields required):
-{"non_clinical_flag":bool,"non_clinical_items":["..."],"routing_language":"string","clinical_category":"GI side effects|Weight plateau|No early weight loss|Food noise/cravings|Hair loss|Fatigue|Heartburn/reflux|Diarrhea|Injection/administration|Dosing question|Skin/site reaction|Medication storage|Urgent-escalate|General/multiple","urgency":"routine|same-day|urgent","clinical_facts":["3-6 items"],"follow_up_questions":["..."],"draft_response":"string"}
+{"non_clinical_flag":bool,"non_clinical_items":["..."],"routing_language":"string","internal_note":"string","clinical_category":"GI side effects|Weight plateau|No early weight loss|Food noise/cravings|Hair loss|Fatigue|Heartburn/reflux|Diarrhea|Injection/administration|Dosing question|Skin/site reaction|Medication storage|Urgent-escalate|General/multiple","urgency":"routine|same-day|urgent","clinical_facts":["3-6 items"],"follow_up_questions":["..."],"draft_response":"string"}
 
 RULES:
 non_clinical_flag: true if billing/shipping/payment/account content present.
@@ -390,8 +383,9 @@ routing_language: When routing is needed, write a clear message to send the pati
 clinical_category: pick closest match from list.
 urgency: urgent=pancreatitis/severe persistent vomiting/tachycardia/thyroid mass/suicidal ideation/hypoglycemia unresponsive to food. same-day=severe GI affecting intake/injection site infection/imminent dose storage error/shakiness+sweating+confusion/diarrhea 3+days. routine=all else.
 clinical_facts: extract medication name, dose in mg+units if stated, therapy week, symptoms, duration, history, treatments tried.
-follow_up_questions: list ONLY specific questions to ask patient — combine missing info and questions into one list. ALWAYS include dose question if dose not stated: "Can you confirm your current dose in mg and units? This helps us verify you are dosing correctly." Keep each question on one line.
-draft_response: ALWAYS populate — never leave empty. Warm RN voice, patient's own details, prose with line breaks (\\n), 120 words max, clinical content only. If follow_up_questions non-empty: write a brief warm opening then naturally weave the questions into a flowing message (not a list). If follow_up_questions empty: give complete actionable advice.`;
+follow_up_questions: list specific questions to ask patient if info is missing. ALWAYS include dose question if dose not stated: "Can you confirm your current dose in mg and units? This helps us verify you are dosing correctly."
+internal_note: 2-3 sentence directive written for non-clinical Bask staff. State what the patient needs non-clinically and what the staff member should do. Only populate if non_clinical_flag is true — otherwise empty string.
+draft_response: ALWAYS populate — never leave empty. Warm RN voice, patient's own details, prose with line breaks (\\n), 140 words max, clinical content only. If follow_up_questions non-empty: open with 1-2 sentences of warm acknowledgment, then naturally ask each question in flowing prose. If follow_up_questions empty: give complete actionable advice.`;
 
 const CATEGORIES = ['GI side effects','Weight plateau','No early weight loss','Food noise/cravings','Hair loss','Fatigue','Heartburn/reflux','Diarrhea','Injection/administration','Dosing question','Skin/site reaction','Medication storage','Urgent-escalate','General/multiple'];
 
@@ -741,14 +735,6 @@ async function submitVote(type){
 }
 
 // CORRECTION
-function toggleCorrection(){
-  var toggle=document.getElementById('correctionToggle');
-  var body=document.getElementById('correctionBody');
-  toggle.classList.toggle('open');
-  body.classList.toggle('open');
-  toggle.querySelector('.ct-arrow').textContent=body.classList.contains('open')?'▲':'▼';
-}
-
 async function submitCorrection(){
   var actual=document.getElementById('correctionInput').value.trim();
   if(!actual){alert('Please paste the response you actually sent.');return;}
@@ -781,70 +767,63 @@ async function submitCorrection(){
 function renderResults(d){
   var html='';
 
-  // Routing/Departments — only show if non-clinical content present
+  // ── Internal routing card — only when non-clinical content present ──────────
   if(d.non_clinical_flag&&d.non_clinical_items&&d.non_clinical_items.length){
+    var internalNote = d.internal_note || d.routing_language || '';
     html+='<div class="out-card" style="border-color:var(--amber-m);">'+
-      '<div class="oc-header"><span class="oc-label" style="color:var(--amber);">Non-Clinical — Route Away</span><span class="pill pill-amber">Routing Needed</span></div>'+
+      '<div class="oc-header"><span class="oc-label" style="color:var(--amber);">&#9888; Additional Routing Required</span></div>'+
       '<div class="oc-body">'+
-        '<div class="dept-section">'+
-          '<div class="dept-label">Flagged items</div>'+
-          '<div class="dept-items">'+d.non_clinical_items.map(esc).join('<br>')+'</div>'+
-          (d.routing_language?'<div class="routing-msg">'+esc(d.routing_language)+'</div>':'')+''+
-        '</div>'+
-        (d.routing_language?'<button class="copy-btn" style="margin-top:12px;" data-copy="'+esc(d.routing_language)+'">Copy Routing Message</button>':'')+
+        '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:6px;">Flagged for another department</div>'+
+        '<div style="font-size:var(--fs-base);font-weight:500;color:var(--gray-800);margin-bottom:12px;line-height:1.6;">'+d.non_clinical_items.map(esc).join(' &middot; ')+'</div>'+
+        (internalNote?
+          '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--slate);margin-bottom:6px;">Internal note for Bask staff</div>'+
+          '<div style="background:var(--slate-light);border:1.5px solid var(--slate-m);border-radius:8px;padding:12px 14px;font-size:var(--fs-sm);color:var(--gray-800);line-height:1.7;">'+esc(internalNote)+'</div>'+
+          '<button class="copy-btn" style="margin-top:10px;" data-copy="'+esc(internalNote)+'">Copy Internal Note</button>'
+        :'')+
       '</div>'+
     '</div>';
   }
 
-  // Classification — category + timeframe both editable
+  // ── Classification card ───────────────────────────────────────────────────
   html+='<div class="out-card">'+
     '<div class="oc-header"><span class="oc-label">Classification</span></div>'+
     '<div class="oc-body">'+
       '<div class="class-grid">'+
         '<div class="class-box">'+
-          '<div class="class-box-label">Clinical Category — editable</div>'+
+          '<div class="class-box-label">Clinical Category</div>'+
           buildCategorySelect(d.clinical_category)+
         '</div>'+
         '<div class="class-box">'+
-          '<div class="class-box-label">Response Timeframe — editable</div>'+
+          '<div class="class-box-label">Response Timeframe</div>'+
           buildTimeframeSelect(d.urgency)+
         '</div>'+
       '</div>'+
-      '<div style="margin-top:4px;"><div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--gray-500);margin-bottom:8px;">Key Clinical Facts</div>'+
-      '<ul class="facts-list">'+d.clinical_facts.map(function(f){return '<li>'+esc(f)+'</li>';}).join('')+'</ul></div>'+
     '</div>'+
   '</div>';
 
-  // Follow-up questions — only if present (merged missing info + questions)
-  if(d.follow_up_questions&&d.follow_up_questions.length>0){
-    html+='<div class="out-card" style="border-color:var(--purple-m);">'+
-      '<div class="oc-header"><span class="oc-label" style="color:var(--purple);">Ask Patient Before Responding</span><span class="pill pill-purple">Info Needed</span></div>'+
-      '<div class="oc-body">'+
-        '<ul class="q-list">'+d.follow_up_questions.map(function(q){return '<li>'+esc(q)+'</li>';}).join('')+'</ul>'+
-        '<button class="copy-btn" style="border-color:var(--purple-m);margin-top:12px;" data-copy="'+esc(d.follow_up_questions.join('\n'))+'">Copy Questions</button>'+
-      '</div>'+
-    '</div>';
-  }
+  // ── Key Clinical Facts card ───────────────────────────────────────────────
+  html+='<div class="out-card">'+
+    '<div class="oc-header"><span class="oc-label">Key Clinical Facts</span></div>'+
+    '<div class="oc-body">'+
+      '<ul class="facts-list">'+d.clinical_facts.map(function(f){return '<li>'+esc(f)+'</li>';}).join('')+'</ul>'+
+    '</div>'+
+  '</div>';
 
-  // Draft response + voting + correction
-  var hasMissing=d.follow_up_questions&&d.follow_up_questions.length>0;
+  // ── Generated Response card ───────────────────────────────────────────────
   var draftText=d.draft_response||'';
   html+='<div class="out-card" style="border-color:var(--teal-m);">'+
     '<div class="oc-header">'+
-      '<span class="oc-label" style="color:var(--teal);">'+(hasMissing?'Draft — Follow-Up Mode':'Draft Clinical Response')+'</span>'+
-      '<span class="pill '+(hasMissing?'pill-purple">Ask First':'pill-teal">Ready to Copy')+'</span>'+
+      '<span class="oc-label" style="color:var(--teal);">Generated Response for Patient</span>'+
     '</div>'+
     '<div class="oc-body">'+
       '<div class="response-text" id="aiDraftText">'+esc(draftText).replace(/\n/g,'<br>')+'</div>'+
       '<button class="copy-btn" data-copy="'+esc(draftText)+'">Copy Response</button>'+
 
-      // Voting row
       '<div class="feedback-row">'+
         '<button class="vote-btn up" id="upvoteBtn" onclick="toggleVotePanel(\'up\')">&#128077; This is good</button>'+
         '<button class="vote-btn down" id="downvoteBtn" onclick="toggleVotePanel(\'down\')">&#128078; Flag this response</button>'+
       '</div>'+
 
-      // Upvote panel
       '<div class="vote-panel up-panel" id="upvotePanel">'+
         '<div class="vote-panel-label">What worked well?</div>'+
         '<div class="vote-reasons">'+
@@ -855,7 +834,6 @@ function renderResults(d){
         '<button class="vote-submit-btn" onclick="submitVote(\'up\')">Submit</button>'+
       '</div>'+
 
-      // Downvote panel
       '<div class="vote-panel down-panel" id="downvotePanel">'+
         '<div class="vote-panel-label">What was wrong?</div>'+
         '<div class="vote-reasons">'+
@@ -866,23 +844,22 @@ function renderResults(d){
         '<button class="vote-submit-btn" onclick="submitVote(\'down\')">Submit</button>'+
       '</div>'+
 
-      // Correction — collapsed by default
-      '<button class="correction-toggle" id="correctionToggle" onclick="toggleCorrection()">'+
-        '&#9998; What did you actually send? <em style="font-size:var(--fs-xs);color:var(--gray-500);">(optional — teaches AI)</em>'+
-        '<span class="ct-arrow">▼</span>'+
-      '</button>'+
-      '<div class="correction-body" id="correctionBody">'+
-        '<p style="font-size:var(--fs-xs);color:var(--gray-500);margin-bottom:10px;">Paste the response you actually sent. The AI will identify what changed and add a learning note to the knowledge base.</p>'+
-        '<textarea id="correctionInput" style="min-height:110px;font-size:var(--fs-sm);" placeholder="Paste the exact message you sent to the patient..."></textarea>'+
-        '<div class="correction-submit-row">'+
-          '<button class="correction-submit-btn" id="correctionSubmitBtn" onclick="submitCorrection()">'+
-            '<span>Submit &amp; Learn</span>'+
-            '<div class="spinner" id="correctionSpinner"></div>'+
-          '</button>'+
-          '<div class="learn-status" id="correctionStatus"></div>'+
-        '</div>'+
-      '</div>'+
+    '</div>'+
+  '</div>';
 
+  // ── What did you actually send — always visible ───────────────────────────
+  html+='<div class="out-card" style="border-color:var(--orange-m);">'+
+    '<div class="oc-header"><span class="oc-label" style="color:var(--orange);">What Did You Actually Send?</span></div>'+
+    '<div class="oc-body">'+
+      '<p style="font-size:var(--fs-xs);color:var(--gray-500);margin-bottom:10px;line-height:1.6;">Paste the response you actually sent. The AI compares it to the draft and saves a learning note to improve future responses.</p>'+
+      '<textarea id="correctionInput" style="min-height:120px;font-size:var(--fs-sm);" placeholder="Paste the exact message you sent to the patient..."></textarea>'+
+      '<div class="correction-submit-row">'+
+        '<button class="correction-submit-btn" id="correctionSubmitBtn" onclick="submitCorrection()">'+
+          '<span>Submit &amp; Learn</span>'+
+          '<div class="spinner" id="correctionSpinner"></div>'+
+        '</button>'+
+        '<div class="learn-status" id="correctionStatus"></div>'+
+      '</div>'+
     '</div>'+
   '</div>';
 
