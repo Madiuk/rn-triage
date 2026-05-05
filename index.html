@@ -391,7 +391,7 @@ clinical_category: pick closest match from list.
 urgency: urgent=pancreatitis/severe persistent vomiting/tachycardia/thyroid mass/suicidal ideation/hypoglycemia unresponsive to food. same-day=severe GI affecting intake/injection site infection/imminent dose storage error/shakiness+sweating+confusion/diarrhea 3+days. routine=all else.
 clinical_facts: extract medication name, dose in mg+units if stated, therapy week, symptoms, duration, history, treatments tried.
 follow_up_questions: list ONLY specific questions to ask patient — combine missing info and questions into one list. ALWAYS include dose question if dose not stated: "Can you confirm your current dose in mg and units? This helps us verify you are dosing correctly." Keep each question on one line.
-draft_response: warm, specific, actionable RN voice. Patient's own details. No bullet points — prose with line breaks (\\n). 120 words max. Clinical content only. If follow_up_questions present due to missing info, ask those instead of giving advice.`;
+draft_response: ALWAYS populate — never leave empty. Warm RN voice, patient's own details, prose with line breaks (\\n), 120 words max, clinical content only. If follow_up_questions non-empty: write a brief warm opening then naturally weave the questions into a flowing message (not a list). If follow_up_questions empty: give complete actionable advice.`;
 
 const CATEGORIES = ['GI side effects','Weight plateau','No early weight loss','Food noise/cravings','Hair loss','Fatigue','Heartburn/reflux','Diarrhea','Injection/administration','Dosing question','Skin/site reaction','Medication storage','Urgent-escalate','General/multiple'];
 
