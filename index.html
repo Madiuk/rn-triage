@@ -19,7 +19,7 @@
   --teal:#0d9488;--teal-l:#f0fdfa;--teal-m:#99f6e4;
   --orange:#ea580c;--orange-l:#fff7ed;--orange-m:#fed7aa;
   --sans:'DM Sans',sans-serif;
-  --fs-xs:13px;--fs-sm:14px;--fs-base:16px;--fs-md:17px;--fs-lg:19px;--fs-xl:22px;
+  --fs-xs:14px;--fs-sm:15px;--fs-base:17px;--fs-md:18px;--fs-lg:20px;--fs-xl:24px;
 }
 body{background:var(--gray-100);color:var(--gray-900);font-family:var(--sans);font-size:var(--fs-base);min-height:100vh;}
 
@@ -61,7 +61,7 @@ body{background:var(--gray-100);color:var(--gray-900);font-family:var(--sans);fo
 .tab-panel.active{display:block;}
 
 /* TRIAGE LAYOUT — full width, two column with generous right side */
-.triage-layout{display:grid;grid-template-columns:380px 1fr;gap:20px;padding:20px 24px;max-width:1600px;margin:0 auto;}
+.triage-layout{display:grid;grid-template-columns:480px 1fr;gap:20px;padding:20px 24px;max-width:1600px;margin:0 auto;}
 .input-col{}
 .output-col{}
 
@@ -70,7 +70,7 @@ body{background:var(--gray-100);color:var(--gray-900);font-family:var(--sans);fo
 .card-header{padding:16px 20px 14px;border-bottom:1px solid var(--gray-100);display:flex;align-items:center;justify-content:space-between;}
 .card-title{font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--gray-500);}
 .card-body{padding:18px 20px;}
-textarea{width:100%;min-height:220px;border:1.5px solid var(--gray-200);border-radius:10px;font-family:var(--sans);font-size:var(--fs-base);line-height:1.65;color:var(--gray-800);padding:14px 16px;resize:vertical;outline:none;transition:border-color .15s;background:var(--gray-50);}
+textarea{width:100%;min-height:340px;border:1.5px solid var(--gray-200);border-radius:10px;font-family:var(--sans);font-size:var(--fs-base);line-height:1.65;color:var(--gray-800);padding:14px 16px;resize:vertical;outline:none;transition:border-color .15s;background:var(--gray-50);}
 textarea:focus{border-color:var(--blue);background:var(--white);}
 textarea::placeholder{color:var(--gray-400);}
 .btn-run{width:100%;margin-top:12px;padding:14px 20px;background:var(--blue);border:none;border-radius:10px;color:white;font-family:var(--sans);font-size:var(--fs-md);font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:all .15s;}
@@ -91,11 +91,11 @@ textarea::placeholder{color:var(--gray-400);}
 .out-card:nth-child(5){animation-delay:.20s;}
 .out-card:nth-child(6){animation-delay:.25s;}
 .oc-header{padding:13px 18px;border-bottom:1px solid var(--gray-100);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;}
-.oc-label{font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--gray-500);}
+.oc-label{font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);}
 .oc-body{padding:16px 18px;}
 
 /* PILLS */
-.pill{font-size:var(--fs-xs);font-weight:700;padding:4px 12px;border-radius:20px;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap;}
+.pill{font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;}
 .pill-green{background:var(--green-l);color:var(--green);border:1.5px solid var(--green-m);}
 .pill-amber{background:var(--amber-l);color:var(--amber);border:1.5px solid var(--amber-m);}
 .pill-purple{background:var(--purple-l);color:var(--purple);border:1.5px solid var(--purple-m);}
@@ -105,8 +105,8 @@ textarea::placeholder{color:var(--gray-400);}
 /* DEPARTMENTS */
 .dept-section{background:var(--amber-l);border:1.5px solid var(--amber-m);border-radius:10px;padding:14px 16px;}
 .dept-label{font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--amber);margin-bottom:6px;}
-.dept-items{font-size:var(--fs-sm);color:var(--gray-800);font-weight:600;margin-bottom:10px;line-height:1.6;}
-.routing-msg{font-size:var(--fs-base);color:#92400e;line-height:1.7;font-style:italic;padding:10px 12px;background:rgba(255,255,255,.6);border-radius:8px;margin-top:8px;}
+.dept-items{font-size:var(--fs-sm);color:var(--gray-800);font-weight:500;margin-bottom:10px;line-height:1.6;}
+.routing-msg{font-size:var(--fs-sm);color:#92400e;line-height:1.75;padding:10px 12px;background:rgba(255,255,255,.6);border-radius:8px;margin-top:8px;}
 
 /* CLASSIFICATION */
 .class-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;}
