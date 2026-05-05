@@ -348,6 +348,20 @@ textarea::placeholder{color:var(--gray-400);}
       <div class="kb-section-header"><span class="kb-section-title">General Notes</span><span style="font-size:var(--fs-xs);color:var(--gray-500);">Editable</span></div>
       <div class="kb-section-body" id="notes-list"></div>
     </div>
+
+    <!-- Response Corrections — manual load only -->
+    <div class="kb-section">
+      <div class="kb-section-header" style="cursor:pointer;" onclick="toggleCorrectionsPanel()">
+        <span class="kb-section-title">Response Corrections</span>
+        <button class="btn-xs" id="loadCorrectionsBtn" style="pointer-events:none;">&#9660; Load</button>
+      </div>
+      <div id="corrections-panel" style="display:none;">
+        <div class="kb-section-body" id="corrections-list">
+          <div class="empty-state">Loading...</div>
+        </div>
+      </div>
+    </div>
+
     <div class="kb-actions">
       <button class="kb-save-btn" id="kbSaveBtn" onclick="saveKB()">
         <span id="kbSaveTxt">Save &amp; Sync to Team</span>
@@ -755,16 +769,9 @@ async function submitCorrection(){
     });
     var analyzeData=await analyzeRes.json();
     var note=(analyzeData.content||[]).map(function(b){return b.text||'';}).join('').trim();
-    if(note){
-      if(currentHistoryId)await api('/history','POST',{action:'save_actual',id:currentHistoryId,actual_response:actual,correction_note:note});
-      if(!kb.notes)kb.notes=[];
-      kb.notes.push({name:'Correction '+new Date().toLocaleDateString(),text:note,nurse_name:currentNurse});
-      await saveKBSilent();
-      status.textContent='✓ Learned: "'+note.substring(0,90)+(note.length>90?'...':'')+'"';
-      status.className='learn-status success';
-    }else{
-      status.textContent='✓ Response saved.';status.className='learn-status success';
-    }
+    if(currentHistoryId)await api('/history','POST',{action:'save_actual',id:currentHistoryId,actual_response:actual,correction_note:note});
+    status.textContent=note?'✓ Saved. Learning note: "'+note.substring(0,90)+(note.length>90?'...':'')+'"':'✓ Response saved.';
+    status.className='learn-status success';
     document.getElementById('correctionInput').value='';
   }catch(e){status.textContent='Error: '+e.message;status.className='learn-status error';}
   finally{btn.disabled=false;btn.querySelector('span').textContent='Submit & Learn';}
@@ -889,6 +896,44 @@ function renderResults(d){
       });
     });
   });
+}
+
+var correctionsLoaded = false;
+
+function toggleCorrectionsPanel(){
+  var panel=document.getElementById('corrections-panel');
+  var btn=document.getElementById('loadCorrectionsBtn');
+  var open=panel.style.display!=='none';
+  panel.style.display=open?'none':'block';
+  btn.textContent=open?'▼ Load':'▲ Hide';
+  if(!open&&!correctionsLoaded)loadCorrections();
+}
+
+async function loadCorrections(){
+  correctionsLoaded=true;
+  var list=document.getElementById('corrections-list');
+  list.innerHTML='<div class="empty-state">Loading corrections...</div>';
+  try{
+    var rows=await api('/history');
+    var withCorr=Array.isArray(rows)?rows.filter(function(r){return r.actual_response_sent||r.correction_note;}):[];
+    if(!withCorr.length){list.innerHTML='<div class="empty-state">No corrections saved yet.</div>';return;}
+    list.innerHTML=withCorr.map(function(r){
+      var date=new Date(r.created_at).toLocaleDateString();
+      return '<div style="border:1.5px solid var(--gray-200);border-radius:10px;margin-bottom:12px;overflow:hidden;">'+
+        '<div style="padding:9px 13px;background:var(--gray-50);border-bottom:1px solid var(--gray-200);display:flex;justify-content:space-between;align-items:center;">'+
+          '<span style="font-size:var(--fs-xs);font-weight:600;color:var(--gray-700);">'+esc(r.nurse_name)+' · '+date+'</span>'+
+          '<span style="font-size:var(--fs-xs);color:var(--gray-500);">'+esc(r.clinical_category||'')+'</span>'+
+        '</div>'+
+        '<div style="padding:12px 14px;display:grid;grid-template-columns:1fr 1fr;gap:12px;">'+
+          '<div><div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:6px;">AI Draft</div>'+
+          '<div style="font-size:var(--fs-xs);color:var(--gray-600);line-height:1.6;white-space:pre-wrap;">'+esc((r.draft_response||'').substring(0,280)+(r.draft_response&&r.draft_response.length>280?'...':''))+'</div></div>'+
+          '<div><div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--teal);margin-bottom:6px;">Actually Sent</div>'+
+          '<div style="font-size:var(--fs-xs);color:var(--gray-700);line-height:1.6;white-space:pre-wrap;">'+esc((r.actual_response_sent||'').substring(0,280)+(r.actual_response_sent&&r.actual_response_sent.length>280?'...':''))+'</div></div>'+
+        '</div>'+
+        (r.correction_note?'<div style="padding:8px 14px 12px;border-top:1px solid var(--gray-100);"><div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--orange);margin-bottom:4px;">Learning note</div><div style="font-size:var(--fs-xs);color:var(--gray-700);line-height:1.6;">'+esc(r.correction_note)+'</div></div>':'')+
+      '</div>';
+    }).join('');
+  }catch(e){list.innerHTML='<div class="empty-state" style="color:var(--red);">Error: '+esc(e.message)+'</div>';}
 }
 
 function showToast(msg){
