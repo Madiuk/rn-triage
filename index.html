@@ -382,20 +382,25 @@ textarea::placeholder{color:var(--gray-400);}
 // Today's date injected at runtime so AI never uses stale year
 const TODAY = new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
 
-const BASE_PROMPT = `GLP-1 telehealth triage AI. Today's date is ${TODAY}. Always use the current year when interpreting or referencing dates. Output ONLY valid JSON — no markdown, no prose outside JSON.
+const BASE_PROMPT = `GLP-1 telehealth triage AI. Today is ${TODAY}. Output ONLY valid JSON — no markdown, no prose outside JSON.
 
-JSON schema (all fields required):
-{"non_clinical_flag":bool,"non_clinical_items":["..."],"routing_language":"string","internal_note":"string","clinical_category":"GI side effects|Weight plateau|No early weight loss|Food noise/cravings|Hair loss|Fatigue|Heartburn/reflux|Diarrhea|Injection/administration|Dosing question|Skin/site reaction|Medication storage|Urgent-escalate|General/multiple","urgency":"routine|same-day|urgent","clinical_facts":["3-6 items"],"follow_up_questions":["..."],"draft_response":"string"}
+JSON schema (every field required):
+{"non_clinical_flag":bool,"non_clinical_items":["..."],"routing_language":"string","internal_note":"string","clinical_routing_flag":bool,"clinical_routing_level":"severe|moderate|mild|none","clinical_routing_note":"string","clinical_category":"GI side effects|Weight plateau|No early weight loss|Food noise/cravings|Hair loss|Fatigue|Heartburn/reflux|Diarrhea|Injection/administration|Dosing question|Skin/site reaction|Medication storage|Urgent-escalate|General/multiple","urgency":"routine|same-day|urgent","clinical_facts":["3-6 items"],"follow_up_questions":["..."],"draft_response":"string"}
 
-RULES:
-non_clinical_flag: true if billing/shipping/payment/account content present.
-routing_language: When routing is needed, write a clear message to send the patient AND a directive for the support staff member being added in Bask (what they need to do). Combine both into 3-4 sentences. Empty string if no routing needed.
-clinical_category: pick closest match from list.
-urgency: urgent=pancreatitis/severe persistent vomiting/tachycardia/thyroid mass/suicidal ideation/hypoglycemia unresponsive to food. same-day=severe GI affecting intake/injection site infection/imminent dose storage error/shakiness+sweating+confusion/diarrhea 3+days. routine=all else.
-clinical_facts: extract medication name, dose in mg+units if stated, therapy week, symptoms, duration, history, treatments tried.
-follow_up_questions: list specific questions to ask patient if info is missing. ALWAYS include dose question if dose not stated: "Can you confirm your current dose in mg and units? This helps us verify you are dosing correctly."
-internal_note: 2-3 sentence directive written for non-clinical Bask staff. State what the patient needs non-clinically and what the staff member should do. Only populate if non_clinical_flag is true — otherwise empty string.
-draft_response: ALWAYS populate — never leave empty. Warm RN voice, patient's own details, prose with line breaks (\\n), 140 words max, clinical content only. If follow_up_questions non-empty: open with 1-2 sentences of warm acknowledgment, then naturally ask each question in flowing prose. If follow_up_questions empty: give complete actionable advice.`;
+FIELD RULES:
+non_clinical_flag: true if message contains billing/shipping/payment/account content.
+routing_language: patient-facing routing message + staff directive combined (3-4 sentences). Empty if non_clinical_flag false.
+internal_note: directive for Bask support staff. Empty if non_clinical_flag false.
+clinical_routing_flag: true if any side effect detected.
+clinical_routing_level: severity per SIDE EFFECT SEVERITY CLASSIFICATION in knowledge base. "none" if no side effects.
+clinical_routing_note: routing note per CLINICAL ROUTING RULES in knowledge base. Empty if clinical_routing_level is "none".
+clinical_category: closest match from category list.
+urgency: per URGENCY RULES in knowledge base.
+clinical_facts: medication, dose in mg+units, therapy week, symptoms, duration, history, treatments tried. 3-6 items.
+follow_up_questions: questions for missing info. Include dose question if dose not stated.
+draft_response: ALWAYS populate. Warm RN voice, patient details, prose with line breaks, 140 words max, clinical only. If follow_up_questions present: warm opening then weave questions into flowing prose. Otherwise: complete actionable advice.
+
+All clinical rules, severity thresholds, routing logic, and response protocols are in the KNOWLEDGE BASE sections below. Follow them precisely.`;
 
 const CATEGORIES = ['GI side effects','Weight plateau','No early weight loss','Food noise/cravings','Hair loss','Fatigue','Heartburn/reflux','Diarrhea','Injection/administration','Dosing question','Skin/site reaction','Medication storage','Urgent-escalate','General/multiple'];
 
@@ -418,9 +423,18 @@ const DEFAULT_KB = {
     {name:"Food noise / cravings",nurse_name:"System",text:"It is normal, even expected, to have food noise or hunger return by day 4-5 after an injection. The half-life of the medication is around that 5 day mark.\n\nI recommend using an app like LoseIt to track calories and stay at a healthy TDEE level (https://tdee.is/). Make sure you're getting enough protein, take small bites of food all day, focus on slow-burning carbohydrates, eat high quality non-processed whole foods, increase fiber, drink 1oz of water per pound of bodyweight, add a multi-vitamin and probiotic, and try to add some exercise every day or two.\n\nI always suggest weighing only once per week, on the same day, at the same time, on the same scale."},
     {name:"Weight plateau — questions",nurse_name:"System",text:"Do you mind answering a few questions for me so I can give you some customized advice?\n\n- Are you finding yourself having cravings during the day, and food noise returning?\n- How many calories do you eat per day presently, and are you tracking on an app like LoseIt or MyFitnessPal?\n- Are you drinking at a minimum of 60oz of water per day?\n- Are you eating fiber through a supplement or fruits and vegetables?\n- How much protein are you getting per day?\n- What does your exercise routine look like?\n\nQuick tip: I recommend using https://tdee.is/ — calculating your TDEE is important so you can reduce your calorie intake appropriately."}
   ],
-  urls:[{name:"TDEE Calculator",nurse_name:"System",text:"https://tdee.is/ — reference for all weight loss, plateau, and calorie discussions"}],
-  routing:[{name:"Non-clinical routing message",nurse_name:"System",text:"Thank you for reaching out — I've flagged your billing/shipping question and am routing it to our support team who will follow up with you directly. I'll address your clinical question separately below."}],
-  notes:[{name:"Dose verification",nurse_name:"System",text:"Always ask for dose in mg and units if not provided in a side effect message. This helps verify the patient is dosing correctly."}]
+  urls:[
+    {name:"TDEE Calculator",nurse_name:"System",text:"https://tdee.is/ — reference for all weight loss, plateau, and calorie discussions"}
+  ],
+  routing:[
+    {name:"Non-clinical routing message",nurse_name:"System",text:"Thank you for reaching out — I've flagged your billing/shipping question and am routing it to our support team who will follow up with you directly. I'll address your clinical question separately below."},
+    {name:"CLINICAL ROUTING RULES",nurse_name:"System",text:"These rules determine clinical_routing_flag, clinical_routing_level, and clinical_routing_note.\n\nSEVERE — set clinical_routing_level to 'severe'. Requires immediate provider escalation. Triggers: vomiting lasting more than 3 days, diarrhea lasting more than 3 days, constipation lasting more than 1 week, severe abdominal pain, any signs of anaphylaxis (throat tightening, hives, swelling, difficulty breathing), rash that is increasing in size, fever, severe back pain, any signs of hypoglycemia (shakiness, sweating, confusion, loss of consciousness), any symptom that could be a threat to life.\nclinical_routing_note for severe: 'ESCALATE TO PROVIDER — Patient is reporting [symptom]. This requires immediate provider review. Please flag for physician and do not wait for patient reply before acting.'\n\nMODERATE — set clinical_routing_level to 'moderate'. Needs to be addressed but can wait for follow-up questions in initial response. Triggers: moderate diarrhea (frequent but not lasting 3+ days), moderate vomiting (not persistent), moderate nausea affecting eating, abdominal pain that is uncomfortable but not severe.\nclinical_routing_note for moderate: 'FOLLOW-UP NEEDED — Patient reports [symptom]. RN to ask follow-up questions in initial response. Based on patient reply, determine if provider escalation or patient education is appropriate.'\n\nMILD — set clinical_routing_level to 'mild'. Education-focused response appropriate. Triggers: mild nausea, mild constipation, heartburn/GERD, hair loss, mild fatigue, mild injection site reactions.\nclinical_routing_note for mild: 'EDUCATION RESPONSE — Patient reports [symptom]. RN to provide education and self-management guidance. Monitor for worsening.'\n\nNONE — set clinical_routing_level to 'none' and clinical_routing_flag to false when no side effects are present (weight plateau, food noise, dosing questions, billing/shipping only messages)."}
+  ],
+  notes:[
+    {name:"Dose verification",nurse_name:"System",text:"Always ask for dose in mg and units if not provided in a side effect message. This helps verify the patient is dosing correctly and has not accidentally doubled or halved their dose."},
+    {name:"URGENCY RULES",nurse_name:"System",text:"These rules determine the urgency field.\n\nurgent: pancreatitis symptoms (severe upper abdominal pain radiating to back), persistent severe vomiting uncontrolled, tachycardia, thyroid symptoms (neck mass, hoarseness, dysphagia), suicidal ideation, severe hypoglycemia unresponsive to food intake, any immediate life threat.\n\nsame-day: moderate to severe GI symptoms affecting ability to eat or function, injection site with warmth and spreading redness and fever, medication storage error affecting an imminent dose, shakiness and sweating and confusion suggesting hypoglycemia, diarrhea lasting 3 or more days.\n\nroutine: weight concerns, mild side effects, hair loss, general questions, food noise, dosing questions without red flags."},
+    {name:"SIDE EFFECT SEVERITY CLASSIFICATION",nurse_name:"System",text:"Use this to determine clinical_routing_level for every message containing a side effect.\n\nSEVERE (red): Potential threat to life. Vomiting and/or diarrhea lasting more than 3 days, constipation lasting more than 1 week, severe abdominal pain, allergic response or anaphylaxis, rash increasing in size, fever, severe back pain, signs and symptoms of hypoglycemia (shakiness, sweating, confusion, loss of consciousness), any symptom that could be considered a threat to life.\n\nMEDIUM (yellow): Needs to be addressed but can wait for follow-up questions in initial response. Moderate diarrhea (frequent but not debilitating), moderate vomiting (not persistent beyond 3 days), moderate nausea affecting eating, abdominal pain that is uncomfortable but not severe.\n\nLOW (green): Focus on patient education, no urgency. Mild nausea, mild constipation, heartburn, hair loss, mild fatigue, mild injection site reactions.\n\nWhen classifying, always tag clinical_facts with: Side effect severity: [SEVERE/MEDIUM/LOW] — [specific symptom reported]"}
+  ]
 };
 
 let kb = JSON.parse(JSON.stringify(DEFAULT_KB));
@@ -430,10 +444,11 @@ let selectedUpReason = '', selectedDownReason = '';
 
 function getKBPrompt(){
   var p=[];
-  if(kb.protocols&&kb.protocols.length) p.push('=== PROTOCOLS ===\n'+kb.protocols.map(function(e){return '['+e.name+']\n'+e.text;}).join('\n\n'));
+  // Notes first — urgency rules, severity framework, and clinical rules must be read before protocols
+  if(kb.notes&&kb.notes.length) p.push('=== CLINICAL RULES (read first) ===\n'+kb.notes.map(function(e){return '['+e.name+']\n'+e.text;}).join('\n\n'));
+  if(kb.routing&&kb.routing.length) p.push('=== ROUTING RULES ===\n'+kb.routing.map(function(e){return '['+e.name+']\n'+e.text;}).join('\n\n'));
+  if(kb.protocols&&kb.protocols.length) p.push('=== RESPONSE PROTOCOLS ===\n'+kb.protocols.map(function(e){return '['+e.name+']\n'+e.text;}).join('\n\n'));
   if(kb.urls&&kb.urls.length) p.push('=== URLS ===\n'+kb.urls.map(function(e){return e.name+': '+e.text;}).join('\n'));
-  if(kb.routing&&kb.routing.length) p.push('=== ROUTING ===\n'+kb.routing.map(function(e){return '['+e.name+']\n'+e.text;}).join('\n\n'));
-  if(kb.notes&&kb.notes.length) p.push('=== NOTES ===\n'+kb.notes.map(function(e){return '['+e.name+']\n'+e.text;}).join('\n\n'));
   return p.join('\n\n');
 }
 
@@ -484,10 +499,15 @@ async function loadKBFromServer(){
         if(s)nkb[s].push({name:row.name,text:row.content,nurse_name:row.nurse_name||'Unknown'});
       });
       kb=nkb;
+      setSyncBar('synced','Synced · '+new Date().toLocaleTimeString());
+    }else{
+      // Empty DB — seed with defaults and save so rules are in Supabase
+      setSyncBar('','First run — seeding knowledge base...');
+      await saveKBSilent();
+      setSyncBar('synced','Knowledge base seeded · '+new Date().toLocaleTimeString());
     }
-    setSyncBar('synced','Synced · '+new Date().toLocaleTimeString());
     renderKB();
-  }catch(e){setSyncBar('error','Could not load');renderKB();}
+  }catch(e){setSyncBar('error','Could not load — using local defaults');renderKB();}
 }
 
 function syncKBFromDOM(){
@@ -556,7 +576,8 @@ async function saveHistoryRecord(parsed,msg){
       non_clinical_flag:parsed.non_clinical_flag,non_clinical_items:parsed.non_clinical_items||[],
       routing_language:parsed.routing_language||'',clinical_facts:parsed.clinical_facts||[],
       missing_info:[],follow_up_questions:parsed.follow_up_questions||[],
-      draft_response:parsed.draft_response||''
+      draft_response:parsed.draft_response||'',
+      department_notes:(parsed.clinical_routing_note||'')+(parsed.internal_note?'\nNon-clinical: '+parsed.internal_note:'')
     });
     return Array.isArray(r)&&r[0]?r[0].id:null;
   }catch(e){return null;}
@@ -774,71 +795,56 @@ async function submitCorrection(){
 }
 
 // RENDER
-function extractSeverity(facts){
-  // Scan clinical_facts for a severity tag written by the AI
-  if(!facts||!facts.length) return null;
-  for(var i=0;i<facts.length;i++){
-    var f=facts[i].toLowerCase();
-    if(f.includes('side effect severity')||f.includes('severity:')){
-      if(f.includes('severe')) return {level:'SEVERE',cls:'sev-severe',label:'Severe'};
-      if(f.includes('medium')) return {level:'MEDIUM',cls:'sev-medium',label:'Medium'};
-      if(f.includes('low'))    return {level:'LOW',cls:'sev-low',label:'Low / Mild'};
-    }
-    // Also catch severity implied by the category itself even without explicit tag
-  }
-  // Fallback: infer from category — only for side effect categories
-  return null;
-}
-
-// Categories that represent actual side effects worth severity-badging
-var SIDE_EFFECT_CATS = ['gi side effects','diarrhea','heartburn/reflux','fatigue','hair loss','skin/site reaction','medication storage','urgent-escalate','general/multiple'];
-
-function buildSeverityBadge(facts, category){
-  var cat = (category||'').toLowerCase();
-  // Only show severity for side-effect-related categories
-  var isSideEffect = SIDE_EFFECT_CATS.some(function(c){return cat.includes(c);});
-  if(!isSideEffect) return '';
-
-  var sev = extractSeverity(facts);
-  if(!sev){
-    if(cat.includes('urgent-escalate'))
-      sev={level:'SEVERE',cls:'sev-severe',label:'Severe'};
-    else if(['gi side effects','diarrhea','heartburn/reflux','fatigue'].some(function(c){return cat.includes(c);}))
-      sev={level:'MEDIUM',cls:'sev-medium',label:'Medium'};
-    else if(['hair loss','skin/site reaction','medication storage'].some(function(c){return cat.includes(c);}))
-      sev={level:'LOW',cls:'sev-low',label:'Low / Mild'};
-    else if(cat.includes('general/multiple'))
-      sev={level:'MEDIUM',cls:'sev-medium',label:'Review Needed'};
-  }
+// Severity badge reads exclusively from clinical_routing_level — set by AI using KB rules
+// No hardcoded category lists or fallback inference. Single source of truth.
+function buildSeverityBadge(routingLevel){
+  var level = (routingLevel||'none').toLowerCase();
+  var map = {
+    'severe': {cls:'sev-severe', label:'Severe'},
+    'moderate': {cls:'sev-medium', label:'Moderate'},
+    'mild': {cls:'sev-low', label:'Mild / Low'}
+  };
+  var sev = map[level];
   if(!sev) return '';
-  // Extract symptom name from the severity fact line if present
-  var symptomLabel = '';
-  if(facts){
-    for(var i=0;i<facts.length;i++){
-      var f = facts[i];
-      if(f.toLowerCase().includes('side effect severity')||f.toLowerCase().includes('severity:')){
-        // e.g. "Side effect severity: MEDIUM — moderate nausea"
-        var dashIdx = f.indexOf('—');
-        if(dashIdx>-1) symptomLabel = f.substring(dashIdx+1).trim();
-        break;
-      }
-    }
-  }
-  return '<div class="severity-badge '+sev.cls+'"><div class="sev-dot"></div>'+
-    sev.label+(symptomLabel?' — '+esc(symptomLabel):'')+
-  '</div>';
+  if(!sev) return '';
+  return '<div class="severity-badge '+sev.cls+'"><div class="sev-dot"></div>'+sev.label+'</div>';
 }
 
 function renderResults(d){
   var html='';
 
-  // ── Internal routing card — only when non-clinical content present ──────────
+  // ── Clinical routing card — side effects ────────────────────────────────
+  var clinLevel = (d.clinical_routing_level||'none').toLowerCase();
+  if(d.clinical_routing_flag && clinLevel !== 'none'){
+    var clinBorderColor = clinLevel==='severe'?'var(--red-m)':clinLevel==='moderate'?'var(--amber-m)':'var(--green-m)';
+    var clinBg = clinLevel==='severe'?'var(--red-l)':clinLevel==='moderate'?'var(--amber-l)':'var(--green-l)';
+    var clinTextColor = clinLevel==='severe'?'var(--red)':clinLevel==='moderate'?'var(--amber)':'var(--green)';
+    var clinIcon = clinLevel==='severe'?'&#128308;':clinLevel==='moderate'?'&#128993;':'&#128994;';
+    var clinTitle = clinLevel==='severe'?'Escalate to Provider — Action Required':
+                    clinLevel==='moderate'?'Moderate Side Effect — Follow-Up Then Route if Needed':
+                    'Mild Side Effect — Education Response';
+    var clinNote = d.clinical_routing_note || '';
+    html+='<div class="out-card" style="border-color:'+clinBorderColor+';">'+
+      '<div class="oc-header" style="background:'+clinBg+';">'+
+        '<span class="oc-label" style="color:'+clinTextColor+';">'+clinIcon+' '+clinTitle+'</span>'+
+      '</div>'+
+      (clinNote?
+        '<div class="oc-body">'+
+          '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:6px;">Clinical Routing Note</div>'+
+          '<div style="background:var(--gray-50);border:1.5px solid var(--gray-200);border-radius:8px;padding:12px 14px;font-size:var(--fs-sm);color:var(--gray-800);line-height:1.7;">'+esc(clinNote)+'</div>'+
+          '<button class="copy-btn" style="margin-top:10px;border-color:'+clinBorderColor+';color:'+clinTextColor+';" data-copy="'+esc(clinNote)+'">Copy Routing Note</button>'+
+        '</div>'
+      :'')+
+    '</div>';
+  }
+
+  // ── Non-clinical routing card — billing / shipping / admin ──────────────
   if(d.non_clinical_flag&&d.non_clinical_items&&d.non_clinical_items.length){
     var internalNote = d.internal_note || d.routing_language || '';
     html+='<div class="out-card" style="border-color:var(--amber-m);">'+
-      '<div class="oc-header"><span class="oc-label" style="color:var(--amber);">&#9888; Additional Routing Required</span></div>'+
+      '<div class="oc-header"><span class="oc-label" style="color:var(--amber);">&#9888; Non-Clinical Routing Required</span></div>'+
       '<div class="oc-body">'+
-        '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:6px;">Flagged for another department</div>'+
+        '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:6px;">Flagged for support team</div>'+
         '<div style="font-size:var(--fs-base);font-weight:500;color:var(--gray-800);margin-bottom:12px;line-height:1.6;">'+d.non_clinical_items.map(esc).join(' &middot; ')+'</div>'+
         (internalNote?
           '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--slate);margin-bottom:6px;">Internal note for Bask staff</div>'+
@@ -850,17 +856,13 @@ function renderResults(d){
   }
 
   // ── Classification + Clinical Facts merged card ──────────────────────────
-  var severityBadge = buildSeverityBadge(d.clinical_facts, d.clinical_category);
+  var severityBadge = buildSeverityBadge(d.clinical_routing_level);
   // Filter facts: skip severity-tag lines (internal AI markers) and side-effect
   // redundancy lines when no side effects are present
-  var cat = (d.clinical_category||'').toLowerCase();
-  var hasSideEffect = SIDE_EFFECT_CATS.some(function(c){return cat.includes(c);});
+  // Filter facts: hide severity tag lines since they display in the badge
   var displayFacts = (d.clinical_facts||[]).filter(function(f){
     var fl = f.toLowerCase();
-    // Drop the AI's severity tagging lines — shown in badge instead
     if(fl.includes('side effect severity')) return false;
-    // Drop "no side effects" lines when category isn't a side effect
-    if(!hasSideEffect && (fl.includes('no side effect') || fl.includes('side effect: none') || fl.includes('side effects: none'))) return false;
     return true;
   });
 
