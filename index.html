@@ -112,7 +112,7 @@ textarea::placeholder{color:var(--gray-400);}
 .class-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;}
 .class-box{background:var(--gray-50);border-radius:10px;border:1px solid var(--gray-200);padding:13px 16px;}
 .class-box-label{font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--gray-500);margin-bottom:7px;}
-.severity-badge{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:6px;font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-top:8px;}
+.severity-badge{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:5px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;}
 .severity-badge .sev-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
 .sev-severe{background:var(--red-l);color:var(--red);border:1.5px solid var(--red-m);}
 .sev-severe .sev-dot{background:var(--red);}
@@ -133,6 +133,8 @@ textarea::placeholder{color:var(--gray-400);}
 .facts-list{list-style:none;display:flex;flex-direction:column;gap:8px;margin-top:6px;}
 .facts-list li{font-size:var(--fs-base);line-height:1.55;color:var(--gray-700);padding-left:20px;position:relative;}
 .facts-list li::before{content:'›';position:absolute;left:0;color:var(--blue);font-weight:700;font-size:18px;top:-1px;}
+.facts-list.compact li{font-size:var(--fs-sm);line-height:1.5;color:var(--gray-600);padding-left:16px;}
+.facts-list.compact li::before{font-size:15px;top:-1px;}
 
 /* FOLLOW-UP QUESTIONS */
 .q-list{list-style:disc;padding-left:22px;display:flex;flex-direction:column;gap:9px;margin-top:6px;}
@@ -784,24 +786,29 @@ function extractSeverity(facts){
     }
     // Also catch severity implied by the category itself even without explicit tag
   }
-  // Fallback: infer from category
+  // Fallback: infer from category — only for side effect categories
   return null;
 }
 
+// Categories that represent actual side effects worth severity-badging
+var SIDE_EFFECT_CATS = ['gi side effects','diarrhea','heartburn/reflux','fatigue','hair loss','skin/site reaction','medication storage','urgent-escalate','general/multiple'];
+
 function buildSeverityBadge(facts, category){
+  var cat = (category||'').toLowerCase();
+  // Only show severity for side-effect-related categories
+  var isSideEffect = SIDE_EFFECT_CATS.some(function(c){return cat.includes(c);});
+  if(!isSideEffect) return '';
+
   var sev = extractSeverity(facts);
-  // If AI didn't tag it, infer from category
   if(!sev){
-    var cat = (category||'').toLowerCase();
-    var severeCategories = ['urgent-escalate'];
-    var mediumCategories = ['gi side effects','diarrhea','heartburn/reflux','fatigue'];
-    var lowCategories = ['hair loss','food noise/cravings','no early weight loss','weight plateau','dosing question','injection/administration','skin/site reaction','medication storage'];
-    if(severeCategories.some(function(c){return cat.includes(c);}))
+    if(cat.includes('urgent-escalate'))
       sev={level:'SEVERE',cls:'sev-severe',label:'Severe'};
-    else if(mediumCategories.some(function(c){return cat.includes(c);}))
+    else if(['gi side effects','diarrhea','heartburn/reflux','fatigue'].some(function(c){return cat.includes(c);}))
       sev={level:'MEDIUM',cls:'sev-medium',label:'Medium'};
-    else if(lowCategories.some(function(c){return cat.includes(c);}))
+    else if(['hair loss','skin/site reaction','medication storage'].some(function(c){return cat.includes(c);}))
       sev={level:'LOW',cls:'sev-low',label:'Low / Mild'};
+    else if(cat.includes('general/multiple'))
+      sev={level:'MEDIUM',cls:'sev-medium',label:'Review Needed'};
   }
   if(!sev) return '';
   // Extract symptom name from the severity fact line if present
@@ -842,10 +849,23 @@ function renderResults(d){
     '</div>';
   }
 
-  // ── Classification card ───────────────────────────────────────────────────
+  // ── Classification + Clinical Facts merged card ──────────────────────────
   var severityBadge = buildSeverityBadge(d.clinical_facts, d.clinical_category);
+  // Filter facts: skip severity-tag lines (internal AI markers) and side-effect
+  // redundancy lines when no side effects are present
+  var cat = (d.clinical_category||'').toLowerCase();
+  var hasSideEffect = SIDE_EFFECT_CATS.some(function(c){return cat.includes(c);});
+  var displayFacts = (d.clinical_facts||[]).filter(function(f){
+    var fl = f.toLowerCase();
+    // Drop the AI's severity tagging lines — shown in badge instead
+    if(fl.includes('side effect severity')) return false;
+    // Drop "no side effects" lines when category isn't a side effect
+    if(!hasSideEffect && (fl.includes('no side effect') || fl.includes('side effect: none') || fl.includes('side effects: none'))) return false;
+    return true;
+  });
+
   html+='<div class="out-card">'+
-    '<div class="oc-header"><span class="oc-label">Classification</span></div>'+
+    '<div class="oc-header"><span class="oc-label">Classification</span>'+(severityBadge?severityBadge:'')+'</div>'+
     '<div class="oc-body">'+
       '<div class="class-grid">'+
         '<div class="class-box">'+
@@ -857,15 +877,12 @@ function renderResults(d){
           buildTimeframeSelect(d.urgency)+
         '</div>'+
       '</div>'+
-      (severityBadge?'<div style="margin-top:4px;"><div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:6px;">Side Effect Severity</div>'+severityBadge+'</div>':'')+
-    '</div>'+
-  '</div>';
-
-  // ── Key Clinical Facts card ───────────────────────────────────────────────
-  html+='<div class="out-card">'+
-    '<div class="oc-header"><span class="oc-label">Key Clinical Facts</span></div>'+
-    '<div class="oc-body">'+
-      '<ul class="facts-list">'+d.clinical_facts.map(function(f){return '<li>'+esc(f)+'</li>';}).join('')+'</ul>'+
+      (displayFacts.length?
+        '<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--gray-100);">'+
+          '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:7px;">Key Clinical Facts</div>'+
+          '<ul class="facts-list compact">'+displayFacts.map(function(f){return '<li>'+esc(f)+'</li>';}).join('')+'</ul>'+
+        '</div>'
+      :'')+
     '</div>'+
   '</div>';
 
@@ -881,7 +898,7 @@ function renderResults(d){
 
       '<div class="feedback-row">'+
         '<button class="vote-btn up" id="upvoteBtn" onclick="toggleVotePanel(\'up\')">&#128077; This is good</button>'+
-        '<button class="vote-btn down" id="downvoteBtn" onclick="toggleVotePanel(\'down\')">&#128078; Flag this response</button>'+
+        '<button class="vote-btn down" id="downvoteBtn" onclick="toggleVotePanel(\'down\')">&#128078; Needs Improvement</button>'+
       '</div>'+
 
       '<div class="vote-panel up-panel" id="upvotePanel">'+
