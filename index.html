@@ -432,7 +432,7 @@ textarea::placeholder{color:var(--gray-400);}
 // Today's date injected at runtime so AI never uses stale year
 const TODAY = new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
 
-const BASE_PROMPT = `GLP-1 telehealth triage AI. Today is ${TODAY}. Output ONLY valid JSON — no markdown, no prose outside JSON.
+const BASE_PROMPT = `GLP-1 telehealth triage AI. Today is ${TODAY}. Output ONLY valid JSON -- no markdown, no prose outside JSON.
 
 JSON schema (every field required):
 {"non_clinical_flag":bool,"non_clinical_items":["..."],"routing_language":"string","internal_note":"string","clinical_routing_flag":bool,"clinical_routing_level":"severe|moderate|mild|none","clinical_routing_note":"string","clinical_category":"GI side effects|Weight plateau|No early weight loss|Food noise/cravings|Hair loss|Fatigue|Heartburn/reflux|Diarrhea|Injection/administration|Dosing question|Skin/site reaction|Medication storage|Urgent-escalate|General/multiple","urgency":"routine|same-day|urgent","clinical_facts":["3-6 items"],"follow_up_questions":["..."],"draft_response":"string"}
@@ -459,46 +459,46 @@ const CLINICAL_CATS = [
 ];
 
 const NON_CLINICAL_CATS = [
-  '— None —',
+  '-- None --',
   'Billing/Payment','Shipment/Tracking','Account/Subscription',
   'Refund request','Package not received','Prescription transfer','Other'
 ];
 
 const TIMEFRAMES = [
-  {v:'routine',l:'Routine — Next Available',c:'routine'},
+  {v:'routine',l:'Routine -- Next Available',c:'routine'},
   {v:'24h',l:'Within 24 Hours',c:'same-day'},
-  {v:'24-72h',l:'Within 24–72 Hours',c:'same-day'},
+  {v:'24-72h',l:'Within 24-72 Hours',c:'same-day'},
   {v:'72h',l:'Within 72 Hours',c:'same-day'},
   {v:'same-day',l:'Same Day Response',c:'same-day'},
-  {v:'urgent',l:'URGENT — Escalate Now',c:'urgent'},
+  {v:'urgent',l:'URGENT -- Escalate Now',c:'urgent'},
 ];
 
 const DEFAULT_KB = {
   sideeffects:[
-    {name:"Nausea",nurse_name:"System",text:"Eating smaller meals and waiting longer between bites is recommended. Remember that eating shouldn't be a race. Try putting food in plastic containers or baggies and putting them in the fridge, and removing them as needed to snack on. Little snacks and small meals all day will help. If you've been eating fatty, greasy, acidic or heavy foods, removing that from your diet is also recommended.\n\nI always suggest Tums and Pepto Bismol for symptoms of nausea, because it can also be related to heartburn/acid reflux and indigestion. Another over the counter medication you can try is famotidine (Pepcid) which is used for reflux and GERD, but it can help calm the nausea as well.\n\nWe can request a prescription for ondansetron (Zofran) which is an anti-emetic — please send me your local pharmacy name, address, and phone number."},
+    {name:"Nausea",nurse_name:"System",text:"Eating smaller meals and waiting longer between bites is recommended. Remember that eating shouldn't be a race. Try putting food in plastic containers or baggies and putting them in the fridge, and removing them as needed to snack on. Little snacks and small meals all day will help. If you've been eating fatty, greasy, acidic or heavy foods, removing that from your diet is also recommended.\n\nI always suggest Tums and Pepto Bismol for symptoms of nausea, because it can also be related to heartburn/acid reflux and indigestion. Another over the counter medication you can try is famotidine (Pepcid) which is used for reflux and GERD, but it can help calm the nausea as well.\n\nWe can request a prescription for ondansetron (Zofran) which is an anti-emetic -- please send me your local pharmacy name, address, and phone number."},
     {name:"Hair loss",nurse_name:"System",text:"This is a common side effect of GLP medications, usually related to a nutrient deficiency due to lowering of calories. This is called telogen effluvium.\n\nMost of the time your hair will begin growing back during the next growth cycle. I recommend getting in more vitamins and minerals through a multi-vitamin, getting plenty of protein, and green leafy vegetables."},
     {name:"Heartburn / Reflux",nurse_name:"System",text:"Heartburn is a common side effect of GLP medications, more often than not caused by ingesting too much food or liquid, causing reflux due to delayed gastric emptying.\n\nTake Pepcid (famotadine) or another OTC like Prilosec (omeprazole) or Nexium (esomeprazole). Pepto Bismol and Tums can assist as well. Decrease fatty, greasy, or acidic food ingestion. Eat slowly with smaller bites and split your meals into multiple sessions. Decrease coffee, energy drinks, and sodas."},
-    {name:"Fatigue",nurse_name:"System",text:"Fatigue is often caused by a decrease in calorie intake and the body not having enough fuel to operate properly.\n\nTrack your calories on MyFitnessPal — if you're in too much of a deficit, add more food. Drink 60-100oz of water daily. Regular exercise such as a walk 3+ times per week will boost energy through endorphins. Try Gatorade or Pedialyte to replace electrolytes. Add a multi-vitamin and B12. Try slow burning carbohydrates like brown rice, sweet potatoes, broccoli, and lentils.\n\nIf you feel weak, sweaty, confused, or shaky, drink some fruit juice, eat peanut butter with bread, some milk, or a regular sugar soda — you may be experiencing low blood sugar."},
-    {name:"Diarrhea",nurse_name:"System",text:"Decrease fatty, greasy foods and eat a very bland diet — bananas, rice, bread, and crackers. Increase fiber to help bind materials. Take Imodium per label directions, starting with the low dose. Pepto Bismol is a great choice as well.\n\nDrink plenty of fluids and electrolytes — Pedialyte, Gatorade, coconut water, or water with an electrolyte additive.\n\nIf you experience blood in your stool, severe abdominal pain, or diarrhea for more than 3 days affecting daily living, please get checked at an urgent care or emergency room."}
+    {name:"Fatigue",nurse_name:"System",text:"Fatigue is often caused by a decrease in calorie intake and the body not having enough fuel to operate properly.\n\nTrack your calories on MyFitnessPal -- if you're in too much of a deficit, add more food. Drink 60-100oz of water daily. Regular exercise such as a walk 3+ times per week will boost energy through endorphins. Try Gatorade or Pedialyte to replace electrolytes. Add a multi-vitamin and B12. Try slow burning carbohydrates like brown rice, sweet potatoes, broccoli, and lentils.\n\nIf you feel weak, sweaty, confused, or shaky, drink some fruit juice, eat peanut butter with bread, some milk, or a regular sugar soda -- you may be experiencing low blood sugar."},
+    {name:"Diarrhea",nurse_name:"System",text:"Decrease fatty, greasy foods and eat a very bland diet -- bananas, rice, bread, and crackers. Increase fiber to help bind materials. Take Imodium per label directions, starting with the low dose. Pepto Bismol is a great choice as well.\n\nDrink plenty of fluids and electrolytes -- Pedialyte, Gatorade, coconut water, or water with an electrolyte additive.\n\nIf you experience blood in your stool, severe abdominal pain, or diarrhea for more than 3 days affecting daily living, please get checked at an urgent care or emergency room."}
   ],
   templates:[
     {name:"Food noise / cravings",nurse_name:"System",text:"It is normal, even expected, to have food noise or hunger return by day 4-5 after an injection. The half-life of the medication is around that 5 day mark.\n\nI recommend using an app like LoseIt to track calories and stay at a healthy TDEE level (https://tdee.is/). Make sure you're getting enough protein, take small bites of food all day, focus on slow-burning carbohydrates, eat high quality non-processed whole foods, increase fiber, drink 1oz of water per pound of bodyweight, add a multi-vitamin and probiotic, and try to add some exercise every day or two.\n\nI always suggest weighing only once per week, on the same day, at the same time, on the same scale."},
-    {name:"Weight plateau — follow-up questions",nurse_name:"System",text:"Do you mind answering a few questions for me so I can give you some customized advice?\n\n- Are you finding yourself having cravings during the day, and food noise returning?\n- How many calories do you eat per day presently, and are you tracking on an app like LoseIt or MyFitnessPal?\n- Are you drinking at a minimum of 60oz of water per day?\n- Are you eating fiber through a supplement or fruits and vegetables?\n- How much protein are you getting per day?\n- What does your exercise routine look like?\n\nQuick tip: I recommend using https://tdee.is/ — calculating your TDEE is important so you can reduce your calorie intake appropriately."}
+    {name:"Weight plateau -- follow-up questions",nurse_name:"System",text:"Do you mind answering a few questions for me so I can give you some customized advice?\n\n- Are you finding yourself having cravings during the day, and food noise returning?\n- How many calories do you eat per day presently, and are you tracking on an app like LoseIt or MyFitnessPal?\n- Are you drinking at a minimum of 60oz of water per day?\n- Are you eating fiber through a supplement or fruits and vegetables?\n- How much protein are you getting per day?\n- What does your exercise routine look like?\n\nQuick tip: I recommend using https://tdee.is/ -- calculating your TDEE is important so you can reduce your calorie intake appropriately."}
   ],
   protocols:[
-    {name:"Example protocol structure",nurse_name:"System",text:"Protocols use if/then logic. Example:\n\nIF patient reports vomiting for more than 3 days:\n  → Classify as SEVERE\n  → Escalate to provider immediately\n  → Do not wait for patient reply\nELSE IF vomiting less than 3 days AND patient can keep fluids down:\n  → Classify as MODERATE\n  → Ask: How many times per day? Any blood? Able to stay hydrated?\n  → Based on reply: educate on Zofran, bland diet, hydration\nELSE IF mild nausea with no vomiting:\n  → Classify as MILD\n  → Provide nausea education from Side Effect Guidance"}
+    {name:"Example protocol structure",nurse_name:"System",text:"Protocols use if/then logic. Example:\n\nIF patient reports vomiting for more than 3 days:\n  -> Classify as SEVERE\n  -> Escalate to provider immediately\n  -> Do not wait for patient reply\nELSE IF vomiting less than 3 days AND patient can keep fluids down:\n  -> Classify as MODERATE\n  -> Ask: How many times per day? Any blood? Able to stay hydrated?\n  -> Based on reply: educate on Zofran, bland diet, hydration\nELSE IF mild nausea with no vomiting:\n  -> Classify as MILD\n  -> Provide nausea education from Side Effect Guidance"}
   ],
   urls:[
-    {name:"TDEE Calculator",nurse_name:"System",text:"https://tdee.is/ — reference for all weight loss, plateau, and calorie discussions"}
+    {name:"TDEE Calculator",nurse_name:"System",text:"https://tdee.is/ -- reference for all weight loss, plateau, and calorie discussions"}
   ],
   routing:[
-    {name:"Non-clinical patient message",nurse_name:"System",text:"Thank you for reaching out — I've flagged your billing/shipping question and am routing it to our support team who will follow up with you directly. I'll address your clinical question separately below."},
-    {name:"CLINICAL ROUTING RULES",nurse_name:"System",text:"These rules determine clinical_routing_flag, clinical_routing_level, and clinical_routing_note.\n\nSEVERE — set clinical_routing_level to 'severe'. Requires immediate provider escalation. Triggers: vomiting lasting more than 3 days, diarrhea lasting more than 3 days, constipation lasting more than 1 week, severe abdominal pain, any signs of anaphylaxis (throat tightening, hives, swelling, difficulty breathing), rash that is increasing in size, fever, severe back pain, any signs of hypoglycemia (shakiness, sweating, confusion, loss of consciousness), any symptom that could be a threat to life.\nclinical_routing_note for severe: 'ESCALATE TO PROVIDER — Patient is reporting [symptom]. This requires immediate provider review. Please flag for physician and do not wait for patient reply before acting.'\n\nMODERATE — set clinical_routing_level to 'moderate'. Needs to be addressed but can wait for follow-up questions in initial response. Triggers: moderate diarrhea (frequent but not lasting 3+ days), moderate vomiting (not persistent), moderate nausea affecting eating, abdominal pain that is uncomfortable but not severe.\nclinical_routing_note for moderate: 'FOLLOW-UP NEEDED — Patient reports [symptom]. RN to ask follow-up questions in initial response. Based on patient reply, determine if provider escalation or patient education is appropriate.'\n\nMILD — set clinical_routing_level to 'mild'. Education-focused response appropriate. Triggers: mild nausea, mild constipation, heartburn/GERD, hair loss, mild fatigue, mild injection site reactions.\nclinical_routing_note for mild: 'EDUCATION RESPONSE — Patient reports [symptom]. RN to provide education and self-management guidance. Monitor for worsening.'\n\nNONE — set clinical_routing_level to 'none' and clinical_routing_flag to false when no side effects are present (weight plateau, food noise, dosing questions, billing/shipping only messages)."}
+    {name:"Non-clinical patient message",nurse_name:"System",text:"Thank you for reaching out -- I've flagged your billing/shipping question and am routing it to our support team who will follow up with you directly. I'll address your clinical question separately below."},
+    {name:"CLINICAL ROUTING RULES",nurse_name:"System",text:"These rules determine clinical_routing_flag, clinical_routing_level, and clinical_routing_note.\n\nSEVERE -- set clinical_routing_level to 'severe'. Requires immediate provider escalation. Triggers: vomiting lasting more than 3 days, diarrhea lasting more than 3 days, constipation lasting more than 1 week, severe abdominal pain, any signs of anaphylaxis (throat tightening, hives, swelling, difficulty breathing), rash that is increasing in size, fever, severe back pain, any signs of hypoglycemia (shakiness, sweating, confusion, loss of consciousness), any symptom that could be a threat to life.\nclinical_routing_note for severe: 'ESCALATE TO PROVIDER -- Patient is reporting [symptom]. This requires immediate provider review. Please flag for physician and do not wait for patient reply before acting.'\n\nMODERATE -- set clinical_routing_level to 'moderate'. Needs to be addressed but can wait for follow-up questions in initial response. Triggers: moderate diarrhea (frequent but not lasting 3+ days), moderate vomiting (not persistent), moderate nausea affecting eating, abdominal pain that is uncomfortable but not severe.\nclinical_routing_note for moderate: 'FOLLOW-UP NEEDED -- Patient reports [symptom]. RN to ask follow-up questions in initial response. Based on patient reply, determine if provider escalation or patient education is appropriate.'\n\nMILD -- set clinical_routing_level to 'mild'. Education-focused response appropriate. Triggers: mild nausea, mild constipation, heartburn/GERD, hair loss, mild fatigue, mild injection site reactions.\nclinical_routing_note for mild: 'EDUCATION RESPONSE -- Patient reports [symptom]. RN to provide education and self-management guidance. Monitor for worsening.'\n\nNONE -- set clinical_routing_level to 'none' and clinical_routing_flag to false when no side effects are present (weight plateau, food noise, dosing questions, billing/shipping only messages)."}
   ],
   notes:[
     {name:"Dose verification",nurse_name:"System",text:"Always ask for dose in mg and units if not provided in a side effect message. This helps verify the patient is dosing correctly and has not accidentally doubled or halved their dose."},
     {name:"URGENCY RULES",nurse_name:"System",text:"These rules determine the urgency field.\n\nurgent: pancreatitis symptoms (severe upper abdominal pain radiating to back), persistent severe vomiting uncontrolled, tachycardia, thyroid symptoms (neck mass, hoarseness, dysphagia), suicidal ideation, severe hypoglycemia unresponsive to food intake, any immediate life threat.\n\nsame-day: moderate to severe GI symptoms affecting ability to eat or function, injection site with warmth and spreading redness and fever, medication storage error affecting an imminent dose, shakiness and sweating and confusion suggesting hypoglycemia, diarrhea lasting 3 or more days.\n\nroutine: weight concerns, mild side effects, hair loss, general questions, food noise, dosing questions without red flags."},
-    {name:"SIDE EFFECT SEVERITY CLASSIFICATION",nurse_name:"System",text:"Use this to determine clinical_routing_level for every message containing a side effect.\n\nSEVERE (red): Potential threat to life. Vomiting and/or diarrhea lasting more than 3 days, constipation lasting more than 1 week, severe abdominal pain, allergic response or anaphylaxis, rash increasing in size, fever, severe back pain, signs and symptoms of hypoglycemia (shakiness, sweating, confusion, loss of consciousness), any symptom that could be considered a threat to life.\n\nMEDIUM (yellow): Needs to be addressed but can wait for follow-up questions in initial response. Moderate diarrhea (frequent but not debilitating), moderate vomiting (not persistent beyond 3 days), moderate nausea affecting eating, abdominal pain that is uncomfortable but not severe.\n\nLOW (green): Focus on patient education, no urgency. Mild nausea, mild constipation, heartburn, hair loss, mild fatigue, mild injection site reactions.\n\nWhen classifying, always tag clinical_facts with: Side effect severity: [SEVERE/MEDIUM/LOW] — [specific symptom reported]"}
+    {name:"SIDE EFFECT SEVERITY CLASSIFICATION",nurse_name:"System",text:"Use this to determine clinical_routing_level for every message containing a side effect.\n\nSEVERE (red): Potential threat to life. Vomiting and/or diarrhea lasting more than 3 days, constipation lasting more than 1 week, severe abdominal pain, allergic response or anaphylaxis, rash increasing in size, fever, severe back pain, signs and symptoms of hypoglycemia (shakiness, sweating, confusion, loss of consciousness), any symptom that could be considered a threat to life.\n\nMEDIUM (yellow): Needs to be addressed but can wait for follow-up questions in initial response. Moderate diarrhea (frequent but not debilitating), moderate vomiting (not persistent beyond 3 days), moderate nausea affecting eating, abdominal pain that is uncomfortable but not severe.\n\nLOW (green): Focus on patient education, no urgency. Mild nausea, mild constipation, heartburn, hair loss, mild fatigue, mild injection site reactions.\n\nWhen classifying, always tag clinical_facts with: Side effect severity: [SEVERE/MEDIUM/LOW] -- [specific symptom reported]"}
   ]
 };
 
@@ -585,15 +585,15 @@ async function loadKBFromServer(){
         if(nkb[s]) nkb[s].push({name:row.name,text:row.content,nurse_name:row.nurse_name||'Unknown'});
       });
       kb=nkb;
-      setSyncBar('synced','Synced · '+new Date().toLocaleTimeString());
+      setSyncBar('synced','Synced . '+new Date().toLocaleTimeString());
     }else{
-      // Empty DB — seed with defaults and save so rules are in Supabase
-      setSyncBar('','First run — seeding knowledge base...');
+      // Empty DB -- seed with defaults and save so rules are in Supabase
+      setSyncBar('','First run -- seeding knowledge base...');
       await saveKBSilent();
-      setSyncBar('synced','Knowledge base seeded · '+new Date().toLocaleTimeString());
+      setSyncBar('synced','Knowledge base seeded . '+new Date().toLocaleTimeString());
     }
     renderKB();
-  }catch(e){setSyncBar('error','Could not load — using local defaults');renderKB();}
+  }catch(e){setSyncBar('error','Could not load -- using local defaults');renderKB();}
 }
 
 function syncKBFromDOM(){
@@ -647,7 +647,7 @@ async function saveKB(){
   btn.disabled=true;txt.textContent='Syncing...';spin.className='kb-spinner active';
   try{
     await api('/kb','POST',{entries:buildEntries()});
-    setSyncBar('synced','Synced · '+new Date().toLocaleTimeString());
+    setSyncBar('synced','Synced . '+new Date().toLocaleTimeString());
     showToast('Knowledge base synced');
   }catch(e){setSyncBar('error','Sync failed');}
   finally{btn.disabled=false;txt.textContent='Save & Sync to Team';spin.className='kb-spinner';}
@@ -690,19 +690,47 @@ function renderKB(){
   });
 }
 function makeEntryEl(section,i,entry){
-  var div=document.createElement('div');div.className='kb-entry';
+  var div=document.createElement('div');
+  div.className='kb-entry';
   var nm=(entry.name||'');
   var isRule=nm.includes('RULES')||nm.includes('CLASSIFICATION')||nm.includes('FRAMEWORK');
   if(isRule)div.classList.add('kb-entry-collapsed');
-  div.innerHTML='<div class="kb-entry-header">'+
-    '<input class="kb-entry-name" type="text" value="'+esc(nm)+'" data-section="'+section+'" data-index="'+i+'" placeholder="Entry name...">'+
-    '<button class="kb-entry-toggle" onclick="toggleKBEntry(this,this.closest(\'.kb-entry\'))">'+
-      (isRule?'&#9660; expand':'&#9650; collapse')+
-    '</button>'+
-    '<span class="kb-entry-author">&#128100; '+esc(entry.nurse_name||'Unknown')+'</span>'+
-  '</div>'+
-  '<textarea class="kb-entry-content" data-section="'+section+'" data-index="'+i+'">'+esc(entry.text)+'</textarea>'+
-  '<div class="kb-entry-footer"><button class="btn-xs save" onclick="saveEntryInline(\''+section+'\','+i+',this)">Save</button><button class="btn-xs danger" onclick="removeEntry(\''+section+'\','+i+')">Delete</button></div>';
+
+  var header=document.createElement('div');header.className='kb-entry-header';
+
+  var nameInp=document.createElement('input');
+  nameInp.className='kb-entry-name';nameInp.type='text';nameInp.value=nm;
+  nameInp.setAttribute('data-section',section);nameInp.setAttribute('data-index',i);
+  nameInp.placeholder='Entry name...';
+
+  var toggleBtn=document.createElement('button');
+  toggleBtn.className='kb-entry-toggle';
+  toggleBtn.textContent=isRule?'expand':'collapse';
+  toggleBtn.addEventListener('click',function(){toggleKBEntry(toggleBtn,div);});
+
+  var author=document.createElement('span');
+  author.className='kb-entry-author';
+  author.textContent='[person] '+(entry.nurse_name||'Unknown');
+
+  header.appendChild(nameInp);header.appendChild(toggleBtn);header.appendChild(author);
+
+  var ta=document.createElement('textarea');
+  ta.className='kb-entry-content';
+  ta.setAttribute('data-section',section);ta.setAttribute('data-index',i);
+  ta.value=entry.text||'';
+
+  var footer=document.createElement('div');footer.className='kb-entry-footer';
+
+  var saveBtn=document.createElement('button');
+  saveBtn.className='btn-xs save';saveBtn.textContent='Save';
+  saveBtn.addEventListener('click',function(){saveEntryInline(section,i,saveBtn);});
+
+  var delBtn=document.createElement('button');
+  delBtn.className='btn-xs danger';delBtn.textContent='Delete';
+  delBtn.addEventListener('click',function(){removeEntry(section,i);});
+
+  footer.appendChild(saveBtn);footer.appendChild(delBtn);
+  div.appendChild(header);div.appendChild(ta);div.appendChild(footer);
   return div;
 }
 async function saveEntryInline(section,i,btn){
@@ -713,7 +741,7 @@ async function saveEntryInline(section,i,btn){
     await saveKBSilent();
     btn.textContent='Saved';btn.className='btn-xs saved';
     setTimeout(function(){btn.textContent='Save';btn.className='btn-xs save';btn.disabled=false;},2000);
-    setSyncBar('synced','Synced · '+new Date().toLocaleTimeString());
+    setSyncBar('synced','Synced . '+new Date().toLocaleTimeString());
     renderKB();
   }catch(e){btn.textContent='Save';btn.disabled=false;}
 }
@@ -726,7 +754,7 @@ function importKB(e){
   var file=e.target.files[0];if(!file)return;
   var reader=new FileReader();
   reader.onload=function(ev){
-    try{var data=JSON.parse(ev.target.result);if(data.kb)kb=data.kb;renderKB();setSyncBar('','Imported — save to sync');}
+    try{var data=JSON.parse(ev.target.result);if(data.kb)kb=data.kb;renderKB();setSyncBar('','Imported -- save to sync');}
     catch(err){alert('Invalid backup file.');}
   };
   reader.readAsText(file);
@@ -738,7 +766,7 @@ function togglePrior(){
   var btn = document.getElementById('priorToggle');
   var open = panel.style.display !== 'none';
   panel.style.display = open ? 'none' : 'block';
-  btn.textContent = open ? '+ Prior context' : '✕ Remove context';
+  btn.textContent = open ? '+ Prior context' : 'x Remove context';
   btn.style.borderColor = open ? 'var(--gray-200)' : 'var(--blue-m)';
   btn.style.color = open ? 'var(--gray-500)' : 'var(--blue)';
   btn.style.background = open ? 'none' : 'var(--blue-l)';
@@ -767,7 +795,7 @@ function filterKBEntries(){
 
 function toggleKBEntry(btn, entryEl){
   entryEl.classList.toggle('kb-entry-collapsed');
-  btn.textContent = entryEl.classList.contains('kb-entry-collapsed') ? '▼ expand' : '▲ collapse';
+  btn.textContent = entryEl.classList.contains('kb-entry-collapsed') ? 'v expand' : '^ collapse';
 }
 
 function switchTab(name,btn){
@@ -779,7 +807,7 @@ function switchTab(name,btn){
 }
 
 // TRIAGE
-function setStatus(s){} // status badge removed — btn spinner handles state
+function setStatus(s){} // status badge removed -- btn spinner handles state
 function setLoading(on){
   document.getElementById('btnText').textContent=on?'Analyzing...':'Run Triage';
   document.getElementById('btnSpinner').className=on?'spinner active':'spinner';
@@ -795,11 +823,11 @@ async function runTriage(){
   var kbContent=getKBPrompt();
   var sysPrompt=kbContent?BASE_PROMPT+'\n\n'+kbContent:BASE_PROMPT;
 
-  // Build user content — include prior conversation if provided
+  // Build user content -- include prior conversation if provided
   var prior = (document.getElementById('priorInput')||{}).value||'';
   prior = prior.trim();
   var userContent = prior
-    ? 'PRIOR CONVERSATION CONTEXT (earlier thread — for background only, do not respond to this directly):\n\n' + prior + '\n\n---\n\nLATEST PATIENT MESSAGE (triage and respond to this):\n\n' + msg
+    ? 'PRIOR CONVERSATION CONTEXT (earlier thread -- for background only, do not respond to this directly):\n\n' + prior + '\n\n---\n\nLATEST PATIENT MESSAGE (triage and respond to this):\n\n' + msg
     : msg;
 
   try{
@@ -838,8 +866,8 @@ function buildCategorySelect(clinCat, nonClinCat){
     return '<option value="'+esc(c)+'"'+(c===clinCat?' selected':'')+'>'+esc(c)+'</option>';
   }).join('');
   var nonClinOpts = NON_CLINICAL_CATS.map(function(c){
-    var val = c==='— None —'?'':c;
-    return '<option value="'+esc(val)+'"'+(c===nonClinCat||(!nonClinCat&&c==='— None —')?' selected':'')+'>'+esc(c)+'</option>';
+    var val = c==='-- None --'?'':c;
+    return '<option value="'+esc(val)+'"'+(c===nonClinCat||(!nonClinCat&&c==='-- None --')?' selected':'')+'>'+esc(c)+'</option>';
   }).join('');
   return '<div style="display:flex;flex-direction:column;gap:6px;">'+
     '<select class="editable-select" id="clinCatSelect" onchange="onCatChange()">' + clinOpts + '</select>'+
@@ -861,7 +889,7 @@ async function saveCategory(){
   btn.textContent='Saving...';btn.disabled=true;
   var combined = clin.value + (nonClin&&nonClin.value?' + '+nonClin.value:'');
   if(currentHistoryId)await api('/history','POST',{action:'update_category',id:currentHistoryId,category:combined});
-  btn.textContent='Saved ✓';btn.className='save-inline-btn saved';btn.disabled=false;
+  btn.textContent='Saved OK';btn.className='save-inline-btn saved';btn.disabled=false;
 }
 
 function buildTimeframeSelect(urgency){
@@ -884,7 +912,7 @@ async function saveTimeframe(){
   if(!sel)return;
   btn.textContent='Saving...';btn.disabled=true;
   if(currentHistoryId)await api('/history','POST',{action:'update_urgency',id:currentHistoryId,urgency_override:sel.value});
-  btn.textContent='Saved ✓';btn.className='save-inline-btn saved';btn.disabled=false;
+  btn.textContent='Saved OK';btn.className='save-inline-btn saved';btn.disabled=false;
 }
 
 // VOTING
@@ -926,7 +954,7 @@ async function submitVote(type){
     btn.innerHTML=type==='up'?'&#128077; Liked':'&#128078; Flagged';
     btn.classList.add('active');btn.disabled=true;
     document.getElementById(type+'votePanel').classList.remove('open');
-    showToast('Feedback saved — '+reasons.length+' reason'+(reasons.length>1?'s':''));
+    showToast('Feedback saved -- '+reasons.length+' reason'+(reasons.length>1?'s':''));
   }catch(e){showToast('Error saving feedback');}
 }
 
@@ -945,14 +973,14 @@ async function submitCorrection(){
       method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
         model:'claude-haiku-4-5',max_tokens:200,
-        system:'Compare an AI draft response with the actual response sent by a nurse. Output 1-3 sentences summarizing what changed and what the AI should do differently next time. Plain text only — no labels, no preamble.',
+        system:'Compare an AI draft response with the actual response sent by a nurse. Output 1-3 sentences summarizing what changed and what the AI should do differently next time. Plain text only -- no labels, no preamble.',
         messages:[{role:'user',content:'AI draft:\n'+aiDraft+'\n\nActual sent:\n'+actual}]
       })
     });
     var analyzeData=await analyzeRes.json();
     var note=(analyzeData.content||[]).map(function(b){return b.text||'';}).join('').trim();
     if(currentHistoryId)await api('/history','POST',{action:'save_actual',id:currentHistoryId,actual_response:actual,correction_note:note});
-    status.textContent=note?'✓ Saved. Learning note: "'+note.substring(0,90)+(note.length>90?'...':'')+'"':'✓ Response saved.';
+    status.textContent=note?'OK Saved. Learning note: "'+note.substring(0,90)+(note.length>90?'...':'')+'"':'OK Response saved.';
     status.className='learn-status success';
     document.getElementById('correctionInput').value='';
   }catch(e){status.textContent='Error: '+e.message;status.className='learn-status error';}
@@ -960,7 +988,7 @@ async function submitCorrection(){
 }
 
 // RENDER
-// Severity badge reads exclusively from clinical_routing_level — set by AI using KB rules
+// Severity badge reads exclusively from clinical_routing_level -- set by AI using KB rules
 // No hardcoded category lists or fallback inference. Single source of truth.
 function buildSeverityBadge(routingLevel){
   var level = (routingLevel||'none').toLowerCase();
@@ -978,16 +1006,16 @@ function buildSeverityBadge(routingLevel){
 function renderResults(d){
   var html='';
 
-  // ── Clinical routing card — side effects ────────────────────────────────
+  // -- Clinical routing card -- side effects --------------------------------
   var clinLevel = (d.clinical_routing_level||'none').toLowerCase();
   if(d.clinical_routing_flag && clinLevel !== 'none'){
     var clinBorderColor = clinLevel==='severe'?'var(--red-m)':clinLevel==='moderate'?'var(--amber-m)':'var(--green-m)';
     var clinBg = clinLevel==='severe'?'var(--red-l)':clinLevel==='moderate'?'var(--amber-l)':'var(--green-l)';
     var clinTextColor = clinLevel==='severe'?'var(--red)':clinLevel==='moderate'?'var(--amber)':'var(--green)';
     var clinIcon = clinLevel==='severe'?'&#128308;':clinLevel==='moderate'?'&#128993;':'&#128994;';
-    var clinTitle = clinLevel==='severe'?'Escalate to Provider — Action Required':
-                    clinLevel==='moderate'?'Moderate Side Effect — Follow-Up Then Route if Needed':
-                    'Mild Side Effect — Education Response';
+    var clinTitle = clinLevel==='severe'?'Escalate to Provider -- Action Required':
+                    clinLevel==='moderate'?'Moderate Side Effect -- Follow-Up Then Route if Needed':
+                    'Mild Side Effect -- Education Response';
     var clinNote = d.clinical_routing_note || '';
     html+='<div class="out-card" style="border-color:'+clinBorderColor+';">'+
       '<div class="oc-header" style="background:'+clinBg+';">'+
@@ -1003,49 +1031,50 @@ function renderResults(d){
     '</div>';
   }
 
-  // ── Dual task / routing card ─────────────────────────────────────────────
+  // -- Dual task / routing card ---------------------------------------------
   if(d.non_clinical_flag&&d.non_clinical_items&&d.non_clinical_items.length){
     var routingMsg = d.routing_language || '';
     var internalNote = d.internal_note || '';
     var hasClinical = d.clinical_category && d.clinical_category !== 'General';
-    var cardTitle = hasClinical ? '&#128257; Dual Task — Two Departments Involved' : '&#8594; Route to Support Team';
-    html+='<div class="out-card" style="border-color:var(--amber-m);">'+
+    var cardTitle = hasClinical ? '&#128257; Dual Task -- Two Departments Involved' : '&#8594; Route to Support Team';
+    var _rm = routingMsg, _in = internalNote;
+    html+='<div class="out-card" style="border-color:var(--amber-m);" id="routingCard">'+
       '<div class="oc-header"><span class="oc-label" style="color:var(--amber);">'+cardTitle+'</span></div>'+
       '<div class="oc-body">'+
         (hasClinical?
           '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">'+
             '<div style="background:var(--teal-l);border:1.5px solid var(--teal-m);border-radius:8px;padding:10px 13px;">'+
-              '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--teal);margin-bottom:4px;">&#10003; Clinical — Handled by RN</div>'+
+              '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--teal);margin-bottom:4px;">&#10003; Clinical -- Handled by RN</div>'+
               '<div style="font-size:var(--fs-sm);color:var(--gray-800);font-weight:500;">'+esc(d.clinical_category)+'</div>'+
               '<div style="font-size:var(--fs-xs);color:var(--gray-500);margin-top:2px;">See response below</div>'+
             '</div>'+
             '<div style="background:var(--amber-l);border:1.5px solid var(--amber-m);border-radius:8px;padding:10px 13px;">'+
-              '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--amber);margin-bottom:4px;">&#8594; Non-Clinical — Route to Support</div>'+
+              '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--amber);margin-bottom:4px;">&#8594; Non-Clinical -- Route to Support</div>'+
               '<div style="font-size:var(--fs-sm);color:var(--gray-800);font-weight:500;">'+d.non_clinical_items.map(esc).join(', ')+'</div>'+
             '</div>'+
           '</div>'
         :
-          '<div style="font-size:var(--fs-sm);font-weight:500;color:var(--gray-800);margin-bottom:12px;">'+d.non_clinical_items.map(esc).join(' · ')+'</div>'
+          '<div style="font-size:var(--fs-sm);font-weight:500;color:var(--gray-800);margin-bottom:12px;">'+d.non_clinical_items.map(esc).join(' . ')+'</div>'
         )+
         (routingMsg?
           '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:6px;">Message to patient about non-clinical item</div>'+
           '<div style="background:var(--gray-50);border:1.5px solid var(--gray-200);border-radius:8px;padding:12px 14px;font-size:var(--fs-sm);color:var(--gray-800);line-height:1.7;position:relative;">'+
             esc(routingMsg)+
-            '<button onclick="copyFromBox(this,''+esc(routingMsg)+'')" style="position:absolute;top:8px;right:8px;background:var(--white);border:1.5px solid var(--gray-200);border-radius:6px;padding:3px 8px;cursor:pointer;font-size:11px;color:var(--gray-500);" title="Copy">&#128203;</button>'+
+            '<button class="copy-inline-btn" data-copy-target="routing" style="position:absolute;top:8px;right:8px;background:var(--white);border:1.5px solid var(--gray-200);border-radius:6px;padding:3px 8px;cursor:pointer;font-size:11px;color:var(--gray-500);">Copy</button>'+
           '</div>'
         :'')+
         (internalNote?
           '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--slate);margin-bottom:6px;margin-top:12px;">Internal Note for Staff</div>'+
           '<div style="background:var(--slate-light);border:1.5px solid var(--slate-m);border-radius:8px;padding:12px 14px;font-size:var(--fs-sm);color:var(--gray-800);line-height:1.7;position:relative;">'+
             esc(internalNote)+
-            '<button onclick="copyFromBox(this,''+esc(internalNote)+'')" style="position:absolute;top:8px;right:8px;background:var(--white);border:1.5px solid var(--gray-200);border-radius:6px;padding:3px 8px;cursor:pointer;font-size:11px;color:var(--gray-500);" title="Copy">&#128203;</button>'+
+            '<button class="copy-inline-btn" data-copy-target="internal" style="position:absolute;top:8px;right:8px;background:var(--white);border:1.5px solid var(--gray-200);border-radius:6px;padding:3px 8px;cursor:pointer;font-size:11px;color:var(--gray-500);">Copy</button>'+
           '</div>'
         :'')+
       '</div>'+
     '</div>';
   }
 
-  // ── Classification + Clinical Facts merged card ──────────────────────────
+  // -- Classification + Clinical Facts merged card --------------------------
   var severityBadge = buildSeverityBadge(d.clinical_routing_level);
   // Filter facts: skip severity-tag lines (internal AI markers) and side-effect
   // redundancy lines when no side effects are present
@@ -1078,7 +1107,7 @@ function renderResults(d){
     '</div>'+
   '</div>';
 
-  // ── Generated Response card ───────────────────────────────────────────────
+  // -- Generated Response card -----------------------------------------------
   var draftText=(d.draft_response||'').trim();
   var draftIsEmpty = !draftText;
   html+='<div class="out-card" style="border-color:'+(draftIsEmpty?'var(--red-m)':'var(--teal-m)')+'">'+
@@ -1091,12 +1120,12 @@ function renderResults(d){
       (draftIsEmpty?
         '<div style="background:var(--red-l);border:1.5px solid var(--red-m);border-radius:8px;padding:14px 16px;font-size:var(--fs-sm);color:var(--red);line-height:1.7;margin-bottom:12px;">'+
           '<strong>The AI did not generate a response.</strong> This can happen if the message was ambiguous or the model timed out. '+
-          'Click <strong>Run Triage again</strong> on the left — if it persists, try rewording the message slightly or check the Clinical Knowledge Base for conflicting rules.'+
+          'Click <strong>Run Triage again</strong> on the left -- if it persists, try rewording the message slightly or check the Clinical Knowledge Base for conflicting rules.'+
         '</div>'
       :
         '<div style="position:relative;">'+
           '<div class="response-text" id="aiDraftText">'+esc(draftText).replace(/\n/g,'<br>')+'</div>'+
-          '<button onclick="copyFromBox(this,''+esc(draftText)+'')" style="position:absolute;top:8px;right:8px;background:var(--white);border:1.5px solid var(--gray-200);border-radius:6px;padding:4px 9px;cursor:pointer;font-size:12px;color:var(--gray-500);" title="Copy response">&#128203; Copy</button>'+
+          '<button class="copy-inline-btn" data-copy-target="draft" style="position:absolute;top:8px;right:8px;background:var(--white);border:1.5px solid var(--gray-200);border-radius:6px;padding:4px 9px;cursor:pointer;font-size:12px;color:var(--gray-500);">Copy</button>'+
         '</div>'
       )+
 
@@ -1127,7 +1156,7 @@ function renderResults(d){
           [
             'Wrong clinical category','Wrong urgency level','Incorrect side effect severity',
             'Bad clinical advice','Missing important information','Wrong medications mentioned',
-            'Tone not appropriate','Too generic — not personalized','Questions were off-target',
+            'Tone not appropriate','Too generic -- not personalized','Questions were off-target',
             'Missed the non-clinical item','Wrong routing decision','Draft too long',
             'Draft too short','Missing dose check','Incorrect date or timeline',
             'Contradicts our protocols','Other'
@@ -1141,7 +1170,7 @@ function renderResults(d){
     '</div>'+
   '</div>';
 
-  // ── What did you actually send — always visible ───────────────────────────
+  // -- What did you actually send -- always visible ---------------------------
   html+='<div class="out-card" style="border-color:var(--orange-m);">'+
     '<div class="oc-header"><span class="oc-label" style="color:var(--orange);">What Did You Actually Send?</span></div>'+
     '<div class="oc-body">'+
@@ -1159,10 +1188,24 @@ function renderResults(d){
 
   var el=document.getElementById('results');
   el.innerHTML=html;
+
+  // Wire inline copy buttons using stored values
+  el.querySelectorAll('.copy-inline-btn').forEach(function(btn){
+    btn.addEventListener('click',function(){
+      var target = btn.getAttribute('data-copy-target');
+      var text = target==='routing'?_rm:target==='internal'?_in:draftText;
+      if(!text)return;
+      navigator.clipboard.writeText(text).then(function(){
+        var orig=btn.textContent; btn.textContent='Copied!'; btn.style.color='var(--green)';
+        setTimeout(function(){btn.textContent=orig; btn.style.color='';},2000);
+      });
+    });
+  });
+
   el.querySelectorAll('.copy-btn').forEach(function(btn){
     btn.addEventListener('click',function(){
       navigator.clipboard.writeText(btn.getAttribute('data-copy')).then(function(){
-        var orig=btn.textContent;btn.textContent='✓ Copied!';btn.classList.add('copied');
+        var orig=btn.textContent;btn.textContent='OK Copied!';btn.classList.add('copied');
         setTimeout(function(){btn.textContent=orig;btn.classList.remove('copied');},2000);
       });
     });
@@ -1176,7 +1219,7 @@ function toggleCorrectionsPanel(){
   var btn=document.getElementById('loadCorrectionsBtn');
   var open=panel.style.display!=='none';
   panel.style.display=open?'none':'block';
-  btn.textContent=open?'▼ Load':'▲ Hide';
+  btn.textContent=open?'v Load':'^ Hide';
   if(!open&&!correctionsLoaded)loadCorrections();
 }
 
@@ -1192,7 +1235,7 @@ async function loadCorrections(){
       var date=new Date(r.created_at).toLocaleDateString();
       return '<div style="border:1.5px solid var(--gray-200);border-radius:10px;margin-bottom:12px;overflow:hidden;">'+
         '<div style="padding:9px 13px;background:var(--gray-50);border-bottom:1px solid var(--gray-200);display:flex;justify-content:space-between;align-items:center;">'+
-          '<span style="font-size:var(--fs-xs);font-weight:600;color:var(--gray-700);">'+esc(r.nurse_name)+' · '+date+'</span>'+
+          '<span style="font-size:var(--fs-xs);font-weight:600;color:var(--gray-700);">'+esc(r.nurse_name)+' . '+date+'</span>'+
           '<span style="font-size:var(--fs-xs);color:var(--gray-500);">'+esc(r.clinical_category||'')+'</span>'+
         '</div>'+
         '<div style="padding:12px 14px;display:grid;grid-template-columns:1fr 1fr;gap:12px;">'+
@@ -1210,7 +1253,7 @@ async function loadCorrections(){
 function copyFromBox(btn, text){
   navigator.clipboard.writeText(text).then(function(){
     var orig = btn.textContent;
-    btn.textContent = '✓';
+    btn.textContent = 'OK';
     btn.style.color = 'var(--green)';
     btn.style.borderColor = 'var(--green-m)';
     setTimeout(function(){ btn.textContent = orig; btn.style.color=''; btn.style.borderColor=''; }, 2000);
@@ -1227,7 +1270,7 @@ function esc(str){
 }
 
 initNurse();
-// KB loads on demand when tab is opened — not on page init
+// KB loads on demand when tab is opened -- not on page init
 // This prevents null-reference errors from KB DOM elements not being present
 </script>
 </body>
