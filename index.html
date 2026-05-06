@@ -206,7 +206,7 @@ textarea::placeholder{color:var(--gray-400);}
 .kb-entry-header{padding:9px 13px;background:var(--gray-50);border-bottom:1px solid var(--gray-200);display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
 .kb-entry-name{flex:1;min-width:120px;font-size:var(--fs-base);font-weight:600;color:var(--gray-700);background:transparent;border:none;outline:none;font-family:var(--sans);padding:2px 0;}
 .kb-entry-name:focus{background:var(--white);border-radius:4px;padding:2px 6px;}
-.kb-entry-author{font-size:var(--fs-xs);color:var(--gray-400);white-space:nowrap;background:var(--gray-100);padding:3px 9px;border-radius:10px;}
+.kb-entry-author{font-size:var(--fs-xs);color:var(--gray-600);white-space:nowrap;padding:0;font-weight:400;font-style:italic;}
 .kb-entry-content{width:100%;min-height:100px;padding:13px 14px;border:none;border-radius:0;font-family:var(--sans);font-size:var(--fs-sm);line-height:1.75;color:var(--gray-800);resize:vertical;outline:none;background:var(--white);}
 .kb-entry-content:focus{background:#fffdf5;}
 .kb-entry-footer{padding:7px 13px;background:var(--gray-50);border-top:1px solid var(--gray-100);display:flex;justify-content:flex-end;gap:6px;}
@@ -262,6 +262,11 @@ textarea::placeholder{color:var(--gray-400);}
 .help-faq-a{display:none;padding:0 20px 16px;font-size:var(--fs-sm);color:var(--gray-700);line-height:1.8;}
 .help-faq-a.open{display:block;}
 @media(max-width:900px){.help-quickref-grid{grid-template-columns:1fr;}.help-cols{grid-template-columns:1fr;}}
+.cat-tags{display:flex;flex-wrap:wrap;gap:7px;}
+.cat-tag{padding:5px 13px;border-radius:20px;border:1.5px solid var(--gray-200);background:var(--white);font-family:var(--sans);font-size:var(--fs-xs);font-weight:500;color:var(--gray-600);cursor:pointer;transition:all .15s;user-select:none;}
+.cat-tag:hover{border-color:var(--blue-m);color:var(--blue);background:var(--blue-l);}
+.cat-tag.selected{border-color:var(--blue);background:var(--blue);color:white;font-weight:600;}
+.cat-tag.selected-nonclin{border-color:var(--amber-m);background:var(--amber-l);color:var(--amber);font-weight:600;}
 .save-toast{position:fixed;bottom:24px;right:24px;background:var(--green);color:white;padding:13px 22px;border-radius:10px;font-size:var(--fs-sm);font-weight:600;opacity:0;transition:opacity .2s;pointer-events:none;box-shadow:0 4px 12px rgba(0,0,0,.15);z-index:999;}
 .save-toast.show{opacity:1;}
 @media(max-width:900px){.triage-layout{grid-template-columns:1fr;}.class-grid{grid-template-columns:1fr;}.entry-add-row{flex-direction:column;}}
@@ -986,7 +991,7 @@ function makeEntryEl(section,i,entry){
 
   var author=document.createElement('span');
   author.className='kb-entry-author';
-  author.textContent='[person] '+(entry.nurse_name||'Unknown');
+  author.textContent=entry.nurse_name||'Unknown';
 
   header.appendChild(nameInp);header.appendChild(toggleBtn);header.appendChild(author);
 
@@ -1154,6 +1159,18 @@ function guessNonClinCat(items){
   return 'Other';
 }
 
+function buildMultiCatSelect(type, cats, defaultSelected){
+  // defaultSelected: single string from AI, pre-selects that tag
+  var norm = (defaultSelected||'').trim().toLowerCase();
+  return '<div class="cat-tags" id="catTags_'+type+'">' +
+    cats.map(function(c){
+      var isSelected = c.toLowerCase() === norm || (norm && c.toLowerCase().includes(norm));
+      var selClass = isSelected ? (type==='clin'?' selected':' selected-nonclin') : '';
+      return '<button class="cat-tag'+selClass+'" data-cat-type="'+type+'" data-cat-val="'+esc(c)+'">'+esc(c)+'</button>';
+    }).join('') +
+  '</div>';
+}
+
 function buildCategorySelect(clinCat, nonClinCat){
   // Normalize AI output to match array values (trim, fix common mismatches)
   var normClin = (clinCat||'').trim();
@@ -1188,14 +1205,19 @@ function onCatChange(){
 }
 
 async function saveCategory(){
-  var clin=document.getElementById('clinCatSelect');
-  var nonClin=document.getElementById('nonClinCatSelect');
   var btn=document.getElementById('categorySaveBtn');
-  if(!clin)return;
+  if(!btn)return;
   btn.textContent='Saving...';btn.disabled=true;
-  var combined = clin.value + (nonClin&&nonClin.value?' + '+nonClin.value:'');
+  var clinSelected=[],nonClinSelected=[];
+  document.querySelectorAll('.cat-tag.selected').forEach(function(t){
+    if(t.getAttribute('data-cat-type')==='clin') clinSelected.push(t.getAttribute('data-cat-val'));
+  });
+  document.querySelectorAll('.cat-tag.selected-nonclin').forEach(function(t){
+    nonClinSelected.push(t.getAttribute('data-cat-val'));
+  });
+  var combined = clinSelected.join(', ') + (nonClinSelected.length?' | Non-clinical: '+nonClinSelected.join(', '):'');
   if(currentHistoryId)await api('/history','POST',{action:'update_category',id:currentHistoryId,category:combined});
-  btn.textContent='Saved OK';btn.className='save-inline-btn saved';btn.disabled=false;
+  btn.textContent='Saved !';btn.className='save-inline-btn saved';btn.disabled=false;
 }
 
 function buildTimeframeSelect(urgency){
@@ -1299,12 +1321,11 @@ async function submitCorrection(){
 function buildSeverityBadge(routingLevel){
   var level = (routingLevel||'none').toLowerCase();
   var map = {
-    'severe': {cls:'sev-severe', label:'Severe'},
-    'moderate': {cls:'sev-medium', label:'Moderate'},
-    'mild': {cls:'sev-low', label:'Mild / Low'}
+    'severe': {cls:'sev-severe', label:'Side Effect: Severe'},
+    'moderate': {cls:'sev-medium', label:'Side Effect: Moderate'},
+    'mild': {cls:'sev-low', label:'Side Effect: Mild'}
   };
   var sev = map[level];
-  if(!sev) return '';
   if(!sev) return '';
   return '<div class="severity-badge '+sev.cls+'"><div class="sev-dot"></div>'+sev.label+'</div>';
 }
@@ -1312,66 +1333,30 @@ function buildSeverityBadge(routingLevel){
 function renderResults(d){
   var html='';
 
-  // -- Clinical routing card -- side effects --------------------------------
-  var clinLevel = (d.clinical_routing_level||'none').toLowerCase();
-  if(d.clinical_routing_flag && clinLevel !== 'none'){
-    var clinBorderColor = clinLevel==='severe'?'var(--red-m)':clinLevel==='moderate'?'var(--amber-m)':'var(--green-m)';
-    var clinBg = clinLevel==='severe'?'var(--red-l)':clinLevel==='moderate'?'var(--amber-l)':'var(--green-l)';
-    var clinTextColor = clinLevel==='severe'?'var(--red)':clinLevel==='moderate'?'var(--amber)':'var(--green)';
-    var clinIcon = clinLevel==='severe'?'&#128308;':clinLevel==='moderate'?'&#128993;':'&#128994;';
-    var clinTitle = clinLevel==='severe'?'Escalate to Provider -- Action Required':
-                    clinLevel==='moderate'?'Moderate Side Effect -- Follow-Up Then Route if Needed':
-                    'Mild Side Effect -- Education Response';
-    var clinNote = d.clinical_routing_note || '';
-    html+='<div class="out-card" style="border-color:'+clinBorderColor+';">'+
-      '<div class="oc-header" style="background:'+clinBg+';">'+
-        '<span class="oc-label" style="color:'+clinTextColor+';">'+clinIcon+' '+clinTitle+'</span>'+
-      '</div>'+
-      (clinNote?
-        '<div class="oc-body">'+
-          '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:6px;">Clinical Routing Note</div>'+
-          '<div style="background:var(--gray-50);border:1.5px solid var(--gray-200);border-radius:8px;padding:12px 14px;font-size:var(--fs-sm);color:var(--gray-800);line-height:1.7;">'+esc(clinNote)+'</div>'+
-          '<button class="copy-btn" style="margin-top:10px;border-color:'+clinBorderColor+';color:'+clinTextColor+';" data-copy="'+esc(clinNote)+'">Copy Routing Note</button>'+
-        '</div>'
-      :'')+
-    '</div>';
-  }
-
-  // -- Dual task / routing card ---------------------------------------------
-  if(d.non_clinical_flag&&d.non_clinical_items&&d.non_clinical_items.length){
+  // -- Non-clinical routing only -- only show if non-clinical content present --
+  if(d.non_clinical_flag && d.non_clinical_items && d.non_clinical_items.length){
     var routingMsg = d.routing_language || '';
     var internalNote = d.internal_note || '';
-    var hasClinical = d.clinical_category && d.clinical_category !== 'General';
-    var cardTitle = hasClinical ? '&#128257; Dual Task -- Two Departments Involved' : '&#8594; Route to Support Team';
+    var hasClinical = d.clinical_category && d.clinical_category !== 'General/multiple';
+    var cardTitle = hasClinical ? '&#128257; Dual Task &#8212; Route Non-Clinical Items' : '&#8594; Route to Support Team';
     var _rm = routingMsg, _in = internalNote;
-    html+='<div class="out-card" style="border-color:var(--amber-m);" id="routingCard">'+
+    html+='<div class="out-card" style="border-color:var(--amber-m);">'+
       '<div class="oc-header"><span class="oc-label" style="color:var(--amber);">'+cardTitle+'</span></div>'+
       '<div class="oc-body">'+
-        (hasClinical?
-          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">'+
-            '<div style="background:var(--teal-l);border:1.5px solid var(--teal-m);border-radius:8px;padding:10px 13px;">'+
-              '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--teal);margin-bottom:4px;">&#10003; Clinical -- Handled by RN</div>'+
-              '<div style="font-size:var(--fs-sm);color:var(--gray-800);font-weight:500;">'+esc(d.clinical_category)+'</div>'+
-              '<div style="font-size:var(--fs-xs);color:var(--gray-500);margin-top:2px;">See response below</div>'+
-            '</div>'+
-            '<div style="background:var(--amber-l);border:1.5px solid var(--amber-m);border-radius:8px;padding:10px 13px;">'+
-              '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--amber);margin-bottom:4px;">&#8594; Non-Clinical -- Route to Support</div>'+
-              '<div style="font-size:var(--fs-sm);color:var(--gray-800);font-weight:500;">'+d.non_clinical_items.map(esc).join(', ')+'</div>'+
-            '</div>'+
-          '</div>'
-        :
-          '<div style="font-size:var(--fs-sm);font-weight:500;color:var(--gray-800);margin-bottom:12px;">'+d.non_clinical_items.map(esc).join(' . ')+'</div>'
-        )+
+        '<div style="margin-bottom:12px;">'+
+          '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:6px;">Items to route</div>'+
+          '<div style="font-size:var(--fs-base);font-weight:500;color:var(--gray-800);">'+d.non_clinical_items.map(esc).join(' &middot; ')+'</div>'+
+        '</div>'+
         (routingMsg?
-          '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:6px;">Message to patient about non-clinical item</div>'+
+          '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:6px;">Message to patient</div>'+
           '<div style="background:var(--gray-50);border:1.5px solid var(--gray-200);border-radius:8px;padding:12px 14px;font-size:var(--fs-sm);color:var(--gray-800);line-height:1.7;position:relative;">'+
             esc(routingMsg)+
             '<button class="copy-inline-btn" data-copy-target="routing" style="position:absolute;top:8px;right:8px;background:var(--white);border:1.5px solid var(--gray-200);border-radius:6px;padding:3px 8px;cursor:pointer;font-size:11px;color:var(--gray-500);">Copy</button>'+
           '</div>'
         :'')+
         (internalNote?
-          '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--slate);margin-bottom:6px;margin-top:12px;">Internal Note for Staff</div>'+
-          '<div style="background:var(--slate-light);border:1.5px solid var(--slate-m);border-radius:8px;padding:12px 14px;font-size:var(--fs-sm);color:var(--gray-800);line-height:1.7;position:relative;">'+
+          '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:6px;margin-top:12px;">Internal Note for Staff</div>'+
+          '<div style="background:var(--gray-50);border:1.5px solid var(--gray-200);border-radius:8px;padding:12px 14px;font-size:var(--fs-sm);color:var(--gray-800);line-height:1.7;position:relative;">'+
             esc(internalNote)+
             '<button class="copy-inline-btn" data-copy-target="internal" style="position:absolute;top:8px;right:8px;background:var(--white);border:1.5px solid var(--gray-200);border-radius:6px;padding:3px 8px;cursor:pointer;font-size:11px;color:var(--gray-500);">Copy</button>'+
           '</div>'
@@ -1380,38 +1365,50 @@ function renderResults(d){
     '</div>';
   }
 
-  // -- Classification + Clinical Facts merged card --------------------------
+  // -- Urgency card ----------------------------------------------------------
   var severityBadge = buildSeverityBadge(d.clinical_routing_level);
-  // Filter facts: skip severity-tag lines (internal AI markers) and side-effect
-  // redundancy lines when no side effects are present
-  // Filter facts: hide severity tag lines since they display in the badge
-  var displayFacts = (d.clinical_facts||[]).filter(function(f){
-    var fl = f.toLowerCase();
-    if(fl.includes('side effect severity')) return false;
-    return true;
-  });
-
   html+='<div class="out-card">'+
-    '<div class="oc-header"><span class="oc-label">Classification</span>'+(severityBadge?severityBadge:'')+'</div>'+
+    '<div class="oc-header">'+
+      '<span class="oc-label">Urgency &amp; Timeframe</span>'+
+      (severityBadge?severityBadge:'')+
+    '</div>'+
     '<div class="oc-body">'+
-      '<div class="class-grid">'+
-        '<div class="class-box">'+
-          '<div class="class-box-label">Clinical Category / Non-Clinical</div>'+
-          buildCategorySelect(d.clinical_category, guessNonClinCat(d.non_clinical_items))+
-        '</div>'+
-        '<div class="class-box">'+
-          '<div class="class-box-label">Response Timeframe</div>'+
-          buildTimeframeSelect(d.urgency)+
-        '</div>'+
-      '</div>'+
-      (displayFacts.length?
-        '<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--gray-100);">'+
-          '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:7px;">Key Points</div>'+
-          '<ul class="facts-list compact">'+displayFacts.map(function(f){return '<li>'+esc(f)+'</li>';}).join('')+'</ul>'+
-        '</div>'
-      :'')+
+      buildTimeframeSelect(d.urgency)+
     '</div>'+
   '</div>';
+
+  // -- Category card -- multi-select tags ------------------------------------
+  var aiClinCat = (d.clinical_category||'').trim();
+  var aiNonClin = guessNonClinCat(d.non_clinical_items);
+  html+='<div class="out-card">'+
+    '<div class="oc-header"><span class="oc-label">Message Category</span></div>'+
+    '<div class="oc-body">'+
+      '<div style="margin-bottom:12px;">'+
+        '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:8px;">Clinical</div>'+
+        buildMultiCatSelect('clin', CLINICAL_CATS, aiClinCat)+
+      '</div>'+
+      (d.non_clinical_flag?
+        '<div style="padding-top:10px;border-top:1px solid var(--gray-100);">'+
+          '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:8px;">Non-Clinical</div>'+
+          buildMultiCatSelect('nonclin', NON_CLINICAL_CATS.filter(function(c){return c!=='-- None --';}), aiNonClin)+
+        '</div>'
+      :'')+
+      '<button class="save-inline-btn" id="categorySaveBtn" onclick="saveCategory()" style="margin-top:10px;">Save correction</button>'+
+    '</div>'+
+  '</div>';
+
+  // -- Key Points card -------------------------------------------------------
+  var displayFacts = (d.clinical_facts||[]).filter(function(f){
+    return !f.toLowerCase().includes('side effect severity');
+  });
+  if(displayFacts.length){
+    html+='<div class="out-card">'+
+      '<div class="oc-header"><span class="oc-label">Key Points</span></div>'+
+      '<div class="oc-body">'+
+        '<ul class="facts-list">'+displayFacts.map(function(f){return '<li>'+esc(f)+'</li>';}).join('')+'</ul>'+
+      '</div>'+
+    '</div>';
+  }
 
   // -- Generated Response card -----------------------------------------------
   var draftText=(d.draft_response||'').trim();
@@ -1424,9 +1421,8 @@ function renderResults(d){
     '</div>'+
     '<div class="oc-body">'+
       (draftIsEmpty?
-        '<div style="background:var(--red-l);border:1.5px solid var(--red-m);border-radius:8px;padding:14px 16px;font-size:var(--fs-sm);color:var(--red);line-height:1.7;margin-bottom:12px;">'+
-          '<strong>The AI did not generate a response.</strong> This can happen if the message was ambiguous or the model timed out. '+
-          'Click <strong>Run Triage again</strong> on the left -- if it persists, try rewording the message slightly or check the Clinical Knowledge Base for conflicting rules.'+
+        '<div style="background:var(--red-l);border:1.5px solid var(--red-m);border-radius:8px;padding:14px 16px;font-size:var(--fs-sm);color:var(--red);line-height:1.7;">'+
+          '<strong>The AI did not generate a response.</strong> Click <strong>Run Triage again</strong>.'+
         '</div>'
       :
         '<div style="position:relative;">'+
@@ -1434,53 +1430,36 @@ function renderResults(d){
           '<button class="copy-inline-btn" data-copy-target="draft" style="position:absolute;top:8px;right:8px;background:var(--white);border:1.5px solid var(--gray-200);border-radius:6px;padding:4px 9px;cursor:pointer;font-size:12px;color:var(--gray-500);">Copy</button>'+
         '</div>'
       )+
-
       '<div class="feedback-row">'+
-        '<button class="vote-btn up" id="upvoteBtn" onclick="toggleVotePanel(\'up\')">&#128077; This is good</button>'+
-        '<button class="vote-btn down" id="downvoteBtn" onclick="toggleVotePanel(\'down\')">&#128078; Needs Improvement</button>'+
+        '<button class="vote-btn up" id="upvoteBtn" data-vote="up">&#128077; This is good</button>'+
+        '<button class="vote-btn down" id="downvoteBtn" data-vote="down">&#128078; Needs Improvement</button>'+
       '</div>'+
-
       '<div class="vote-panel up-panel" id="upvotePanel">'+
         '<div class="vote-panel-label">What worked well? <span style="font-weight:400;font-size:11px;opacity:.8;">(select all that apply)</span></div>'+
         '<div class="vote-reasons">'+
-          [
-            'Accurate clinical advice','Correct category','Right urgency level',
-            'Good patient tone','Complete response','Caught missing dose info',
-            'Correct side effect severity','Good routing decision',
-            'Follow-up questions appropriate','Saved significant time',
-            'Draft matched my voice','Educational content appropriate'
-          ].map(function(r){
-            return '<button class="vote-reason-btn" onclick="selectVoteReason(\'up\',\''+r+'\',this)">'+r+'</button>';
+          ['Accurate clinical advice','Correct category','Right urgency level','Good patient tone','Complete response','Caught missing dose info','Correct side effect severity','Good routing decision','Follow-up questions appropriate','Saved significant time','Draft matched my voice','Educational content appropriate'].map(function(r){
+            return '<button class="vote-reason-btn" data-vote-type="up" data-vote-reason="'+r+'">'+r+'</button>';
           }).join('')+
         '</div>'+
-        '<button class="vote-submit-btn" onclick="submitVote(\'up\')">Submit Feedback</button>'+
+        '<button class="vote-submit-btn" data-submit-vote="up">Submit Feedback</button>'+
       '</div>'+
-
       '<div class="vote-panel down-panel" id="downvotePanel">'+
         '<div class="vote-panel-label">What needs improvement? <span style="font-weight:400;font-size:11px;opacity:.8;">(select all that apply)</span></div>'+
         '<div class="vote-reasons">'+
-          [
-            'Wrong clinical category','Wrong urgency level','Incorrect side effect severity',
-            'Bad clinical advice','Missing important information','Wrong medications mentioned',
-            'Tone not appropriate','Too generic -- not personalized','Questions were off-target',
-            'Missed the non-clinical item','Wrong routing decision','Draft too long',
-            'Draft too short','Missing dose check','Incorrect date or timeline',
-            'Contradicts our protocols','Other'
-          ].map(function(r){
-            return '<button class="vote-reason-btn" onclick="selectVoteReason(\'down\',\''+r+'\',this)">'+r+'</button>';
+          ['Wrong clinical category','Wrong urgency level','Incorrect side effect severity','Bad clinical advice','Missing important information','Wrong medications mentioned','Tone not appropriate','Too generic -- not personalized','Questions were off-target','Missed the non-clinical item','Wrong routing decision','Draft too long','Draft too short','Missing dose check','Incorrect date or timeline','Contradicts our protocols','Other'].map(function(r){
+            return '<button class="vote-reason-btn" data-vote-type="down" data-vote-reason="'+r+'">'+r+'</button>';
           }).join('')+
         '</div>'+
-        '<button class="vote-submit-btn" onclick="submitVote(\'down\')">Submit Feedback</button>'+
+        '<button class="vote-submit-btn" data-submit-vote="down">Submit Feedback</button>'+
       '</div>'+
-
     '</div>'+
   '</div>';
 
-  // -- What did you actually send -- always visible ---------------------------
+  // -- What did you actually send -------------------------------------------
   html+='<div class="out-card" style="border-color:var(--orange-m);">'+
     '<div class="oc-header"><span class="oc-label" style="color:var(--orange);">What Did You Actually Send?</span></div>'+
     '<div class="oc-body">'+
-      '<p style="font-size:var(--fs-xs);color:var(--gray-500);margin-bottom:10px;line-height:1.6;">Paste the response you actually sent. The AI compares it to the draft and saves a learning note to improve future responses.</p>'+
+      '<p style="font-size:var(--fs-xs);color:var(--gray-500);margin-bottom:10px;line-height:1.6;">Only fill this in if you changed the draft. The AI compares it and saves a learning note.</p>'+
       '<textarea id="correctionInput" style="min-height:120px;font-size:var(--fs-sm);" placeholder="Paste the exact message you sent to the patient..."></textarea>'+
       '<div class="correction-submit-row">'+
         '<button class="correction-submit-btn" id="correctionSubmitBtn" onclick="submitCorrection()">'+
@@ -1492,15 +1471,15 @@ function renderResults(d){
     '</div>'+
   '</div>';
 
-  var el=document.getElementById('results');
-  el.innerHTML=html;
+  var el = document.getElementById('results');
+  el.innerHTML = html;
 
-  // Wire inline copy buttons using stored values
+  // Wire copy buttons
   el.querySelectorAll('.copy-inline-btn').forEach(function(btn){
     btn.addEventListener('click',function(){
       var target = btn.getAttribute('data-copy-target');
       var text = target==='routing'?_rm:target==='internal'?_in:draftText;
-      if(!text)return;
+      if(!text) return;
       navigator.clipboard.writeText(text).then(function(){
         var orig=btn.textContent; btn.textContent='Copied!'; btn.style.color='var(--green)';
         setTimeout(function(){btn.textContent=orig; btn.style.color='';},2000);
@@ -1511,12 +1490,33 @@ function renderResults(d){
   el.querySelectorAll('.copy-btn').forEach(function(btn){
     btn.addEventListener('click',function(){
       navigator.clipboard.writeText(btn.getAttribute('data-copy')).then(function(){
-        var orig=btn.textContent;btn.textContent='OK Copied!';btn.classList.add('copied');
-        setTimeout(function(){btn.textContent=orig;btn.classList.remove('copied');},2000);
+        var orig=btn.textContent; btn.textContent='Copied!'; btn.classList.add('copied');
+        setTimeout(function(){btn.textContent=orig; btn.classList.remove('copied');},2000);
       });
     });
   });
+
+  // Wire vote toggle buttons via data attribute
+  el.querySelectorAll('[data-vote]').forEach(function(btn){
+    btn.addEventListener('click', function(){ toggleVotePanel(btn.getAttribute('data-vote')); });
+  });
+  el.querySelectorAll('[data-submit-vote]').forEach(function(btn){
+    btn.addEventListener('click', function(){ submitVote(btn.getAttribute('data-submit-vote')); });
+  });
+  el.querySelectorAll('[data-vote-type]').forEach(function(btn){
+    btn.addEventListener('click', function(){ selectVoteReason(btn.getAttribute('data-vote-type'), btn.getAttribute('data-vote-reason'), btn); });
+  });
+
+  // Wire multi-cat tag toggles
+  el.querySelectorAll('.cat-tag').forEach(function(tag){
+    tag.addEventListener('click',function(){
+      tag.classList.toggle('selected');
+      var btn=document.getElementById('categorySaveBtn');
+      if(btn){btn.textContent='Save correction';btn.className='save-inline-btn';}
+    });
+  });
 }
+
 
 var correctionsLoaded = false;
 
