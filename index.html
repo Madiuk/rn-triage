@@ -700,7 +700,7 @@ All clinical rules, severity thresholds, routing logic, and response protocols a
 const CLINICAL_CATS = [
   'GI side effects','Weight plateau','No early weight loss','Food noise/cravings',
   'Hair loss','Fatigue','Heartburn/reflux','Diarrhea','Injection/administration',
-  'Dosing question','Skin/site reaction','Medication storage','Urgent-escalate','General'
+  'Dosing question','Skin/site reaction','Medication storage','Urgent-escalate','General/multiple'
 ];
 
 const NON_CLINICAL_CATS = [
@@ -1155,13 +1155,26 @@ function guessNonClinCat(items){
 }
 
 function buildCategorySelect(clinCat, nonClinCat){
+  // Normalize AI output to match array values (trim, fix common mismatches)
+  var normClin = (clinCat||'').trim();
+  if(normClin.toLowerCase()==='general'||normClin.toLowerCase()==='general/multiple') normClin='General/multiple';
+  // Find best match (exact first, then case-insensitive)
+  var matchedClin = CLINICAL_CATS.find(function(c){return c===normClin;})
+    || CLINICAL_CATS.find(function(c){return c.toLowerCase()===normClin.toLowerCase();})
+    || '';
+
   var clinOpts = CLINICAL_CATS.map(function(c){
-    return '<option value="'+esc(c)+'"'+(c===clinCat?' selected':'')+'>'+esc(c)+'</option>';
+    return '<option value="'+esc(c)+'"'+(c===matchedClin?' selected':'')+'>'+esc(c)+'</option>';
   }).join('');
+
+  var normNonClin = (nonClinCat||'').trim();
   var nonClinOpts = NON_CLINICAL_CATS.map(function(c){
     var val = c==='-- None --'?'':c;
-    return '<option value="'+esc(val)+'"'+(c===nonClinCat||(!nonClinCat&&c==='-- None --')?' selected':'')+'>'+esc(c)+'</option>';
+    var sel = (!normNonClin&&c==='-- None --') || val===normNonClin ||
+              val.toLowerCase()===normNonClin.toLowerCase();
+    return '<option value="'+esc(val)+'"'+(sel?' selected':'')+'>'+esc(c)+'</option>';
   }).join('');
+
   return '<div style="display:flex;flex-direction:column;gap:6px;">'+
     '<select class="editable-select" id="clinCatSelect" onchange="onCatChange()">' + clinOpts + '</select>'+
     '<select class="editable-select" id="nonClinCatSelect" onchange="onCatChange()" style="font-size:var(--fs-xs);padding:5px 8px;">' + nonClinOpts + '</select>'+
