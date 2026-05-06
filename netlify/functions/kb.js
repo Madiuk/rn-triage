@@ -64,6 +64,11 @@ exports.handler = async function (event) {
           const r = await fetch(base + "?id=eq." + body.id, { method: "PATCH", headers: h, body: JSON.stringify({ actual_response_sent: body.actual_response, correction_note: body.correction_note || "" }) });
           return { statusCode: 200, headers: { "Content-Type": "application/json" }, body: await r.text() };
         }
+        if (body.action === "delete_correction") {
+          // Clear correction fields only — preserve the triage record itself
+          const r = await fetch(base + "?id=eq." + body.id, { method: "PATCH", headers: h, body: JSON.stringify({ actual_response_sent: null, correction_note: null }) });
+          return { statusCode: 200, headers: { "Content-Type": "application/json" }, body: await r.text() };
+        }
         // Insert
         const r = await fetch(base, { method: "POST", headers: h, body: JSON.stringify(body) });
         return { statusCode: 200, headers: { "Content-Type": "application/json" }, body: await r.text() };
