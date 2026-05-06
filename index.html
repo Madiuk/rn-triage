@@ -53,10 +53,7 @@ body{background:var(--gray-100);color:var(--gray-900);font-family:var(--sans);fo
 .tab-btn{padding:8px 18px;border-radius:8px;border:none;font-family:var(--sans);font-size:var(--fs-sm);font-weight:500;cursor:pointer;transition:all .15s;color:var(--gray-600);background:transparent;}
 .tab-btn:hover{background:var(--gray-100);color:var(--gray-800);}
 .tab-btn.active{background:var(--blue);color:white;}
-.status-badge{font-size:var(--fs-xs);font-weight:600;padding:5px 13px;border-radius:20px;border:1.5px solid var(--gray-200);color:var(--gray-600);background:var(--gray-50);text-transform:uppercase;letter-spacing:.05em;}
-.status-badge.processing{border-color:var(--blue-m);color:var(--blue);background:var(--blue-l);}
-.status-badge.complete{border-color:var(--green-m);color:var(--green);background:var(--green-l);}
-.status-badge.error{border-color:var(--red-m);color:var(--red);background:var(--red-l);}
+
 .tab-panel{display:none;}
 .tab-panel.active{display:block;}
 
@@ -100,13 +97,8 @@ textarea::placeholder{color:var(--gray-400);}
 .pill-amber{background:var(--amber-l);color:var(--amber);border:1.5px solid var(--amber-m);}
 .pill-purple{background:var(--purple-l);color:var(--purple);border:1.5px solid var(--purple-m);}
 .pill-teal{background:var(--teal-l);color:var(--teal);border:1.5px solid var(--teal-m);}
-.pill-orange{background:var(--orange-l);color:var(--orange);border:1.5px solid var(--orange-m);}
 
 /* DEPARTMENTS */
-.dept-section{background:var(--amber-l);border:1.5px solid var(--amber-m);border-radius:10px;padding:14px 16px;}
-.dept-label{font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--amber);margin-bottom:6px;}
-.dept-items{font-size:var(--fs-sm);color:var(--gray-800);font-weight:500;margin-bottom:10px;line-height:1.6;}
-.routing-msg{font-size:var(--fs-sm);color:#92400e;line-height:1.75;padding:10px 12px;background:rgba(255,255,255,.6);border-radius:8px;margin-top:8px;}
 
 /* CLASSIFICATION */
 .class-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;}
@@ -137,8 +129,6 @@ textarea::placeholder{color:var(--gray-400);}
 .facts-list.compact li::before{font-size:15px;top:-1px;}
 
 /* FOLLOW-UP QUESTIONS */
-.q-list{list-style:disc;padding-left:22px;display:flex;flex-direction:column;gap:9px;margin-top:6px;}
-.q-list li{font-size:var(--fs-base);line-height:1.6;color:var(--gray-700);}
 
 /* RESPONSE */
 .response-text{background:var(--gray-50);border:1.5px solid var(--gray-200);border-radius:10px;padding:16px 18px;font-size:var(--fs-base);line-height:1.8;color:var(--gray-800);white-space:pre-wrap;font-family:var(--sans);}
@@ -210,10 +200,7 @@ textarea::placeholder{color:var(--gray-400);}
 .entry-submit-btn{padding:11px 26px;background:var(--blue);border:none;border-radius:8px;color:white;font-family:var(--sans);font-size:var(--fs-base);font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px;transition:all .15s;}
 .entry-submit-btn:hover{background:#1d4ed8;}
 .entry-submit-btn:disabled{background:var(--gray-300);cursor:not-allowed;}
-.kb-section{background:var(--white);border-radius:14px;border:1px solid var(--gray-200);box-shadow:0 1px 4px rgba(0,0,0,.05);margin-bottom:16px;overflow:hidden;}
-.kb-section-header{padding:15px 20px;background:var(--gray-50);border-bottom:1px solid var(--gray-200);display:flex;align-items:center;justify-content:space-between;}
-.kb-section-title{font-size:var(--fs-base);font-weight:600;color:var(--gray-800);}
-.kb-section-body{padding:14px 18px;}
+
 .kb-entry{border:1.5px solid var(--gray-200);border-radius:10px;margin-bottom:12px;overflow:hidden;}
 .kb-entry:last-child{margin-bottom:0;}
 .kb-entry-header{padding:9px 13px;background:var(--gray-50);border-bottom:1px solid var(--gray-200);display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
@@ -661,9 +648,8 @@ async function saveHistoryRecord(parsed,msg){
       clinical_category:parsed.clinical_category,urgency_original:parsed.urgency,urgency_override:null,
       non_clinical_flag:parsed.non_clinical_flag,non_clinical_items:parsed.non_clinical_items||[],
       routing_language:parsed.routing_language||'',clinical_facts:parsed.clinical_facts||[],
-      missing_info:[],follow_up_questions:parsed.follow_up_questions||[],
-      draft_response:parsed.draft_response||'',
-      department_notes:(parsed.clinical_routing_note||'')+(parsed.internal_note?'\nNon-clinical: '+parsed.internal_note:'')
+      follow_up_questions:parsed.follow_up_questions||[],
+      draft_response:parsed.draft_response||''
     });
     return Array.isArray(r)&&r[0]?r[0].id:null;
   }catch(e){return null;}
@@ -807,7 +793,6 @@ function switchTab(name,btn){
 }
 
 // TRIAGE
-function setStatus(s){} // status badge removed -- btn spinner handles state
 function setLoading(on){
   document.getElementById('btnText').textContent=on?'Analyzing...':'Run Triage';
   document.getElementById('btnSpinner').className=on?'spinner active':'spinner';
@@ -818,7 +803,8 @@ async function runTriage(){
   var msg=document.getElementById('msgInput').value.trim();
   if(!msg)return;
   if(!currentNurse){showNurseModal();return;}
-  setLoading(true);setStatus('processing');currentHistoryId=null;selectedUpReasons=[];selectedDownReasons=[];
+  setLoading(true);
+currentHistoryId=null;selectedUpReasons=[];selectedDownReasons=[];
   document.getElementById('results').innerHTML='<div class="placeholder"><div class="spinner active" style="width:26px;height:26px;border-color:var(--gray-300);border-top-color:var(--blue);"></div><div class="placeholder-text" style="margin-top:14px;">Analyzing message...</div></div>';
   var kbContent=getKBPrompt();
   var sysPrompt=kbContent?BASE_PROMPT+'\n\n'+kbContent:BASE_PROMPT;
@@ -841,11 +827,9 @@ async function runTriage(){
     if(!raw)throw new Error('Empty response from API.');
     var parsed=JSON.parse(raw.replace(/```json|```/g,'').trim());
     renderResults(parsed);
-    setStatus('complete');
     saveHistoryRecord(parsed,msg).then(function(id){currentHistoryId=id;});
   }catch(err){
     document.getElementById('results').innerHTML='<div class="error-box"><strong>Error:</strong> '+esc(err.message)+'</div>';
-    setStatus('error');
   }finally{setLoading(false);}
 }
 
@@ -1248,16 +1232,6 @@ async function loadCorrections(){
       '</div>';
     }).join('');
   }catch(e){list.innerHTML='<div class="empty-state" style="color:var(--red);">Error: '+esc(e.message)+'</div>';}
-}
-
-function copyFromBox(btn, text){
-  navigator.clipboard.writeText(text).then(function(){
-    var orig = btn.textContent;
-    btn.textContent = 'OK';
-    btn.style.color = 'var(--green)';
-    btn.style.borderColor = 'var(--green-m)';
-    setTimeout(function(){ btn.textContent = orig; btn.style.color=''; btn.style.borderColor=''; }, 2000);
-  });
 }
 
 function showToast(msg){
