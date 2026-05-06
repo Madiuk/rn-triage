@@ -800,6 +800,18 @@ async function runTriage(){
   }finally{setLoading(false);}
 }
 
+function guessNonClinCat(items){
+  if(!items||!items.length) return '';
+  var item = (items[0]||'').toLowerCase();
+  if(item.includes('bill')||item.includes('payment')||item.includes('charge')||item.includes('invoice')||item.includes('credit')) return 'Billing/Payment';
+  if(item.includes('ship')||item.includes('track')||item.includes('deliver')||item.includes('package')||item.includes('order')) return 'Shipment/Tracking';
+  if(item.includes('not received')||item.includes('missing')) return 'Package not received';
+  if(item.includes('refund')||item.includes('return')) return 'Refund request';
+  if(item.includes('account')||item.includes('subscri')||item.includes('cancel')||item.includes('plan')) return 'Account/Subscription';
+  if(item.includes('prescription')||item.includes('transfer')||item.includes('pharmacy')) return 'Prescription transfer';
+  return 'Other';
+}
+
 function buildCategorySelect(clinCat, nonClinCat){
   var clinOpts = CLINICAL_CATS.map(function(c){
     return '<option value="'+esc(c)+'"'+(c===clinCat?' selected':'')+'>'+esc(c)+'</option>';
@@ -970,24 +982,43 @@ function renderResults(d){
     '</div>';
   }
 
-  // ── Non-clinical routing card — billing / shipping / admin ──────────────
+  // ── Dual task / routing card ─────────────────────────────────────────────
   if(d.non_clinical_flag&&d.non_clinical_items&&d.non_clinical_items.length){
     var routingMsg = d.routing_language || '';
     var internalNote = d.internal_note || '';
+    var hasClinical = d.clinical_category && d.clinical_category !== 'General';
+    var cardTitle = hasClinical ? '&#128257; Dual Task — Two Departments Involved' : '&#8594; Route to Support Team';
     html+='<div class="out-card" style="border-color:var(--amber-m);">'+
-      '<div class="oc-header"><span class="oc-label" style="color:var(--amber);">&#9888; Non-Clinical — Route Away</span></div>'+
+      '<div class="oc-header"><span class="oc-label" style="color:var(--amber);">'+cardTitle+'</span></div>'+
       '<div class="oc-body">'+
-        '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:6px;">Items to route</div>'+
-        '<div style="font-size:var(--fs-base);font-weight:500;color:var(--gray-800);margin-bottom:14px;line-height:1.6;">'+d.non_clinical_items.map(esc).join(' &middot; ')+'</div>'+
+        (hasClinical?
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">'+
+            '<div style="background:var(--teal-l);border:1.5px solid var(--teal-m);border-radius:8px;padding:10px 13px;">'+
+              '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--teal);margin-bottom:4px;">&#10003; Clinical — Handled by RN</div>'+
+              '<div style="font-size:var(--fs-sm);color:var(--gray-800);font-weight:500;">'+esc(d.clinical_category)+'</div>'+
+              '<div style="font-size:var(--fs-xs);color:var(--gray-500);margin-top:2px;">See response below</div>'+
+            '</div>'+
+            '<div style="background:var(--amber-l);border:1.5px solid var(--amber-m);border-radius:8px;padding:10px 13px;">'+
+              '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--amber);margin-bottom:4px;">&#8594; Non-Clinical — Route to Support</div>'+
+              '<div style="font-size:var(--fs-sm);color:var(--gray-800);font-weight:500;">'+d.non_clinical_items.map(esc).join(', ')+'</div>'+
+            '</div>'+
+          '</div>'
+        :
+          '<div style="font-size:var(--fs-sm);font-weight:500;color:var(--gray-800);margin-bottom:12px;">'+d.non_clinical_items.map(esc).join(' · ')+'</div>'
+        )+
         (routingMsg?
-          '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:6px;">Message to patient</div>'+
-          '<div style="background:var(--gray-50);border:1.5px solid var(--gray-200);border-radius:8px;padding:12px 14px;font-size:var(--fs-sm);color:var(--gray-800);line-height:1.7;margin-bottom:8px;">'+esc(routingMsg)+'</div>'+
-          '<button class="copy-btn" style="margin-bottom:12px;" data-copy="'+esc(routingMsg)+'">Copy Patient Message</button>'
+          '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:6px;">Message to patient about non-clinical item</div>'+
+          '<div style="background:var(--gray-50);border:1.5px solid var(--gray-200);border-radius:8px;padding:12px 14px;font-size:var(--fs-sm);color:var(--gray-800);line-height:1.7;position:relative;">'+
+            esc(routingMsg)+
+            '<button onclick="copyFromBox(this,''+esc(routingMsg)+'')" style="position:absolute;top:8px;right:8px;background:var(--white);border:1.5px solid var(--gray-200);border-radius:6px;padding:3px 8px;cursor:pointer;font-size:11px;color:var(--gray-500);" title="Copy">&#128203;</button>'+
+          '</div>'
         :'')+
         (internalNote?
-          '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--slate);margin-bottom:6px;">Internal Note for Staff</div>'+
-          '<div style="background:var(--slate-light);border:1.5px solid var(--slate-m);border-radius:8px;padding:12px 14px;font-size:var(--fs-sm);color:var(--gray-800);line-height:1.7;">'+esc(internalNote)+'</div>'+
-          '<button class="copy-btn" style="margin-top:8px;" data-copy="'+esc(internalNote)+'">Copy Internal Note</button>'
+          '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--slate);margin-bottom:6px;margin-top:12px;">Internal Note for Staff</div>'+
+          '<div style="background:var(--slate-light);border:1.5px solid var(--slate-m);border-radius:8px;padding:12px 14px;font-size:var(--fs-sm);color:var(--gray-800);line-height:1.7;position:relative;">'+
+            esc(internalNote)+
+            '<button onclick="copyFromBox(this,''+esc(internalNote)+'')" style="position:absolute;top:8px;right:8px;background:var(--white);border:1.5px solid var(--gray-200);border-radius:6px;padding:3px 8px;cursor:pointer;font-size:11px;color:var(--gray-500);" title="Copy">&#128203;</button>'+
+          '</div>'
         :'')+
       '</div>'+
     '</div>';
@@ -1010,7 +1041,7 @@ function renderResults(d){
       '<div class="class-grid">'+
         '<div class="class-box">'+
           '<div class="class-box-label">Clinical Category / Non-Clinical</div>'+
-          buildCategorySelect(d.clinical_category, d.non_clinical_items&&d.non_clinical_items.length?d.non_clinical_items[0]:'')+
+          buildCategorySelect(d.clinical_category, guessNonClinCat(d.non_clinical_items))+
         '</div>'+
         '<div class="class-box">'+
           '<div class="class-box-label">Response Timeframe</div>'+
@@ -1042,8 +1073,10 @@ function renderResults(d){
           'Click <strong>Run Triage again</strong> on the left — if it persists, try rewording the message slightly or check the Clinical Knowledge Base for conflicting rules.'+
         '</div>'
       :
-        '<div class="response-text" id="aiDraftText">'+esc(draftText).replace(/\n/g,'<br>')+'</div>'+
-        '<button class="copy-btn" data-copy="'+esc(draftText)+'">Copy Response</button>'
+        '<div style="position:relative;">'+
+          '<div class="response-text" id="aiDraftText">'+esc(draftText).replace(/\n/g,'<br>')+'</div>'+
+          '<button onclick="copyFromBox(this,''+esc(draftText)+'')" style="position:absolute;top:8px;right:8px;background:var(--white);border:1.5px solid var(--gray-200);border-radius:6px;padding:4px 9px;cursor:pointer;font-size:12px;color:var(--gray-500);" title="Copy response">&#128203; Copy</button>'+
+        '</div>'
       )+
 
       '<div class="feedback-row">'+
@@ -1151,6 +1184,16 @@ async function loadCorrections(){
       '</div>';
     }).join('');
   }catch(e){list.innerHTML='<div class="empty-state" style="color:var(--red);">Error: '+esc(e.message)+'</div>';}
+}
+
+function copyFromBox(btn, text){
+  navigator.clipboard.writeText(text).then(function(){
+    var orig = btn.textContent;
+    btn.textContent = '✓';
+    btn.style.color = 'var(--green)';
+    btn.style.borderColor = 'var(--green-m)';
+    setTimeout(function(){ btn.textContent = orig; btn.style.color=''; btn.style.borderColor=''; }, 2000);
+  });
 }
 
 function showToast(msg){
