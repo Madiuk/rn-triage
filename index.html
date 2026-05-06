@@ -572,7 +572,7 @@ textarea::placeholder{color:var(--gray-400);}
               <span>What is "What Did You Actually Send?" for?</span><span class="help-arrow">&#9660;</span>
             </button>
             <div class="help-faq-a">
-              This is the most important field for improving the AI over time. After you send your response to the patient, paste exactly what you sent here — even if it was identical to the draft. When there is a difference, the AI analyzes what changed and saves a learning note. Over time these corrections shift how the AI drafts responses to similar questions. Think of it as leaving notes for yourself about what works.
+              This field is how the AI learns from real clinical decisions. After you send your response to the patient, paste what you actually sent here — <strong>but only when you changed the draft</strong>. If you sent the draft verbatim, you can skip this field. When there is a difference between the draft and what you sent, the AI analyzes what changed and saves a learning note. Over time these corrections help the AI produce drafts that are closer to how you actually write.
             </div>
           </div>
 
@@ -590,7 +590,7 @@ textarea::placeholder{color:var(--gray-400);}
               <span>How do category corrections help?</span><span class="help-arrow">&#9660;</span>
             </button>
             <div class="help-faq-a">
-              The <strong>Clinical Category</strong> and <strong>Non-Clinical</strong> dropdowns in the Classification card are editable. If the AI mis-tagged a message — for example, categorizing a constipation question as "GI side effects" when it should be "Medication storage" — fix it and click Save. Each correction is stored in the database and builds a dataset of right vs. wrong classifications that can be reviewed and used to improve the KB rules.
+              The <strong>Clinical Category</strong> and <strong>Non-Clinical</strong> dropdowns in the Classification card are editable. If the AI mis-tagged a message — for example, categorizing a vomiting question as &quot;General&quot; when it clearly belongs to &quot;GI side effects,&quot; or tagging a dosing question as &quot;Injection/administration&quot; when it should be &quot;Dosing question&quot; — fix it and click Save. Each correction is stored in the database and builds a dataset of right vs. wrong classifications that can be reviewed to improve KB rules over time.
             </div>
           </div>
 
