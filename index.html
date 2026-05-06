@@ -276,7 +276,12 @@ textarea::placeholder{color:var(--gray-400);}
 
 <div class="topbar">
   <div class="topbar-brand">
-    <div class="brand-icon">R</div>
+    <div class="brand-icon">
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="8" y="1" width="6" height="20" rx="2" fill="white"/>
+        <rect x="1" y="8" width="20" height="6" rx="2" fill="white"/>
+      </svg>
+    </div>
     <div>
       <div class="brand-name">GLP-1 Clinical Triage</div>
       <div class="brand-sub">Telehealth · Message Processor</div>
@@ -291,7 +296,7 @@ textarea::placeholder{color:var(--gray-400);}
       <div class="nurse-dot"></div>
       <span id="nurseChipName">Select nurse</span>
     </div>
-    <div class="status-badge" id="statusBadge">Ready</div>
+
   </div>
 </div>
 
@@ -350,7 +355,9 @@ textarea::placeholder{color:var(--gray-400);}
         <div class="entry-add-row">
           <input class="entry-title-input" type="text" id="entryTitle" placeholder="Title (e.g. Nausea guidance, Plateau follow-up)">
           <select class="entry-section-select" id="entrySection">
-            <option value="protocols">Clinical Protocol / Response Guide</option>
+            <option value="sideeffects">Side Effect Guidance</option>
+            <option value="protocols">Protocols (if/then decision trees)</option>
+            <option value="templates">Response Templates &amp; Questions</option>
             <option value="notes">Clinical Rules &amp; Notes</option>
             <option value="routing">Routing Rules</option>
             <option value="urls">URL / Resource</option>
@@ -368,7 +375,9 @@ textarea::placeholder{color:var(--gray-400);}
 
     <!-- KB Section Tabs -->
     <div class="kb-tabs">
-      <button class="kb-tab active" onclick="switchKBTab('protocols',this)">Protocols <span class="kb-tab-count" id="cnt-protocols"></span></button>
+      <button class="kb-tab active" onclick="switchKBTab('sideeffects',this)">Side Effects <span class="kb-tab-count" id="cnt-sideeffects"></span></button>
+      <button class="kb-tab" onclick="switchKBTab('templates',this)">Templates <span class="kb-tab-count" id="cnt-templates"></span></button>
+      <button class="kb-tab" onclick="switchKBTab('protocols',this)">Protocols <span class="kb-tab-count" id="cnt-protocols"></span></button>
       <button class="kb-tab" onclick="switchKBTab('notes',this)">Rules &amp; Notes <span class="kb-tab-count" id="cnt-notes"></span></button>
       <button class="kb-tab" onclick="switchKBTab('routing',this)">Routing <span class="kb-tab-count" id="cnt-routing"></span></button>
       <button class="kb-tab" onclick="switchKBTab('urls',this)">URLs <span class="kb-tab-count" id="cnt-urls"></span></button>
@@ -379,7 +388,13 @@ textarea::placeholder{color:var(--gray-400);}
       <input type="text" class="kb-search" id="kbSearch" placeholder="Search entries..." oninput="filterKBEntries()">
     </div>
 
-    <div id="kb-tab-protocols" class="kb-tab-panel active">
+    <div id="kb-tab-sideeffects" class="kb-tab-panel active">
+      <div id="sideeffects-list"></div>
+    </div>
+    <div id="kb-tab-templates" class="kb-tab-panel">
+      <div id="templates-list"></div>
+    </div>
+    <div id="kb-tab-protocols" class="kb-tab-panel">
       <div id="protocols-list"></div>
     </div>
     <div id="kb-tab-notes" class="kb-tab-panel">
@@ -459,20 +474,25 @@ const TIMEFRAMES = [
 ];
 
 const DEFAULT_KB = {
-  protocols:[
-    {name:"Nausea — extended guidance",nurse_name:"System",text:"Eating smaller meals and waiting longer between bites is recommended. Remember that eating shouldn't be a race. Try putting food in plastic containers or baggies and putting them in the fridge, and removing them as needed to snack on. Little snacks and small meals all day will help. If you've been eating fatty, greasy, acidic or heavy foods, removing that from your diet is also recommended.\n\nI always suggest Tums and Pepto Bismol for symptoms of nausea, because it can also be related to heartburn/acid reflux and indigestion. Another over the counter medication you can try is famotidine (Pepcid) which is used for reflux and GERD, but it can help calm the nausea as well.\n\nWe can request a prescription for ondansetron (Zofran) which is an anti-emetic — please send me your local pharmacy name, address, and phone number."},
+  sideeffects:[
+    {name:"Nausea",nurse_name:"System",text:"Eating smaller meals and waiting longer between bites is recommended. Remember that eating shouldn't be a race. Try putting food in plastic containers or baggies and putting them in the fridge, and removing them as needed to snack on. Little snacks and small meals all day will help. If you've been eating fatty, greasy, acidic or heavy foods, removing that from your diet is also recommended.\n\nI always suggest Tums and Pepto Bismol for symptoms of nausea, because it can also be related to heartburn/acid reflux and indigestion. Another over the counter medication you can try is famotidine (Pepcid) which is used for reflux and GERD, but it can help calm the nausea as well.\n\nWe can request a prescription for ondansetron (Zofran) which is an anti-emetic — please send me your local pharmacy name, address, and phone number."},
     {name:"Hair loss",nurse_name:"System",text:"This is a common side effect of GLP medications, usually related to a nutrient deficiency due to lowering of calories. This is called telogen effluvium.\n\nMost of the time your hair will begin growing back during the next growth cycle. I recommend getting in more vitamins and minerals through a multi-vitamin, getting plenty of protein, and green leafy vegetables."},
-    {name:"Heartburn",nurse_name:"System",text:"Heartburn is a common side effect of GLP medications, more often than not caused by ingesting too much food or liquid, causing reflux due to delayed gastric emptying.\n\nTake Pepcid (famotadine) or another OTC like Prilosec (omeprazole) or Nexium (esomeprazole). Pepto Bismol and Tums can assist as well. Decrease fatty, greasy, or acidic food ingestion. Eat slowly with smaller bites and split your meals into multiple sessions. Decrease coffee, energy drinks, and sodas."},
+    {name:"Heartburn / Reflux",nurse_name:"System",text:"Heartburn is a common side effect of GLP medications, more often than not caused by ingesting too much food or liquid, causing reflux due to delayed gastric emptying.\n\nTake Pepcid (famotadine) or another OTC like Prilosec (omeprazole) or Nexium (esomeprazole). Pepto Bismol and Tums can assist as well. Decrease fatty, greasy, or acidic food ingestion. Eat slowly with smaller bites and split your meals into multiple sessions. Decrease coffee, energy drinks, and sodas."},
     {name:"Fatigue",nurse_name:"System",text:"Fatigue is often caused by a decrease in calorie intake and the body not having enough fuel to operate properly.\n\nTrack your calories on MyFitnessPal — if you're in too much of a deficit, add more food. Drink 60-100oz of water daily. Regular exercise such as a walk 3+ times per week will boost energy through endorphins. Try Gatorade or Pedialyte to replace electrolytes. Add a multi-vitamin and B12. Try slow burning carbohydrates like brown rice, sweet potatoes, broccoli, and lentils.\n\nIf you feel weak, sweaty, confused, or shaky, drink some fruit juice, eat peanut butter with bread, some milk, or a regular sugar soda — you may be experiencing low blood sugar."},
-    {name:"Diarrhea",nurse_name:"System",text:"Decrease fatty, greasy foods and eat a very bland diet — bananas, rice, bread, and crackers. Increase fiber to help bind materials. Take Imodium per label directions, starting with the low dose. Pepto Bismol is a great choice as well.\n\nDrink plenty of fluids and electrolytes — Pedialyte, Gatorade, coconut water, or water with an electrolyte additive.\n\nIf you experience blood in your stool, severe abdominal pain, or diarrhea for more than 3 days affecting daily living, please get checked at an urgent care or emergency room."},
+    {name:"Diarrhea",nurse_name:"System",text:"Decrease fatty, greasy foods and eat a very bland diet — bananas, rice, bread, and crackers. Increase fiber to help bind materials. Take Imodium per label directions, starting with the low dose. Pepto Bismol is a great choice as well.\n\nDrink plenty of fluids and electrolytes — Pedialyte, Gatorade, coconut water, or water with an electrolyte additive.\n\nIf you experience blood in your stool, severe abdominal pain, or diarrhea for more than 3 days affecting daily living, please get checked at an urgent care or emergency room."}
+  ],
+  templates:[
     {name:"Food noise / cravings",nurse_name:"System",text:"It is normal, even expected, to have food noise or hunger return by day 4-5 after an injection. The half-life of the medication is around that 5 day mark.\n\nI recommend using an app like LoseIt to track calories and stay at a healthy TDEE level (https://tdee.is/). Make sure you're getting enough protein, take small bites of food all day, focus on slow-burning carbohydrates, eat high quality non-processed whole foods, increase fiber, drink 1oz of water per pound of bodyweight, add a multi-vitamin and probiotic, and try to add some exercise every day or two.\n\nI always suggest weighing only once per week, on the same day, at the same time, on the same scale."},
-    {name:"Weight plateau — questions",nurse_name:"System",text:"Do you mind answering a few questions for me so I can give you some customized advice?\n\n- Are you finding yourself having cravings during the day, and food noise returning?\n- How many calories do you eat per day presently, and are you tracking on an app like LoseIt or MyFitnessPal?\n- Are you drinking at a minimum of 60oz of water per day?\n- Are you eating fiber through a supplement or fruits and vegetables?\n- How much protein are you getting per day?\n- What does your exercise routine look like?\n\nQuick tip: I recommend using https://tdee.is/ — calculating your TDEE is important so you can reduce your calorie intake appropriately."}
+    {name:"Weight plateau — follow-up questions",nurse_name:"System",text:"Do you mind answering a few questions for me so I can give you some customized advice?\n\n- Are you finding yourself having cravings during the day, and food noise returning?\n- How many calories do you eat per day presently, and are you tracking on an app like LoseIt or MyFitnessPal?\n- Are you drinking at a minimum of 60oz of water per day?\n- Are you eating fiber through a supplement or fruits and vegetables?\n- How much protein are you getting per day?\n- What does your exercise routine look like?\n\nQuick tip: I recommend using https://tdee.is/ — calculating your TDEE is important so you can reduce your calorie intake appropriately."}
+  ],
+  protocols:[
+    {name:"Example protocol structure",nurse_name:"System",text:"Protocols use if/then logic. Example:\n\nIF patient reports vomiting for more than 3 days:\n  → Classify as SEVERE\n  → Escalate to provider immediately\n  → Do not wait for patient reply\nELSE IF vomiting less than 3 days AND patient can keep fluids down:\n  → Classify as MODERATE\n  → Ask: How many times per day? Any blood? Able to stay hydrated?\n  → Based on reply: educate on Zofran, bland diet, hydration\nELSE IF mild nausea with no vomiting:\n  → Classify as MILD\n  → Provide nausea education from Side Effect Guidance"}
   ],
   urls:[
     {name:"TDEE Calculator",nurse_name:"System",text:"https://tdee.is/ — reference for all weight loss, plateau, and calorie discussions"}
   ],
   routing:[
-    {name:"Non-clinical routing message",nurse_name:"System",text:"Thank you for reaching out — I've flagged your billing/shipping question and am routing it to our support team who will follow up with you directly. I'll address your clinical question separately below."},
+    {name:"Non-clinical patient message",nurse_name:"System",text:"Thank you for reaching out — I've flagged your billing/shipping question and am routing it to our support team who will follow up with you directly. I'll address your clinical question separately below."},
     {name:"CLINICAL ROUTING RULES",nurse_name:"System",text:"These rules determine clinical_routing_flag, clinical_routing_level, and clinical_routing_note.\n\nSEVERE — set clinical_routing_level to 'severe'. Requires immediate provider escalation. Triggers: vomiting lasting more than 3 days, diarrhea lasting more than 3 days, constipation lasting more than 1 week, severe abdominal pain, any signs of anaphylaxis (throat tightening, hives, swelling, difficulty breathing), rash that is increasing in size, fever, severe back pain, any signs of hypoglycemia (shakiness, sweating, confusion, loss of consciousness), any symptom that could be a threat to life.\nclinical_routing_note for severe: 'ESCALATE TO PROVIDER — Patient is reporting [symptom]. This requires immediate provider review. Please flag for physician and do not wait for patient reply before acting.'\n\nMODERATE — set clinical_routing_level to 'moderate'. Needs to be addressed but can wait for follow-up questions in initial response. Triggers: moderate diarrhea (frequent but not lasting 3+ days), moderate vomiting (not persistent), moderate nausea affecting eating, abdominal pain that is uncomfortable but not severe.\nclinical_routing_note for moderate: 'FOLLOW-UP NEEDED — Patient reports [symptom]. RN to ask follow-up questions in initial response. Based on patient reply, determine if provider escalation or patient education is appropriate.'\n\nMILD — set clinical_routing_level to 'mild'. Education-focused response appropriate. Triggers: mild nausea, mild constipation, heartburn/GERD, hair loss, mild fatigue, mild injection site reactions.\nclinical_routing_note for mild: 'EDUCATION RESPONSE — Patient reports [symptom]. RN to provide education and self-management guidance. Monitor for worsening.'\n\nNONE — set clinical_routing_level to 'none' and clinical_routing_flag to false when no side effects are present (weight plateau, food noise, dosing questions, billing/shipping only messages)."}
   ],
   notes:[
@@ -485,14 +505,15 @@ const DEFAULT_KB = {
 let kb = JSON.parse(JSON.stringify(DEFAULT_KB));
 let currentHistoryId = null;
 let currentNurse = localStorage.getItem('rn_triage_current_nurse') || '';
-let selectedUpReason = '', selectedDownReason = '';
+let selectedUpReasons = [], selectedDownReasons = [];
 
 function getKBPrompt(){
   var p=[];
-  // Notes first — urgency rules, severity framework, and clinical rules must be read before protocols
   if(kb.notes&&kb.notes.length) p.push('=== CLINICAL RULES (read first) ===\n'+kb.notes.map(function(e){return '['+e.name+']\n'+e.text;}).join('\n\n'));
   if(kb.routing&&kb.routing.length) p.push('=== ROUTING RULES ===\n'+kb.routing.map(function(e){return '['+e.name+']\n'+e.text;}).join('\n\n'));
-  if(kb.protocols&&kb.protocols.length) p.push('=== RESPONSE PROTOCOLS ===\n'+kb.protocols.map(function(e){return '['+e.name+']\n'+e.text;}).join('\n\n'));
+  if(kb.sideeffects&&kb.sideeffects.length) p.push('=== SIDE EFFECT GUIDANCE ===\n'+kb.sideeffects.map(function(e){return '['+e.name+']\n'+e.text;}).join('\n\n'));
+  if(kb.templates&&kb.templates.length) p.push('=== RESPONSE TEMPLATES ===\n'+kb.templates.map(function(e){return '['+e.name+']\n'+e.text;}).join('\n\n'));
+  if(kb.protocols&&kb.protocols.length) p.push('=== PROTOCOLS ===\n'+kb.protocols.map(function(e){return '['+e.name+']\n'+e.text;}).join('\n\n'));
   if(kb.urls&&kb.urls.length) p.push('=== URLS ===\n'+kb.urls.map(function(e){return e.name+': '+e.text;}).join('\n'));
   return p.join('\n\n');
 }
@@ -538,10 +559,12 @@ async function loadKBFromServer(){
     setSyncBar('','Loading...');
     var rows=await api('/kb');
     if(Array.isArray(rows)&&rows.length>0){
-      var nkb={protocols:[],urls:[],routing:[],notes:[]};
+      var nkb={sideeffects:[],templates:[],protocols:[],urls:[],routing:[],notes:[]};
       rows.forEach(function(row){
-        var s=nkb[row.section]?row.section:(row.section==='snippets'?'notes':null);
-        if(s)nkb[s].push({name:row.name,text:row.content,nurse_name:row.nurse_name||'Unknown'});
+        // Migrate old 'protocols' side-effect entries to sideeffects section
+        var s = row.section;
+        if(!nkb[s]) s = (s==='snippets'?'notes':'notes');
+        if(nkb[s]) nkb[s].push({name:row.name,text:row.content,nurse_name:row.nurse_name||'Unknown'});
       });
       kb=nkb;
       setSyncBar('synced','Synced · '+new Date().toLocaleTimeString());
@@ -568,7 +591,7 @@ function syncKBFromDOM(){
 
 function buildEntries(){
   var entries=[],pos=0;
-  ['protocols','urls','routing','notes'].forEach(function(section){
+  ['sideeffects','templates','protocols','urls','routing','notes'].forEach(function(section){
     (kb[section]||[]).forEach(function(entry){
       entries.push({section:section,name:entry.name,content:entry.text,position:pos++,nurse_name:entry.nurse_name||currentNurse||'Unknown',updated_at:new Date().toISOString()});
     });
@@ -634,7 +657,7 @@ function setSyncBar(state,msg){
   document.getElementById('syncMsg').textContent=msg;
 }
 function renderKB(){
-  ['protocols','urls','routing','notes'].forEach(function(section){
+  ['sideeffects','templates','protocols','urls','routing','notes'].forEach(function(section){
     var list=document.getElementById(section+'-list');
     if(!list)return;
     list.innerHTML='';
@@ -735,11 +758,7 @@ function switchTab(name,btn){
 }
 
 // TRIAGE
-function setStatus(s){
-  var el=document.getElementById('statusBadge');
-  el.textContent=s==='ready'?'Ready':s==='processing'?'Processing...':s==='complete'?'Complete':'Error';
-  el.className='status-badge'+(s!=='ready'?' '+s:'');
-}
+function setStatus(s){} // status badge removed — btn spinner handles state
 function setLoading(on){
   document.getElementById('btnText').textContent=on?'Analyzing...':'Run Triage';
   document.getElementById('btnSpinner').className=on?'spinner active':'spinner';
@@ -750,7 +769,7 @@ async function runTriage(){
   var msg=document.getElementById('msgInput').value.trim();
   if(!msg)return;
   if(!currentNurse){showNurseModal();return;}
-  setLoading(true);setStatus('processing');currentHistoryId=null;selectedUpReason='';selectedDownReason='';
+  setLoading(true);setStatus('processing');currentHistoryId=null;selectedUpReasons=[];selectedDownReasons=[];
   document.getElementById('results').innerHTML='<div class="placeholder"><div class="spinner active" style="width:26px;height:26px;border-color:var(--gray-300);border-top-color:var(--blue);"></div><div class="placeholder-text" style="margin-top:14px;">Analyzing message...</div></div>';
   var kbContent=getKBPrompt();
   var sysPrompt=kbContent?BASE_PROMPT+'\n\n'+kbContent:BASE_PROMPT;
@@ -845,34 +864,36 @@ function toggleVotePanel(type){
     downPanel.classList.remove('open');
     upBtn.classList.toggle('active',!open);
     downBtn.classList.remove('active');
+    if(!open) selectedUpReasons=[];
   }else{
     var open2=downPanel.classList.contains('open');
     downPanel.classList.toggle('open',!open2);
     upPanel.classList.remove('open');
     downBtn.classList.toggle('active',!open2);
     upBtn.classList.remove('active');
+    if(!open2) selectedDownReasons=[];
   }
 }
 
 function selectVoteReason(type,reason,el){
-  if(type==='up'){selectedUpReason=reason;}else{selectedDownReason=reason;}
-  var prefix=type===  'up'?'.up-panel':'.down-panel';
-  document.querySelectorAll(prefix+' .vote-reason-btn').forEach(function(b){b.classList.remove('selected');});
-  el.classList.add('selected');
+  var arr = type==='up' ? selectedUpReasons : selectedDownReasons;
+  var idx = arr.indexOf(reason);
+  if(idx>-1){ arr.splice(idx,1); el.classList.remove('selected'); }
+  else { arr.push(reason); el.classList.add('selected'); }
 }
 
 async function submitVote(type){
-  var reason=type==='up'?selectedUpReason:selectedDownReason;
-  if(!reason){alert('Please select a reason.');return;}
+  var reasons = type==='up' ? selectedUpReasons : selectedDownReasons;
+  if(!reasons.length){alert('Please select at least one reason.');return;}
   if(!currentHistoryId){showToast('Run a triage first');return;}
-  var action=type==='up'?'upvote':'downvote';
+  var action = type==='up' ? 'upvote' : 'downvote';
   try{
-    await api('/history','POST',{action:action,id:currentHistoryId,reason:reason});
+    await api('/history','POST',{action:action,id:currentHistoryId,reason:reasons.join(', ')});
     var btn=document.getElementById(type+'voteBtn');
     btn.innerHTML=type==='up'?'&#128077; Liked':'&#128078; Flagged';
     btn.classList.add('active');btn.disabled=true;
     document.getElementById(type+'votePanel').classList.remove('open');
-    showToast('Feedback saved');
+    showToast('Feedback saved — '+reasons.length+' reason'+(reasons.length>1?'s':''));
   }catch(e){showToast('Error saving feedback');}
 }
 
@@ -1031,23 +1052,36 @@ function renderResults(d){
       '</div>'+
 
       '<div class="vote-panel up-panel" id="upvotePanel">'+
-        '<div class="vote-panel-label">What worked well?</div>'+
+        '<div class="vote-panel-label">What worked well? <span style="font-weight:400;font-size:11px;opacity:.8;">(select all that apply)</span></div>'+
         '<div class="vote-reasons">'+
-          ['Accurate advice','Good tone','Right category','Caught the dose issue','Complete response','Saved me time'].map(function(r){
+          [
+            'Accurate clinical advice','Correct category','Right urgency level',
+            'Good patient tone','Complete response','Caught missing dose info',
+            'Correct side effect severity','Good routing decision',
+            'Follow-up questions appropriate','Saved significant time',
+            'Draft matched my voice','Educational content appropriate'
+          ].map(function(r){
             return '<button class="vote-reason-btn" onclick="selectVoteReason(\'up\',\''+r+'\',this)">'+r+'</button>';
           }).join('')+
         '</div>'+
-        '<button class="vote-submit-btn" onclick="submitVote(\'up\')">Submit</button>'+
+        '<button class="vote-submit-btn" onclick="submitVote(\'up\')">Submit Feedback</button>'+
       '</div>'+
 
       '<div class="vote-panel down-panel" id="downvotePanel">'+
-        '<div class="vote-panel-label">What was wrong?</div>'+
+        '<div class="vote-panel-label">What needs improvement? <span style="font-weight:400;font-size:11px;opacity:.8;">(select all that apply)</span></div>'+
         '<div class="vote-reasons">'+
-          ['Wrong category','Wrong advice','Wrong tone','Missing key info','Incorrect urgency','Other'].map(function(r){
+          [
+            'Wrong clinical category','Wrong urgency level','Incorrect side effect severity',
+            'Bad clinical advice','Missing important information','Wrong medications mentioned',
+            'Tone not appropriate','Too generic — not personalized','Questions were off-target',
+            'Missed the non-clinical item','Wrong routing decision','Draft too long',
+            'Draft too short','Missing dose check','Incorrect date or timeline',
+            'Contradicts our protocols','Other'
+          ].map(function(r){
             return '<button class="vote-reason-btn" onclick="selectVoteReason(\'down\',\''+r+'\',this)">'+r+'</button>';
           }).join('')+
         '</div>'+
-        '<button class="vote-submit-btn" onclick="submitVote(\'down\')">Submit</button>'+
+        '<button class="vote-submit-btn" onclick="submitVote(\'down\')">Submit Feedback</button>'+
       '</div>'+
 
     '</div>'+
