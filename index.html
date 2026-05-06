@@ -541,8 +541,10 @@ function showNurseModal(){
 function selectNurse(name){
   currentNurse=name;
   localStorage.setItem('rn_triage_current_nurse',name);
-  document.getElementById('nurseChipName').textContent=name;
-  document.getElementById('nurseModal').classList.add('hidden');
+  var chip=document.getElementById('nurseChipName');
+  if(chip)chip.textContent=name;
+  var modal=document.getElementById('nurseModal');
+  if(modal)modal.classList.add('hidden');
 }
 function addAndSelectNurse(){
   var input=document.getElementById('newNurseInput');
@@ -552,8 +554,14 @@ function addAndSelectNurse(){
   input.value='';selectNurse(name);
 }
 function initNurse(){
-  if(currentNurse){document.getElementById('nurseChipName').textContent=currentNurse;document.getElementById('nurseModal').classList.add('hidden');}
-  else showNurseModal();
+  var chip=document.getElementById('nurseChipName');
+  var modal=document.getElementById('nurseModal');
+  if(currentNurse){
+    if(chip)chip.textContent=currentNurse;
+    if(modal)modal.classList.add('hidden');
+  }else{
+    showNurseModal();
+  }
 }
 
 // API
@@ -663,10 +671,13 @@ async function saveHistoryRecord(parsed,msg){
 
 // KB UI
 function setSyncBar(state,msg){
-  document.getElementById('syncBar').className='kb-sync-bar'+(state?' '+state:'');
-  document.getElementById('syncMsg').textContent=msg;
+  var bar=document.getElementById('syncBar');if(!bar)return;
+  bar.className='kb-sync-bar'+(state?' '+state:'');
+  var sm=document.getElementById('syncMsg');if(sm)sm.textContent=msg;
 }
 function renderKB(){
+  // Only render if KB tab elements exist in DOM
+  if(!document.getElementById('protocols-list'))return;
   ['sideeffects','templates','protocols','urls','routing','notes'].forEach(function(section){
     var list=document.getElementById(section+'-list');
     if(!list)return;
@@ -1216,7 +1227,8 @@ function esc(str){
 }
 
 initNurse();
-loadKBFromServer();
+// KB loads on demand when tab is opened — not on page init
+// This prevents null-reference errors from KB DOM elements not being present
 </script>
 </body>
 </html>
