@@ -217,7 +217,7 @@ textarea::placeholder{color:var(--gray-400);}
 .kb-entry{border:1.5px solid var(--gray-200);border-radius:10px;margin-bottom:12px;overflow:hidden;}
 .kb-entry:last-child{margin-bottom:0;}
 .kb-entry-header{padding:9px 13px;background:var(--gray-50);border-bottom:1px solid var(--gray-200);display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
-.kb-entry-name{flex:1;min-width:120px;font-size:var(--fs-sm);font-weight:600;color:var(--gray-700);background:transparent;border:none;outline:none;font-family:var(--sans);padding:2px 0;}
+.kb-entry-name{flex:1;min-width:120px;font-size:var(--fs-base);font-weight:600;color:var(--gray-700);background:transparent;border:none;outline:none;font-family:var(--sans);padding:2px 0;}
 .kb-entry-name:focus{background:var(--white);border-radius:4px;padding:2px 6px;}
 .kb-entry-author{font-size:var(--fs-xs);color:var(--gray-400);white-space:nowrap;background:var(--gray-100);padding:3px 9px;border-radius:10px;}
 .kb-entry-content{width:100%;min-height:100px;padding:13px 14px;border:none;border-radius:0;font-family:var(--sans);font-size:var(--fs-sm);line-height:1.75;color:var(--gray-800);resize:vertical;outline:none;background:var(--white);}
@@ -238,6 +238,21 @@ textarea::placeholder{color:var(--gray-400);}
 .kb-spinner{width:16px;height:16px;border:2.5px solid rgba(255,255,255,.4);border-top-color:white;border-radius:50%;animation:spin .7s linear infinite;display:none;}
 .kb-spinner.active{display:block;}
 .empty-state{text-align:center;padding:22px;color:var(--gray-500);font-size:var(--fs-sm);font-style:italic;}
+.kb-tabs{display:flex;gap:4px;margin-bottom:0;border-bottom:2px solid var(--gray-200);padding-bottom:0;}
+.kb-tab{padding:9px 18px;border:none;background:transparent;font-family:var(--sans);font-size:var(--fs-sm);font-weight:500;color:var(--gray-600);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;border-radius:8px 8px 0 0;transition:all .15s;display:flex;align-items:center;gap:6px;}
+.kb-tab:hover{background:var(--gray-50);color:var(--gray-800);}
+.kb-tab.active{color:var(--blue);border-bottom-color:var(--blue);font-weight:600;background:var(--white);}
+.kb-tab-count{font-size:11px;font-weight:700;background:var(--gray-200);color:var(--gray-600);padding:1px 7px;border-radius:10px;min-width:18px;text-align:center;}
+.kb-tab.active .kb-tab-count{background:var(--blue-m);color:var(--blue);}
+.kb-tab-panel{display:none;padding-top:14px;}
+.kb-tab-panel.active{display:block;}
+.kb-search-row{padding:12px 0 4px;}
+.kb-search{width:100%;padding:10px 14px;border:1.5px solid var(--gray-200);border-radius:9px;font-family:var(--sans);font-size:var(--fs-base);outline:none;background:var(--gray-50);}
+.kb-search:focus{border-color:var(--blue);background:var(--white);}
+.kb-entry-collapsed .kb-entry-content{display:none;}
+.kb-entry-collapsed .kb-entry-footer{display:none;}
+.kb-entry-toggle{background:none;border:none;cursor:pointer;font-size:11px;color:var(--gray-400);padding:0 4px;font-family:var(--sans);}
+.kb-entry-toggle:hover{color:var(--blue);}
 .save-toast{position:fixed;bottom:24px;right:24px;background:var(--green);color:white;padding:13px 22px;border-radius:10px;font-size:var(--fs-sm);font-weight:600;opacity:0;transition:opacity .2s;pointer-events:none;box-shadow:0 4px 12px rgba(0,0,0,.15);z-index:999;}
 .save-toast.show{opacity:1;}
 @media(max-width:900px){.triage-layout{grid-template-columns:1fr;}.class-grid{grid-template-columns:1fr;}.entry-add-row{flex-direction:column;}}
@@ -310,23 +325,29 @@ textarea::placeholder{color:var(--gray-400);}
 <div class="tab-panel" id="tab-kb">
   <div class="kb-layout">
     <div class="kb-header">
-      <h2>Clinical Knowledge Base</h2>
-      <p>Add clinical protocols, response guides, URLs, and routing rules. Syncs to the team automatically. The AI reads this directly when processing patient messages.</p>
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+        <div>
+          <h2>Clinical Knowledge Base</h2>
+          <p>Protocols, routing rules, and clinical notes read by the AI on every triage. Edit any entry and save to sync instantly.</p>
+        </div>
+        <div class="kb-sync-bar" id="syncBar" style="margin:0;flex-shrink:0;"><span id="syncMsg">Loading...</span></div>
+      </div>
     </div>
-    <div class="kb-sync-bar" id="syncBar"><span id="syncMsg">Loading...</span></div>
+
+    <!-- Add Entry Panel -->
     <div class="entry-add-box">
       <div class="entry-add-header"><span>+ Add Entry</span></div>
       <div class="entry-add-body">
         <div class="entry-add-row">
-          <input class="entry-title-input" type="text" id="entryTitle" placeholder="Title (e.g. Nausea guidance, Plateau response)">
+          <input class="entry-title-input" type="text" id="entryTitle" placeholder="Title (e.g. Nausea guidance, Plateau follow-up)">
           <select class="entry-section-select" id="entrySection">
             <option value="protocols">Clinical Protocol / Response Guide</option>
+            <option value="notes">Clinical Rules &amp; Notes</option>
+            <option value="routing">Routing Rules</option>
             <option value="urls">URL / Resource</option>
-            <option value="routing">Routing Rule</option>
-            <option value="notes">General Notes</option>
           </select>
         </div>
-        <textarea class="entry-content-area" id="entryContent" placeholder="Enter your clinical guidance or response template here. Preserve your formatting and line breaks."></textarea>
+        <textarea class="entry-content-area" id="entryContent" placeholder="Enter your clinical guidance, routing rule, or note. Preserve formatting and line breaks — the AI reads this exactly as written."></textarea>
         <div class="entry-submit-row">
           <button class="entry-submit-btn" id="entrySubmitBtn" onclick="submitEntry()">
             <span id="entrySubmitTxt">Save &amp; Sync to Team</span>
@@ -335,33 +356,38 @@ textarea::placeholder{color:var(--gray-400);}
         </div>
       </div>
     </div>
-    <div class="kb-section">
-      <div class="kb-section-header"><span class="kb-section-title">Clinical Protocols &amp; Response Guides</span><span style="font-size:var(--fs-xs);color:var(--gray-500);">Click any field to edit, then Save</span></div>
-      <div class="kb-section-body" id="protocols-list"></div>
-    </div>
-    <div class="kb-section">
-      <div class="kb-section-header"><span class="kb-section-title">URLs &amp; Resources</span><span style="font-size:var(--fs-xs);color:var(--gray-500);">Editable</span></div>
-      <div class="kb-section-body" id="urls-list"></div>
-    </div>
-    <div class="kb-section">
-      <div class="kb-section-header"><span class="kb-section-title">Routing Rules</span><span style="font-size:var(--fs-xs);color:var(--gray-500);">Editable</span></div>
-      <div class="kb-section-body" id="routing-list"></div>
-    </div>
-    <div class="kb-section">
-      <div class="kb-section-header"><span class="kb-section-title">General Notes</span><span style="font-size:var(--fs-xs);color:var(--gray-500);">Editable</span></div>
-      <div class="kb-section-body" id="notes-list"></div>
+
+    <!-- KB Section Tabs -->
+    <div class="kb-tabs">
+      <button class="kb-tab active" onclick="switchKBTab('protocols',this)">Protocols <span class="kb-tab-count" id="cnt-protocols"></span></button>
+      <button class="kb-tab" onclick="switchKBTab('notes',this)">Rules &amp; Notes <span class="kb-tab-count" id="cnt-notes"></span></button>
+      <button class="kb-tab" onclick="switchKBTab('routing',this)">Routing <span class="kb-tab-count" id="cnt-routing"></span></button>
+      <button class="kb-tab" onclick="switchKBTab('urls',this)">URLs <span class="kb-tab-count" id="cnt-urls"></span></button>
+      <button class="kb-tab" onclick="switchKBTab('corrections',this)">Corrections <span class="kb-tab-count" id="cnt-corrections"></span></button>
     </div>
 
-    <!-- Response Corrections — manual load only -->
-    <div class="kb-section">
-      <div class="kb-section-header" style="cursor:pointer;" onclick="toggleCorrectionsPanel()">
-        <span class="kb-section-title">Response Corrections</span>
-        <button class="btn-xs" id="loadCorrectionsBtn" style="pointer-events:none;">&#9660; Load</button>
+    <div class="kb-search-row">
+      <input type="text" class="kb-search" id="kbSearch" placeholder="Search entries..." oninput="filterKBEntries()">
+    </div>
+
+    <div id="kb-tab-protocols" class="kb-tab-panel active">
+      <div id="protocols-list"></div>
+    </div>
+    <div id="kb-tab-notes" class="kb-tab-panel">
+      <div id="notes-list"></div>
+    </div>
+    <div id="kb-tab-routing" class="kb-tab-panel">
+      <div id="routing-list"></div>
+    </div>
+    <div id="kb-tab-urls" class="kb-tab-panel">
+      <div id="urls-list"></div>
+    </div>
+    <div id="kb-tab-corrections" class="kb-tab-panel">
+      <div style="padding:10px 0 14px;">
+        <button class="btn-xs" id="loadCorrectionsBtn" onclick="toggleCorrectionsPanel()" style="font-size:var(--fs-sm);padding:8px 16px;">Load Response Corrections</button>
       </div>
       <div id="corrections-panel" style="display:none;">
-        <div class="kb-section-body" id="corrections-list">
-          <div class="empty-state">Loading...</div>
-        </div>
+        <div id="corrections-list"><div class="empty-state">Loading...</div></div>
       </div>
     </div>
 
@@ -374,7 +400,7 @@ textarea::placeholder{color:var(--gray-400);}
       <label class="kb-export-btn" style="cursor:pointer;">Import Backup<input type="file" accept=".json" style="display:none;" onchange="importKB(event)"></label>
     </div>
   </div>
-</div>
+</div></div>
 
 <div class="save-toast" id="saveToast">Synced</div>
 
@@ -389,8 +415,8 @@ JSON schema (every field required):
 
 FIELD RULES:
 non_clinical_flag: true if message contains billing/shipping/payment/account content.
-routing_language: patient-facing routing message + staff directive combined (3-4 sentences). Empty if non_clinical_flag false.
-internal_note: directive for Bask support staff. Empty if non_clinical_flag false.
+routing_language: 1-2 sentence message to send the patient acknowledging their non-clinical item is being routed to another team. Empty if non_clinical_flag false.
+internal_note: Brief handoff note left inside the Bask chat thread for the newly assigned staff member. 2-3 sentences. Write as if leaving a note for a colleague: summarize what the patient needs, what has already been handled clinically, and what the staff member should look into. Do NOT write routing instructions. Example: "Patient is inquiring about a billing charge from last month. Their clinical question about nausea has been addressed separately by the RN. Please check the account and follow up on the charge." Empty if non_clinical_flag false.
 clinical_routing_flag: true if any side effect detected.
 clinical_routing_level: severity per SIDE EFFECT SEVERITY CLASSIFICATION in knowledge base. "none" if no side effects.
 clinical_routing_note: routing note per CLINICAL ROUTING RULES in knowledge base. Empty if clinical_routing_level is "none".
@@ -402,7 +428,15 @@ draft_response: ALWAYS populate. Warm RN voice, patient details, prose with line
 
 All clinical rules, severity thresholds, routing logic, and response protocols are in the KNOWLEDGE BASE sections below. Follow them precisely.`;
 
-const CATEGORIES = ['GI side effects','Weight plateau','No early weight loss','Food noise/cravings','Hair loss','Fatigue','Heartburn/reflux','Diarrhea','Injection/administration','Dosing question','Skin/site reaction','Medication storage','Urgent-escalate','General/multiple'];
+const CATEGORIES = [
+  // Clinical
+  'GI side effects','Weight plateau','No early weight loss','Food noise/cravings',
+  'Hair loss','Fatigue','Heartburn/reflux','Diarrhea','Injection/administration',
+  'Dosing question','Skin/site reaction','Medication storage','Urgent-escalate','General/multiple',
+  // Non-clinical
+  'Billing/Payment','Shipment/Tracking','Account/Subscription','Refund request',
+  'Package not received','Prescription transfer','Non-clinical/Other'
+];
 
 const TIMEFRAMES = [
   {v:'routine',l:'Routine — Next Available',c:'routine'},
@@ -594,15 +628,26 @@ function renderKB(){
     if(!list)return;
     list.innerHTML='';
     var items=kb[section]||[];
-    if(!items.length){list.innerHTML='<div class="empty-state">No entries yet.</div>';return;}
+    var cnt=document.getElementById('cnt-'+section);
+    if(cnt)cnt.textContent=items.length||'';
+    if(!items.length){list.innerHTML='<div class="empty-state">No entries yet. Add one above.</div>';return;}
     items.forEach(function(entry,i){list.appendChild(makeEntryEl(section,i,entry));});
   });
 }
 function makeEntryEl(section,i,entry){
   var div=document.createElement('div');div.className='kb-entry';
-  div.innerHTML='<div class="kb-entry-header"><input class="kb-entry-name" type="text" value="'+esc(entry.name)+'" data-section="'+section+'" data-index="'+i+'" placeholder="Entry name..."><span class="kb-entry-author">&#128100; '+esc(entry.nurse_name||'Unknown')+'</span></div>'+
-    '<textarea class="kb-entry-content" data-section="'+section+'" data-index="'+i+'">'+esc(entry.text)+'</textarea>'+
-    '<div class="kb-entry-footer"><button class="btn-xs save" onclick="saveEntryInline(\''+section+'\','+i+',this)">Save</button><button class="btn-xs danger" onclick="removeEntry(\''+section+'\','+i+')">Delete</button></div>';
+  var nm=(entry.name||'');
+  var isRule=nm.includes('RULES')||nm.includes('CLASSIFICATION')||nm.includes('FRAMEWORK');
+  if(isRule)div.classList.add('kb-entry-collapsed');
+  div.innerHTML='<div class="kb-entry-header">'+
+    '<input class="kb-entry-name" type="text" value="'+esc(nm)+'" data-section="'+section+'" data-index="'+i+'" placeholder="Entry name...">'+
+    '<button class="kb-entry-toggle" onclick="toggleKBEntry(this,this.closest(\'.kb-entry\'))">'+
+      (isRule?'&#9660; expand':'&#9650; collapse')+
+    '</button>'+
+    '<span class="kb-entry-author">&#128100; '+esc(entry.nurse_name||'Unknown')+'</span>'+
+  '</div>'+
+  '<textarea class="kb-entry-content" data-section="'+section+'" data-index="'+i+'">'+esc(entry.text)+'</textarea>'+
+  '<div class="kb-entry-footer"><button class="btn-xs save" onclick="saveEntryInline(\''+section+'\','+i+',this)">Save</button><button class="btn-xs danger" onclick="removeEntry(\''+section+'\','+i+')">Delete</button></div>';
   return div;
 }
 async function saveEntryInline(section,i,btn){
@@ -633,6 +678,30 @@ function importKB(e){
 }
 
 // TABS
+function switchKBTab(section, btn){
+  document.querySelectorAll('.kb-tab').forEach(function(b){b.classList.remove('active');});
+  document.querySelectorAll('.kb-tab-panel').forEach(function(p){p.classList.remove('active');});
+  btn.classList.add('active');
+  var panel = document.getElementById('kb-tab-'+section);
+  if(panel) panel.classList.add('active');
+  document.getElementById('kbSearch').value = '';
+}
+
+function filterKBEntries(){
+  var q = document.getElementById('kbSearch').value.toLowerCase().trim();
+  document.querySelectorAll('.kb-entry').forEach(function(entry){
+    var name = (entry.querySelector('.kb-entry-name')||{}).value||'';
+    var text = (entry.querySelector('.kb-entry-content')||{}).value||'';
+    var match = !q || name.toLowerCase().includes(q) || text.toLowerCase().includes(q);
+    entry.style.display = match ? '' : 'none';
+  });
+}
+
+function toggleKBEntry(btn, entryEl){
+  entryEl.classList.toggle('kb-entry-collapsed');
+  btn.textContent = entryEl.classList.contains('kb-entry-collapsed') ? '▼ expand' : '▲ collapse';
+}
+
 function switchTab(name,btn){
   document.querySelectorAll('.tab-panel').forEach(function(p){p.classList.remove('active');});
   document.querySelectorAll('.tab-btn').forEach(function(b){b.classList.remove('active');});
@@ -840,16 +909,22 @@ function renderResults(d){
 
   // ── Non-clinical routing card — billing / shipping / admin ──────────────
   if(d.non_clinical_flag&&d.non_clinical_items&&d.non_clinical_items.length){
-    var internalNote = d.internal_note || d.routing_language || '';
+    var routingMsg = d.routing_language || '';
+    var internalNote = d.internal_note || '';
     html+='<div class="out-card" style="border-color:var(--amber-m);">'+
-      '<div class="oc-header"><span class="oc-label" style="color:var(--amber);">&#9888; Non-Clinical Routing Required</span></div>'+
+      '<div class="oc-header"><span class="oc-label" style="color:var(--amber);">&#9888; Non-Clinical — Route Away</span></div>'+
       '<div class="oc-body">'+
-        '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:6px;">Flagged for support team</div>'+
-        '<div style="font-size:var(--fs-base);font-weight:500;color:var(--gray-800);margin-bottom:12px;line-height:1.6;">'+d.non_clinical_items.map(esc).join(' &middot; ')+'</div>'+
+        '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:6px;">Items to route</div>'+
+        '<div style="font-size:var(--fs-base);font-weight:500;color:var(--gray-800);margin-bottom:14px;line-height:1.6;">'+d.non_clinical_items.map(esc).join(' &middot; ')+'</div>'+
+        (routingMsg?
+          '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:6px;">Message to patient</div>'+
+          '<div style="background:var(--gray-50);border:1.5px solid var(--gray-200);border-radius:8px;padding:12px 14px;font-size:var(--fs-sm);color:var(--gray-800);line-height:1.7;margin-bottom:8px;">'+esc(routingMsg)+'</div>'+
+          '<button class="copy-btn" style="margin-bottom:12px;" data-copy="'+esc(routingMsg)+'">Copy Patient Message</button>'
+        :'')+
         (internalNote?
-          '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--slate);margin-bottom:6px;">Internal note for Bask staff</div>'+
+          '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--slate);margin-bottom:6px;">Internal Note for Staff</div>'+
           '<div style="background:var(--slate-light);border:1.5px solid var(--slate-m);border-radius:8px;padding:12px 14px;font-size:var(--fs-sm);color:var(--gray-800);line-height:1.7;">'+esc(internalNote)+'</div>'+
-          '<button class="copy-btn" style="margin-top:10px;" data-copy="'+esc(internalNote)+'">Copy Internal Note</button>'
+          '<button class="copy-btn" style="margin-top:8px;" data-copy="'+esc(internalNote)+'">Copy Internal Note</button>'
         :'')+
       '</div>'+
     '</div>';
@@ -889,14 +964,24 @@ function renderResults(d){
   '</div>';
 
   // ── Generated Response card ───────────────────────────────────────────────
-  var draftText=d.draft_response||'';
-  html+='<div class="out-card" style="border-color:var(--teal-m);">'+
+  var draftText=(d.draft_response||'').trim();
+  var draftIsEmpty = !draftText;
+  html+='<div class="out-card" style="border-color:'+(draftIsEmpty?'var(--red-m)':'var(--teal-m)')+'">'+
     '<div class="oc-header">'+
-      '<span class="oc-label" style="color:var(--teal);">Generated Response for Patient</span>'+
+      '<span class="oc-label" style="color:'+(draftIsEmpty?'var(--red)':'var(--teal)')+'">'+
+        (draftIsEmpty?'&#9888; Response Not Generated':'Generated Response for Patient')+
+      '</span>'+
     '</div>'+
     '<div class="oc-body">'+
-      '<div class="response-text" id="aiDraftText">'+esc(draftText).replace(/\n/g,'<br>')+'</div>'+
-      '<button class="copy-btn" data-copy="'+esc(draftText)+'">Copy Response</button>'+
+      (draftIsEmpty?
+        '<div style="background:var(--red-l);border:1.5px solid var(--red-m);border-radius:8px;padding:14px 16px;font-size:var(--fs-sm);color:var(--red);line-height:1.7;margin-bottom:12px;">'+
+          '<strong>The AI did not generate a response.</strong> This can happen if the message was ambiguous or the model timed out. '+
+          'Click <strong>Run Triage again</strong> on the left — if it persists, try rewording the message slightly or check the Clinical Knowledge Base for conflicting rules.'+
+        '</div>'
+      :
+        '<div class="response-text" id="aiDraftText">'+esc(draftText).replace(/\n/g,'<br>')+'</div>'+
+        '<button class="copy-btn" data-copy="'+esc(draftText)+'">Copy Response</button>'
+      )+
 
       '<div class="feedback-row">'+
         '<button class="vote-btn up" id="upvoteBtn" onclick="toggleVotePanel(\'up\')">&#128077; This is good</button>'+
