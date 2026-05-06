@@ -300,9 +300,18 @@ textarea::placeholder{color:var(--gray-400);}
   <div class="triage-layout">
     <div class="input-col">
       <div class="card" style="position:sticky;top:80px;">
-        <div class="card-header"><span class="card-title">Patient Message</span></div>
+        <div class="card-header">
+          <span class="card-title">Patient Message</span>
+          <button id="priorToggle" onclick="togglePrior()" style="background:none;border:1.5px solid var(--gray-200);border-radius:7px;padding:4px 10px;font-family:var(--sans);font-size:var(--fs-xs);font-weight:600;color:var(--gray-500);cursor:pointer;transition:all .15s;" title="Add prior conversation for context">+ Prior context</button>
+        </div>
         <div class="card-body">
-          <textarea id="msgInput" placeholder="Paste the patient's full message here."></textarea>
+          <div id="priorContextPanel" style="display:none;margin-bottom:10px;">
+            <div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:6px;">Prior Conversation</div>
+            <textarea id="priorInput" style="min-height:120px;font-size:var(--fs-sm);border-color:var(--blue-m);background:var(--blue-l);" placeholder="Paste the earlier conversation thread here — your initial message, the patient's follow-up, any previous replies. The AI will read this as context before processing the current message below."></textarea>
+            <div style="font-size:var(--fs-xs);color:var(--blue);margin-top:4px;">&#9432; When provided, the AI treats the message below as the latest reply in this thread.</div>
+          </div>
+          <div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:6px;" id="msgLabel">Current Message</div>
+          <textarea id="msgInput" placeholder="Paste the patient's current message here."></textarea>
           <button class="btn-run" id="triageBtn" onclick="runTriage()">
             <span id="btnText">Run Triage</span>
             <div class="spinner" id="btnSpinner"></div>
@@ -428,14 +437,16 @@ draft_response: ALWAYS populate. Warm RN voice, patient details, prose with line
 
 All clinical rules, severity thresholds, routing logic, and response protocols are in the KNOWLEDGE BASE sections below. Follow them precisely.`;
 
-const CATEGORIES = [
-  // Clinical
+const CLINICAL_CATS = [
   'GI side effects','Weight plateau','No early weight loss','Food noise/cravings',
   'Hair loss','Fatigue','Heartburn/reflux','Diarrhea','Injection/administration',
-  'Dosing question','Skin/site reaction','Medication storage','Urgent-escalate','General/multiple',
-  // Non-clinical
-  'Billing/Payment','Shipment/Tracking','Account/Subscription','Refund request',
-  'Package not received','Prescription transfer','Non-clinical/Other'
+  'Dosing question','Skin/site reaction','Medication storage','Urgent-escalate','General'
+];
+
+const NON_CLINICAL_CATS = [
+  '— None —',
+  'Billing/Payment','Shipment/Tracking','Account/Subscription',
+  'Refund request','Package not received','Prescription transfer','Other'
 ];
 
 const TIMEFRAMES = [
@@ -678,6 +689,19 @@ function importKB(e){
 }
 
 // TABS
+function togglePrior(){
+  var panel = document.getElementById('priorContextPanel');
+  var btn = document.getElementById('priorToggle');
+  var open = panel.style.display !== 'none';
+  panel.style.display = open ? 'none' : 'block';
+  btn.textContent = open ? '+ Prior context' : '✕ Remove context';
+  btn.style.borderColor = open ? 'var(--gray-200)' : 'var(--blue-m)';
+  btn.style.color = open ? 'var(--gray-500)' : 'var(--blue)';
+  btn.style.background = open ? 'none' : 'var(--blue-l)';
+  if(open) document.getElementById('priorInput').value = '';
+  document.getElementById('msgLabel').textContent = open ? 'Current Message' : 'Latest Reply';
+}
+
 function switchKBTab(section, btn){
   document.querySelectorAll('.kb-tab').forEach(function(b){b.classList.remove('active');});
   document.querySelectorAll('.kb-tab-panel').forEach(function(p){p.classList.remove('active');});
@@ -730,10 +754,18 @@ async function runTriage(){
   document.getElementById('results').innerHTML='<div class="placeholder"><div class="spinner active" style="width:26px;height:26px;border-color:var(--gray-300);border-top-color:var(--blue);"></div><div class="placeholder-text" style="margin-top:14px;">Analyzing message...</div></div>';
   var kbContent=getKBPrompt();
   var sysPrompt=kbContent?BASE_PROMPT+'\n\n'+kbContent:BASE_PROMPT;
+
+  // Build user content — include prior conversation if provided
+  var prior = (document.getElementById('priorInput')||{}).value||'';
+  prior = prior.trim();
+  var userContent = prior
+    ? 'PRIOR CONVERSATION CONTEXT (earlier thread — for background only, do not respond to this directly):\n\n' + prior + '\n\n---\n\nLATEST PATIENT MESSAGE (triage and respond to this):\n\n' + msg
+    : msg;
+
   try{
     var res=await fetch('/.netlify/functions/triage',{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({model:'claude-haiku-4-5',max_tokens:900,system:sysPrompt,messages:[{role:'user',content:msg}]})
+      body:JSON.stringify({model:'claude-haiku-4-5',max_tokens:900,system:sysPrompt,messages:[{role:'user',content:userContent}]})
     });
     var data=await res.json();
     if(data.error)throw new Error(typeof data.error==='string'?data.error:(data.error.message||JSON.stringify(data.error)));
@@ -749,24 +781,34 @@ async function runTriage(){
   }finally{setLoading(false);}
 }
 
-function buildCategorySelect(current){
-  return '<select class="editable-select" id="categorySelect" onchange="onCategoryChange(this)">'+
-    CATEGORIES.map(function(c){return '<option value="'+esc(c)+'"'+(c===current?' selected':'')+'>'+esc(c)+'</option>';}).join('')+
-  '</select>'+
-  '<button class="save-inline-btn" id="categorySaveBtn" onclick="saveCategory()">Save correction</button>';
+function buildCategorySelect(clinCat, nonClinCat){
+  var clinOpts = CLINICAL_CATS.map(function(c){
+    return '<option value="'+esc(c)+'"'+(c===clinCat?' selected':'')+'>'+esc(c)+'</option>';
+  }).join('');
+  var nonClinOpts = NON_CLINICAL_CATS.map(function(c){
+    var val = c==='— None —'?'':c;
+    return '<option value="'+esc(val)+'"'+(c===nonClinCat||(!nonClinCat&&c==='— None —')?' selected':'')+'>'+esc(c)+'</option>';
+  }).join('');
+  return '<div style="display:flex;flex-direction:column;gap:6px;">'+
+    '<select class="editable-select" id="clinCatSelect" onchange="onCatChange()">' + clinOpts + '</select>'+
+    '<select class="editable-select" id="nonClinCatSelect" onchange="onCatChange()" style="font-size:var(--fs-xs);padding:5px 8px;">' + nonClinOpts + '</select>'+
+    '<button class="save-inline-btn" id="categorySaveBtn" onclick="saveCategory()">Save correction</button>'+
+  '</div>';
 }
 
-function onCategoryChange(sel){
+function onCatChange(){
   var btn=document.getElementById('categorySaveBtn');
   if(btn){btn.textContent='Save correction';btn.className='save-inline-btn';}
 }
 
 async function saveCategory(){
-  var sel=document.getElementById('categorySelect');
+  var clin=document.getElementById('clinCatSelect');
+  var nonClin=document.getElementById('nonClinCatSelect');
   var btn=document.getElementById('categorySaveBtn');
-  if(!sel)return;
+  if(!clin)return;
   btn.textContent='Saving...';btn.disabled=true;
-  if(currentHistoryId)await api('/history','POST',{action:'update_category',id:currentHistoryId,category:sel.value});
+  var combined = clin.value + (nonClin&&nonClin.value?' + '+nonClin.value:'');
+  if(currentHistoryId)await api('/history','POST',{action:'update_category',id:currentHistoryId,category:combined});
   btn.textContent='Saved ✓';btn.className='save-inline-btn saved';btn.disabled=false;
 }
 
@@ -946,8 +988,8 @@ function renderResults(d){
     '<div class="oc-body">'+
       '<div class="class-grid">'+
         '<div class="class-box">'+
-          '<div class="class-box-label">Clinical Category</div>'+
-          buildCategorySelect(d.clinical_category)+
+          '<div class="class-box-label">Clinical Category / Non-Clinical</div>'+
+          buildCategorySelect(d.clinical_category, d.non_clinical_items&&d.non_clinical_items.length?d.non_clinical_items[0]:'')+
         '</div>'+
         '<div class="class-box">'+
           '<div class="class-box-label">Response Timeframe</div>'+
@@ -956,7 +998,7 @@ function renderResults(d){
       '</div>'+
       (displayFacts.length?
         '<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--gray-100);">'+
-          '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:7px;">Key Clinical Facts</div>'+
+          '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:7px;">Key Points</div>'+
           '<ul class="facts-list compact">'+displayFacts.map(function(f){return '<li>'+esc(f)+'</li>';}).join('')+'</ul>'+
         '</div>'
       :'')+
