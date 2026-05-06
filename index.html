@@ -523,9 +523,19 @@ function getNurses(){return JSON.parse(localStorage.getItem('rn_triage_nurses')|
 function saveNurses(l){localStorage.setItem('rn_triage_nurses',JSON.stringify(l));}
 function showNurseModal(){
   var nurses=getNurses();
-  document.getElementById('nurseBtns').innerHTML=nurses.length
-    ?nurses.map(function(n){return '<button class="nurse-btn'+(n===currentNurse?' selected':'')+'" onclick="selectNurse(\''+esc(n)+'\')">'+esc(n)+'</button>';}).join('')
-    :'<p style="font-size:var(--fs-xs);color:var(--gray-500);">No nurses added yet.</p>';
+  var btns=document.getElementById('nurseBtns');
+  btns.innerHTML='';
+  if(nurses.length){
+    nurses.forEach(function(n){
+      var b=document.createElement('button');
+      b.className='nurse-btn'+(n===currentNurse?' selected':'');
+      b.textContent=n;
+      b.addEventListener('click',function(){selectNurse(n);});
+      btns.appendChild(b);
+    });
+  }else{
+    btns.innerHTML='<p style="font-size:var(--fs-xs);color:var(--gray-500);">No nurses added yet.</p>';
+  }
   document.getElementById('nurseModal').classList.remove('hidden');
 }
 function selectNurse(name){
