@@ -341,7 +341,7 @@ textarea::placeholder{color:var(--gray-400);}
             <span id="btnText">Run Triage</span>
             <div class="spinner" id="btnSpinner"></div>
           </button>
-          <div id="tokenIndicator" style="font-size:11px;color:var(--gray-400);text-align:right;margin-top:4px;"></div>
+
         </div>
       </div>
     </div>
@@ -1176,9 +1176,7 @@ currentHistoryId=null;selectedUpReasons=[];selectedDownReasons=[];
   document.getElementById('results').innerHTML='<div class="placeholder"><div class="spinner active" style="width:26px;height:26px;border-color:var(--gray-300);border-top-color:var(--blue);"></div><div class="placeholder-text" style="margin-top:14px;">Analyzing message...</div></div>';
   var kbContent=getKBPrompt(msg);
   var sysPrompt=kbContent?BASE_PROMPT+'\n\n'+kbContent:BASE_PROMPT;
-  var estTokens = Math.round(sysPrompt.length/4) + Math.round(msg.length/4);
-  var tokenEl = document.getElementById('tokenIndicator');
-  if(tokenEl) tokenEl.textContent = '~' + estTokens.toLocaleString() + ' tokens';
+
 
   // Build user content -- include prior conversation if provided
   var prior = (document.getElementById('priorInput')||{}).value||'';
@@ -1409,15 +1407,25 @@ function renderResults(d){
   var aiNonClin = guessNonClinCat(d.non_clinical_items);
   var _in = d.internal_note || '';
 
-  // -- Summary bar -----------------------------------------------------------
+  // -- Classification + Timeframe card (combined) ---------------------------
   var urgLabel = d.urgency==='urgent'?'URGENT':d.urgency==='same-day'?'Same Day':'Routine';
   var urgColor = d.urgency==='urgent'?'var(--red)':d.urgency==='same-day'?'var(--amber)':'var(--green)';
-  html+='<div style="padding:9px 14px;background:var(--gray-50);border:1.5px solid var(--gray-200);border-radius:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">'+
-    '<span style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);">AI classified:</span>'+
-    '<span style="font-size:var(--fs-sm);color:var(--gray-800);font-weight:500);">'+esc(aiClinCat||'General')+'</span>'+
-    '<span style="color:var(--gray-300);">&middot;</span>'+
-    '<span style="font-size:var(--fs-sm);font-weight:700;color:'+urgColor+';">'+esc(urgLabel)+'</span>'+
-    (severityBadge?'<span style="color:var(--gray-300);">&middot;</span>'+severityBadge:'')+
+  html+='<div class="out-card">'+
+    '<div class="oc-header"><span class="oc-label">Classification</span></div>'+
+    '<div class="oc-body" style="padding:12px 18px;">'+
+      '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;">'+
+        '<span style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);">AI read:</span>'+
+        '<span style="font-size:var(--fs-sm);color:var(--gray-800);font-weight:600;">'+esc(aiClinCat||'General')+'</span>'+
+        '<span style="color:var(--gray-300);">|</span>'+
+        '<span style="font-size:var(--fs-sm);font-weight:700;color:'+urgColor+';">'+esc(urgLabel)+'</span>'+
+        (severityBadge?'<span style="color:var(--gray-300);">|</span>'+severityBadge:'')+
+      '</div>'+
+      '<div style="display:flex;align-items:center;gap:10px;">'+
+        '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);white-space:nowrap;">Timeframe</div>'+
+        '<div style="flex:1;">'+buildTimeframeSelect(d.urgency)+'</div>'+
+        '<button class="action-btn" id="timeframeSaveBtn" onclick="saveTimeframe()" style="width:auto;padding:7px 16px;flex-shrink:0;font-size:var(--fs-xs);">Save</button>'+
+      '</div>'+
+    '</div>'+
   '</div>';
 
   // -- Routing card -- only when non-clinical items present ------------------
@@ -1469,7 +1477,7 @@ function renderResults(d){
   html+='<div class="out-card">'+
     '<div class="oc-header">'+
       '<span class="oc-label">Message Category</span>'+
-      '<span style="font-size:var(--fs-xs);color:var(--gray-400);">Click to select &middot; click again to deselect</span>'+
+
     '</div>'+
     '<div class="oc-body">'+
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:12px;">'+
@@ -1483,7 +1491,7 @@ function renderResults(d){
         '</div>'+
       '</div>'+
       '<div style="display:flex;align-items:center;justify-content:space-between;padding-top:10px;border-top:1px solid var(--gray-100);">'+
-        '<button class="action-btn" id="categorySaveBtn" onclick="saveCategory()" style="width:auto;padding:8px 20px;">Save Category Correction</button>'+
+        '<button class="action-btn" id="categorySaveBtn" onclick="saveCategory()" style="width:auto;padding:8px 20px;">Save Categories</button>'+
         (severityBadge?
           '<label style="display:flex;align-items:center;gap:6px;font-size:var(--fs-xs);color:var(--gray-500);cursor:pointer;">'+
             '<input type="checkbox" id="fpCheck" style="accent-color:var(--blue);cursor:pointer;"> Not a side effect'+
@@ -1493,17 +1501,7 @@ function renderResults(d){
     '</div>'+
   '</div>';
 
-  // -- Timeframe card -- with its own correction ----------------------------
-  html+='<div class="out-card">'+
-    '<div class="oc-header"><span class="oc-label">Response Timeframe</span></div>'+
-    '<div class="oc-body" style="display:flex;align-items:flex-end;gap:12px;">'+
-      '<div style="flex:1;">'+
-        '<div style="font-size:var(--fs-xs);color:var(--gray-500);margin-bottom:6px;">Adjust if the AI got this wrong, then save.</div>'+
-        buildTimeframeSelect(d.urgency)+
-      '</div>'+
-      '<button class="action-btn" id="timeframeSaveBtn" onclick="saveTimeframe()" style="width:auto;padding:8px 20px;flex-shrink:0;">Save Timeframe</button>'+
-    '</div>'+
-  '</div>';
+
 
   // -- Collapsed: Vote + Learn -----------------------------------------------
   html+='<div class="out-card" style="border-color:var(--gray-200);">'+
