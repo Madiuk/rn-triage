@@ -117,16 +117,14 @@ textarea::placeholder{color:var(--gray-400);}
 .editable-select.routine{border-color:var(--green-m);color:var(--green);background:var(--green-l);}
 .editable-select.same-day{border-color:var(--amber-m);color:var(--amber);background:var(--amber-l);}
 .editable-select.urgent{border-color:var(--red-m);color:var(--red);background:var(--red-l);}
-.save-inline-btn{margin-top:6px;width:100%;padding:7px;background:var(--blue);border:none;border-radius:7px;color:white;font-family:var(--sans);font-size:var(--fs-xs);font-weight:600;cursor:pointer;transition:all .15s;}
+.save-ghost-btn{padding:6px 14px;background:var(--white);border:1.5px solid var(--gray-200);border-radius:7px;color:var(--gray-600);font-family:var(--sans);font-size:var(--fs-xs);font-weight:600;cursor:pointer;transition:all .15s;}
+.save-ghost-btn:hover{border-color:var(--blue);color:var(--blue);}
+.save-ghost-btn.saved{border-color:var(--green);color:var(--green);}
+.save-inline-btn{margin-top:6px;width:100%;padding:6px;background:var(--white);border:1.5px solid var(--gray-300);border-radius:7px;color:var(--gray-600);font-family:var(--sans);font-size:var(--fs-xs);font-weight:600;cursor:pointer;transition:all .15s;}
 .save-inline-btn:hover{background:#1d4ed8;}
-.save-inline-btn.saved{background:var(--green);}
+.save-inline-btn.saved{border-color:var(--green);color:var(--green);background:var(--white);}
 
 /* FACTS */
-.facts-list{list-style:none;display:flex;flex-direction:column;gap:8px;margin-top:6px;}
-.facts-list li{font-size:var(--fs-base);line-height:1.55;color:var(--gray-700);padding-left:20px;position:relative;}
-.facts-list li::before{content:'›';position:absolute;left:0;color:var(--blue);font-weight:700;font-size:18px;top:-1px;}
-.facts-list.compact li{font-size:var(--fs-sm);line-height:1.5;color:var(--gray-600);padding-left:16px;}
-.facts-list.compact li::before{font-size:15px;top:-1px;}
 
 /* FOLLOW-UP QUESTIONS */
 
@@ -268,9 +266,7 @@ textarea::placeholder{color:var(--gray-400);}
 .cat-multiselect option:checked{background:var(--blue-l);color:var(--blue);font-weight:600;}
 .sideeffect-select{width:100%;padding:8px 10px;border:1.5px solid var(--gray-200);border-radius:8px;font-family:var(--sans);font-size:var(--fs-sm);color:var(--gray-800);background:var(--white);outline:none;margin-top:6px;}
 .sideeffect-select:focus{border-color:var(--blue);}
-.fp-btn{margin-top:8px;padding:7px 14px;background:var(--white);border:1.5px solid var(--red-m);border-radius:8px;color:var(--red);font-family:var(--sans);font-size:var(--fs-xs);font-weight:600;cursor:pointer;transition:all .15s;width:100%;}
-.fp-btn:hover{background:var(--red-l);}
-.fp-btn.corrected{background:var(--green-l);border-color:var(--green-m);color:var(--green);}
+
 .save-toast{position:fixed;bottom:24px;right:24px;background:var(--green);color:white;padding:13px 22px;border-radius:10px;font-size:var(--fs-sm);font-weight:600;opacity:0;transition:opacity .2s;pointer-events:none;box-shadow:0 4px 12px rgba(0,0,0,.15);z-index:999;}
 .save-toast.show{opacity:1;}
 @media(max-width:900px){.triage-layout{grid-template-columns:1fr;}.class-grid{grid-template-columns:1fr;}.entry-add-row{flex-direction:column;}}
@@ -326,7 +322,7 @@ textarea::placeholder{color:var(--gray-400);}
       <div class="card" style="position:sticky;top:80px;">
         <div class="card-header">
           <span class="card-title">Patient Message</span>
-          <button id="priorToggle" onclick="togglePrior()" style="background:none;border:1.5px solid var(--gray-200);border-radius:7px;padding:4px 10px;font-family:var(--sans);font-size:var(--fs-xs);font-weight:600;color:var(--gray-500);cursor:pointer;transition:all .15s;" title="Add prior conversation for context">+ Prior context</button>
+          <button id="priorToggle" onclick="togglePrior()" style="background:var(--blue-l);border:1.5px solid var(--blue-m);border-radius:7px;padding:5px 12px;font-family:var(--sans);font-size:var(--fs-xs);font-weight:600;color:var(--blue);cursor:pointer;transition:all .15s;">Add Prior Context</button>
         </div>
         <div class="card-body">
           <div id="priorContextPanel" style="display:none;margin-bottom:10px;">
@@ -517,8 +513,6 @@ textarea::placeholder{color:var(--gray-400);}
               When a message contains both a clinical question and a non-clinical item (billing, shipping, etc.), a <strong>Dual Task</strong> card appears. The left column shows what the RN is handling clinically. The right column shows what needs to be routed to another department. Copy the patient message and the internal note separately — one goes to the patient, one goes into Bask for the support team.
             </div>
           </div>
-
-
 
           <div class="help-faq">
             <button class="help-faq-q" onclick="toggleFaq(this)">
@@ -1044,7 +1038,7 @@ function togglePrior(){
   var btn = document.getElementById('priorToggle');
   var open = panel.style.display !== 'none';
   panel.style.display = open ? 'none' : 'block';
-  btn.textContent = open ? '+ Prior context' : 'x Remove context';
+  btn.textContent = open ? 'Add Prior Context' : 'Remove Context';
   btn.style.borderColor = open ? 'var(--gray-200)' : 'var(--blue-m)';
   btn.style.color = open ? 'var(--gray-500)' : 'var(--blue)';
   btn.style.background = open ? 'none' : 'var(--blue-l)';
@@ -1162,35 +1156,8 @@ function buildCatListbox(id, cats, defaultSelected){
     var sel = c.toLowerCase() === norm || (norm && c.toLowerCase().includes(norm) && norm.length > 3);
     return '<option value="'+esc(c)+'"'+(sel?' selected':'')+'>'+esc(c)+'</option>';
   }).join('');
-  return '<select class="cat-multiselect" id="'+id+'" multiple size="5" onchange="onCatChange()">'+opts+'</select>';
-}
-
-function buildCategorySelect(clinCat, nonClinCat){
-  // Normalize AI output to match array values (trim, fix common mismatches)
-  var normClin = (clinCat||'').trim();
-  if(normClin.toLowerCase()==='general'||normClin.toLowerCase()==='general/multiple') normClin='General/multiple';
-  // Find best match (exact first, then case-insensitive)
-  var matchedClin = CLINICAL_CATS.find(function(c){return c===normClin;})
-    || CLINICAL_CATS.find(function(c){return c.toLowerCase()===normClin.toLowerCase();})
-    || '';
-
-  var clinOpts = CLINICAL_CATS.map(function(c){
-    return '<option value="'+esc(c)+'"'+(c===matchedClin?' selected':'')+'>'+esc(c)+'</option>';
-  }).join('');
-
-  var normNonClin = (nonClinCat||'').trim();
-  var nonClinOpts = NON_CLINICAL_CATS.map(function(c){
-    var val = c==='-- None --'?'':c;
-    var sel = (!normNonClin&&c==='-- None --') || val===normNonClin ||
-              val.toLowerCase()===normNonClin.toLowerCase();
-    return '<option value="'+esc(val)+'"'+(sel?' selected':'')+'>'+esc(c)+'</option>';
-  }).join('');
-
-  return '<div style="display:flex;flex-direction:column;gap:6px;">'+
-    '<select class="editable-select" id="clinCatSelect" onchange="onCatChange()">' + clinOpts + '</select>'+
-    '<select class="editable-select" id="nonClinCatSelect" onchange="onCatChange()" style="font-size:var(--fs-xs);padding:5px 8px;">' + nonClinOpts + '</select>'+
-    '<button class="save-inline-btn" id="categorySaveBtn" onclick="saveCategory()">Save correction</button>'+
-  '</div>';
+  // onclick on select handles click-to-toggle without Ctrl
+  return '<select class="cat-multiselect" id="'+id+'" multiple size="5" data-listbox="1">'+opts+'</select>';
 }
 
 function onCatChange(){
@@ -1202,6 +1169,14 @@ async function saveCategory(){
   var btn=document.getElementById('categorySaveBtn');
   if(!btn)return;
   btn.textContent='Saving...';btn.disabled=true;
+  // Check false positive checkbox
+  var fpCheck=document.getElementById('fpCheck');
+  if(fpCheck&&fpCheck.checked){
+    if(currentHistoryId)await api('/history','POST',{action:'update_category',id:currentHistoryId,category:'FALSE POSITIVE: No side effect present'});
+    btn.textContent='Saved';btn.className='save-ghost-btn saved';btn.disabled=false;
+    showToast('False positive recorded');
+    return;
+  }
   var clinList=document.getElementById('clinCatList');
   var nonClinList=document.getElementById('nonClinCatList');
   var seFld=document.getElementById('sideEffectSelect');
@@ -1211,14 +1186,7 @@ async function saveCategory(){
   var seNote = seFld&&seFld.value ? ' [SE: '+seFld.value+']' : '';
   var combined = (clinSelected.join(', ')||'General/multiple') + seNote + (nonClinSelected.length?' | Non-clinical: '+nonClinSelected.join(', '):'');
   if(currentHistoryId)await api('/history','POST',{action:'update_category',id:currentHistoryId,category:combined});
-  btn.textContent='Saved !';btn.className='save-inline-btn saved';btn.disabled=false;
-}
-
-async function recordFalsePositive(btn){
-  btn.textContent='Recording...';btn.disabled=true;
-  if(currentHistoryId)await api('/history','POST',{action:'update_category',id:currentHistoryId,category:'FALSE POSITIVE: No side effect present'});
-  btn.textContent='Recorded -- no side effect';btn.className='fp-btn corrected';
-  showToast('False positive recorded');
+  btn.textContent='Saved';btn.className='save-ghost-btn saved';btn.disabled=false;
 }
 
 function buildTimeframeSelect(urgency){
@@ -1366,16 +1334,15 @@ function renderResults(d){
     '</div>';
   }
 
-  // -- Urgency card ----------------------------------------------------------
+  // -- Urgency strip -- compact inline, not a full card ----------------------
   var severityBadge = buildSeverityBadge(d.clinical_routing_level);
-  html+='<div class="out-card">'+
-    '<div class="oc-header">'+
-      '<span class="oc-label">Urgency &amp; Timeframe</span>'+
-      (severityBadge?severityBadge:'')+
-    '</div>'+
-    '<div class="oc-body">'+
-      buildTimeframeSelect(d.urgency)+
-    '</div>'+
+
+  var urgClass = d.urgency==='urgent'?'urgent':d.urgency==='same-day'?'same-day':'routine';
+  var urgLabel = d.urgency==='urgent'?'URGENT':'same-day'===d.urgency?'Same Day':'Routine';
+  html+='<div style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:var(--white);border:1.5px solid var(--gray-200);border-radius:10px;">'+
+    '<span style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--gray-500);">Timeframe</span>'+
+    buildTimeframeSelect(d.urgency)+
+    (severityBadge?severityBadge:'')+
   '</div>';
 
   // -- Category card -- side-by-side multi-select listboxes ------------------
@@ -1385,36 +1352,35 @@ function renderResults(d){
   html+='<div class="out-card">'+
     '<div class="oc-header"><span class="oc-label">Message Category</span></div>'+
     '<div class="oc-body">'+
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:10px;">'+
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:12px;">'+
         '<div>'+
           '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:6px;">Clinical</div>'+
           buildCatListbox('clinCatList', CLINICAL_CATS, aiClinCat)+
-          '<div style="font-size:var(--fs-xs);color:var(--gray-400);margin-top:4px;">Ctrl+click for multiple</div>'+
         '</div>'+
         '<div>'+
           '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:6px;">Non-Clinical</div>'+
           buildCatListbox('nonClinCatList', NON_CLINICAL_CATS.filter(function(c){return c!=='-- None --';}), aiNonClin)+
-          '<div style="font-size:var(--fs-xs);color:var(--gray-400);margin-top:4px;">Select if missed</div>'+
         '</div>'+
       '</div>'+
       (hasSideEffect?
-        '<div style="padding-top:10px;border-top:1px solid var(--gray-100);margin-bottom:6px;">'+
+        '<div style="padding-top:10px;border-top:1px solid var(--gray-100);margin-bottom:8px;">'+
           '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:6px;">Side Effect Reported</div>'+
           '<select class="sideeffect-select" id="sideEffectSelect" onchange="onCatChange()">'+
-            '<option value="">-- Select specific side effect --</option>'+
+            '<option value="">-- Specify side effect --</option>'+
             ['Nausea','Vomiting','Diarrhea','Constipation','Heartburn/Reflux','Hair loss','Fatigue','Injection site reaction','Hypoglycemia symptoms','Abdominal pain','Allergic reaction','Other'].map(function(s){
               return '<option value="'+esc(s)+'">'+esc(s)+'</option>';
             }).join('')+
           '</select>'+
         '</div>'
-      :
-        '<div style="padding-top:10px;border-top:1px solid var(--gray-100);margin-bottom:6px;">'+
-          '<button class="fp-btn" id="fpBtn" onclick="recordFalsePositive(this)">'+
-            'No side effect present — correct this classification'+
-          '</button>'+
-        '</div>'
-      )+
-      '<button class="save-inline-btn" id="categorySaveBtn" onclick="saveCategory()" style="margin-top:4px;">Save correction</button>'+
+      :'')+
+      '<div style="display:flex;align-items:center;justify-content:space-between;padding-top:10px;border-top:1px solid var(--gray-100);">'+
+        '<button class="save-ghost-btn" id="categorySaveBtn" onclick="saveCategory()">Save correction</button>'+
+        (severityBadge?
+          '<label style="display:flex;align-items:center;gap:6px;font-size:var(--fs-xs);color:var(--gray-500);cursor:pointer;">'+
+            '<input type="checkbox" id="fpCheck" style="accent-color:var(--red);cursor:pointer;"> Not a side effect'+
+          '</label>'
+        :'')+
+      '</div>'+
     '</div>'+
   '</div>';
 
@@ -1517,16 +1483,19 @@ function renderResults(d){
     btn.addEventListener('click', function(){ selectVoteReason(btn.getAttribute('data-vote-type'), btn.getAttribute('data-vote-reason'), btn); });
   });
 
-  // Wire multi-cat tag toggles
-  el.querySelectorAll('.cat-tag').forEach(function(tag){
-    tag.addEventListener('click',function(){
-      tag.classList.toggle('selected');
+  // Wire listbox click-to-toggle (no Ctrl needed)
+  el.querySelectorAll('[data-listbox]').forEach(function(sel){
+    sel.addEventListener('mousedown',function(e){
+      e.preventDefault();
+      var opt = e.target;
+      if(opt.tagName !== 'OPTION') return;
+      opt.selected = !opt.selected;
+      sel.focus();
       var btn=document.getElementById('categorySaveBtn');
-      if(btn){btn.textContent='Save correction';btn.className='save-inline-btn';}
+      if(btn){btn.textContent='Save correction';btn.className='save-ghost-btn';}
     });
   });
 }
-
 
 var correctionsLoaded = false;
 
