@@ -243,13 +243,13 @@ textarea::placeholder{color:var(--gray-400);}
 .kb-entry-toggle{background:none;border:none;cursor:pointer;font-size:11px;color:var(--gray-400);padding:0 4px;font-family:var(--sans);}
 .kb-entry-toggle:hover{color:var(--blue);}
 .help-layout{max-width:1200px;margin:0 auto;padding:28px 24px;}
-.help-quickref{background:var(--blue);border-radius:16px;padding:24px 28px;margin-bottom:28px;color:white;}
-.help-quickref-title{font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--blue);margin-bottom:18px;}
+.help-quickref{background:var(--blue-l);border:1.5px solid var(--blue-m);border-radius:16px;padding:28px;margin-bottom:28px;}
+.help-quickref-title{font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--blue);margin-bottom:20px;}
 .help-quickref-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
 .help-qr-item{display:flex;gap:14px;align-items:flex-start;}
-.help-qr-num{width:32px;height:32px;border-radius:50%;background:var(--blue);color:white;display:flex;align-items:center;justify-content:center;font-size:var(--fs-base);font-weight:700;flex-shrink:0;margin-top:2px;}
-.help-qr-label{font-size:var(--fs-base);font-weight:700;color:var(--gray-900);margin-bottom:4px;}
-.help-qr-desc{font-size:var(--fs-sm);color:var(--gray-700);line-height:1.6;}
+.help-qr-num{width:32px;height:32px;border-radius:50%;background:var(--blue);color:white;display:flex;align-items:center;justify-content:center;font-size:var(--fs-base);font-weight:700;flex-shrink:0;margin-top:3px;}
+.help-qr-label{font-size:var(--fs-base);font-weight:700;color:var(--gray-900);margin-bottom:5px;}
+.help-qr-desc{font-size:var(--fs-sm);color:var(--gray-700);line-height:1.65;}
 .help-cols{display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start;}
 .help-col{display:flex;flex-direction:column;gap:16px;}
 .help-section{background:var(--white);border-radius:14px;border:1px solid var(--gray-200);overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.04);}
@@ -449,36 +449,35 @@ textarea::placeholder{color:var(--gray-400);}
 <div class="tab-panel" id="tab-help">
   <div class="help-layout">
 
-    <!-- Quick Reference Card -->
     <div class="help-quickref">
-      <div class="help-quickref-title">Quick Reference — Day One Cheat Sheet</div>
+      <div class="help-quickref-title">Quick Reference &mdash; How This Works</div>
       <div class="help-quickref-grid">
         <div class="help-qr-item">
           <div class="help-qr-num">1</div>
           <div>
-            <div class="help-qr-label">Paste the message</div>
-            <div class="help-qr-desc">Drop the patient's message into the left box. If it's a reply to your earlier questions, click <strong>+ Prior context</strong> first and paste the earlier thread there.</div>
+            <div class="help-qr-label">Paste the patient message</div>
+            <div class="help-qr-desc">Drop the patient's current message into the left box. If it's a reply to something you already sent, click <strong>Add Prior Context</strong> and paste the earlier thread there first.</div>
           </div>
         </div>
         <div class="help-qr-item">
           <div class="help-qr-num">2</div>
           <div>
-            <div class="help-qr-label">Run Triage</div>
-            <div class="help-qr-desc">The AI reads the message + your full Knowledge Base and returns a classification, severity, routing flags, and a draft response — usually in 5-10 seconds.</div>
+            <div class="help-qr-label">Click Run Triage</div>
+            <div class="help-qr-desc">The AI reads the message against your Knowledge Base and returns a classification, routing decision, and a draft response. Usually takes 5&ndash;10 seconds.</div>
           </div>
         </div>
         <div class="help-qr-item">
           <div class="help-qr-num">3</div>
           <div>
-            <div class="help-qr-label">Review and act</div>
-            <div class="help-qr-desc">Check the severity badge and routing cards first — these tell you if anything needs to be escalated before you send a response. Then use or edit the draft.</div>
+            <div class="help-qr-label">Check the results top to bottom</div>
+            <div class="help-qr-desc"><strong>Classification strip</strong> &mdash; what the AI decided. <strong>Routing card</strong> &mdash; only appears when something needs to go to another team; copy the internal note into Bask. <strong>Generated Response</strong> &mdash; copy and send to patient.</div>
           </div>
         </div>
         <div class="help-qr-item">
           <div class="help-qr-num">4</div>
           <div>
-            <div class="help-qr-label">Teach the system</div>
-            <div class="help-qr-desc">After you send your response, paste what you actually sent into <strong>What Did You Actually Send?</strong> — even if it was identical. This is how the AI learns.</div>
+            <div class="help-qr-label">Teach the AI if you edited</div>
+            <div class="help-qr-desc">If you changed the draft before sending, paste what you actually sent into <strong>I Edited Before Sending</strong> and click Submit &amp; Learn. Only do this when you made changes &mdash; not every time.</div>
           </div>
         </div>
       </div>
@@ -487,25 +486,24 @@ textarea::placeholder{color:var(--gray-400);}
     <div class="help-cols">
       <div class="help-col">
 
-        <!-- Section: Reading the Output -->
         <div class="help-section">
-          <div class="help-section-title">Reading the Output Cards</div>
+          <div class="help-section-title">Reading the Results</div>
 
           <div class="help-faq">
             <button class="help-faq-q" onclick="toggleFaq(this)">
-              <span>What is the severity badge in the Classification card?</span><span class="help-arrow">&#9660;</span>
+              <span>What is the Classification strip?</span><span class="help-arrow">&#9660;</span>
             </button>
             <div class="help-faq-a">
-              The colored badge — red, yellow, or green — tells you how serious the reported side effect is based on your clinical KB rules. <strong>Red (Severe)</strong> means escalate to a provider immediately. <strong>Yellow (Moderate)</strong> means gather more information before deciding. <strong>Green (Mild)</strong> means an education response is appropriate. If there are no side effects, no badge appears. Always check this before reading the draft.
+              The gray bar at the very top of every result shows what the AI decided at a glance: the clinical category (e.g. GI side effects), the response timeframe (Routine / Same Day / URGENT), and a colored side effect severity badge if a side effect was detected. Check this first. If anything looks wrong, scroll down to the Message Category or Response Timeframe cards to correct it.
             </div>
           </div>
 
           <div class="help-faq">
             <button class="help-faq-q" onclick="toggleFaq(this)">
-              <span>What is the AI decision summary?</span><span class="help-arrow">&#9660;</span>
+              <span>What does the severity badge mean?</span><span class="help-arrow">&#9660;</span>
             </button>
             <div class="help-faq-a">
-              A small gray bar at the top of every result shows exactly what the AI classified: the clinical category, side effect severity (if detected), and response timeframe. Check this first to confirm the AI understood the message correctly. If anything looks wrong, expand the <strong>Correct, vote, or teach the AI</strong> section at the bottom to fix it.
+              The colored badge appears only when a side effect is detected. <strong style="color:var(--red);">Side Effect: Severe</strong> means escalate to a provider immediately &mdash; do not wait for the patient to reply. <strong style="color:var(--amber);">Side Effect: Moderate</strong> means gather more information in your initial response and reassess. <strong style="color:var(--green);">Side Effect: Mild</strong> means an education response is appropriate. No badge means no side effect was detected.
             </div>
           </div>
 
@@ -514,48 +512,58 @@ textarea::placeholder{color:var(--gray-400);}
               <span>What is the routing card?</span><span class="help-arrow">&#9660;</span>
             </button>
             <div class="help-faq-a">
-              When the AI detects a non-clinical item (billing, shipping, account), a routing card appears above the draft response. It shows what needs to go to the support team and contains an <strong>Internal Note for Staff</strong> — paste this into the Bask chat thread so the assigned staff member knows exactly what to do. The draft response handles the patient-facing communication and automatically acknowledges that the non-clinical item is being routed.
+              The routing card only appears when the AI detects a non-clinical item &mdash; billing, shipping, account issues, prescription transfers, etc. It shows what needs to go to the support team and contains an <strong>Internal Note for Staff</strong>: paste this directly into the Bask chat thread so the assigned staff member knows exactly what to investigate. The draft response automatically acknowledges to the patient that their non-clinical item is being handled.
             </div>
           </div>
 
           <div class="help-faq">
             <button class="help-faq-q" onclick="toggleFaq(this)">
-              <span>What does the Response Timeframe mean?</span><span class="help-arrow">&#9660;</span>
+              <span>What is a Dual Task message?</span><span class="help-arrow">&#9660;</span>
             </button>
             <div class="help-faq-a">
-              The timeframe dropdown shows the AI's suggested urgency — Routine, Same Day, Urgent. It maps to your KB urgency rules. You can change it using the dropdown and save the correction. Urgent means escalate now. Same Day means provider review needed today. Routine means a standard response queue is fine.
+              When a message contains both a clinical question and a non-clinical item (e.g. asking about nausea AND a shipping delay), the routing card shows a <strong>Dual Task</strong> header. The draft response handles the clinical portion. The internal note handles the non-clinical routing. You copy both separately &mdash; the response to the patient, the note into Bask for the support team.
             </div>
           </div>
+
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)">
+              <span>What does Response Timeframe mean?</span><span class="help-arrow">&#9660;</span>
+            </button>
+            <div class="help-faq-a">
+              The timeframe tells you how urgently the patient needs a reply. <strong>Routine</strong> means respond in normal queue order. <strong>Same Day</strong> means the patient needs a reply today. <strong>URGENT</strong> means escalate now &mdash; do not put this in the queue. If the AI got it wrong, scroll down to the Response Timeframe card, adjust the dropdown, and click Save.
+            </div>
+          </div>
+
         </div>
 
-        <!-- Section: Prior Context -->
         <div class="help-section">
           <div class="help-section-title">Using Prior Context</div>
 
           <div class="help-faq">
             <button class="help-faq-q" onclick="toggleFaq(this)">
-              <span>When should I use Prior Context?</span><span class="help-arrow">&#9660;</span>
+              <span>When do I use Add Prior Context?</span><span class="help-arrow">&#9660;</span>
             </button>
             <div class="help-faq-a">
-              Any time the patient message is a <strong>reply</strong> to something you already sent. If a patient is responding to your follow-up questions, their reply alone may be only a few sentences with almost no context. Without the prior thread, the AI is triaging a fragment. Click <strong>+ Prior context</strong>, paste the earlier conversation, then paste their latest reply in the main box. The AI will read the full thread and respond to the latest message accordingly.
+              Any time the patient message is a reply to something you already sent. A patient answering your follow-up questions may write only 2&ndash;3 sentences with almost no context on their own. Without the earlier thread, the AI is triaging a fragment and the response will be generic. Click <strong>Add Prior Context</strong>, paste everything that came before, then paste only their latest reply in the main message box.
             </div>
           </div>
 
           <div class="help-faq">
             <button class="help-faq-q" onclick="toggleFaq(this)">
-              <span>What goes in the Prior Context box vs the main message box?</span><span class="help-arrow">&#9660;</span>
+              <span>What goes where?</span><span class="help-arrow">&#9660;</span>
             </button>
             <div class="help-faq-a">
-              <strong>Prior Context:</strong> Everything that happened before the current message — the patient's first message, your initial response, any earlier back-and-forth. The AI reads this for background only and does not respond to it directly.<br><br><strong>Main Message box:</strong> The patient's most recent message — the one you are triaging right now. The AI responds to this. The label changes to "Latest Reply" when prior context is active as a reminder.
+              <strong>Prior Context box:</strong> The entire earlier conversation &mdash; the patient's first message, your response, any back-and-forth. The AI reads this for background only and does not respond to it.<br><br>
+              <strong>Main message box (labeled "Latest Reply" when prior context is active):</strong> The patient's most recent message only. This is what the AI triages and drafts a response to.
             </div>
           </div>
 
           <div class="help-faq">
             <button class="help-faq-q" onclick="toggleFaq(this)">
-              <span>Do I need Prior Context for every triage?</span><span class="help-arrow">&#9660;</span>
+              <span>Do I need it every time?</span><span class="help-arrow">&#9660;</span>
             </button>
             <div class="help-faq-a">
-              No. For a patient's first message — one that is not a reply to anything — leave Prior Context empty. It adds tokens to the AI call and slightly increases processing time, so only use it when the current message lacks enough context to triage on its own.
+              No. For a patient's first message &mdash; one that isn't a reply to anything &mdash; leave Prior Context empty. Only use it when the current message would make no sense without knowing what came before it.
             </div>
           </div>
         </div>
@@ -563,34 +571,33 @@ textarea::placeholder{color:var(--gray-400);}
       </div>
       <div class="help-col">
 
-        <!-- Section: Teaching the AI -->
         <div class="help-section">
-          <div class="help-section-title">Teaching the AI — the Learning Loop</div>
+          <div class="help-section-title">Teaching the AI</div>
 
           <div class="help-faq">
             <button class="help-faq-q" onclick="toggleFaq(this)">
-              <span>What is "What Did You Actually Send?" for?</span><span class="help-arrow">&#9660;</span>
+              <span>How does "I Edited Before Sending" work?</span><span class="help-arrow">&#9660;</span>
             </button>
             <div class="help-faq-a">
-              This field is how the AI learns from real clinical decisions. After you send your response to the patient, paste what you actually sent here — <strong>but only when you changed the draft</strong>. If you sent the draft verbatim, you can skip this field. When there is a difference between the draft and what you sent, the AI analyzes what changed and saves a learning note. Over time these corrections help the AI produce drafts that are closer to how you actually write.
+              After sending your response to the patient, if you changed the draft, paste what you actually sent in the <strong>I Edited Before Sending</strong> field (inside the Generated Response card) and click <strong>Submit &amp; Learn</strong>. The AI compares the two versions, identifies what changed, and saves a learning note. Over time, these corrections shift how the AI drafts responses to similar messages. If you sent the draft verbatim, skip this entirely.
             </div>
           </div>
 
           <div class="help-faq">
             <button class="help-faq-q" onclick="toggleFaq(this)">
-              <span>What if I entered the wrong thing by mistake?</span><span class="help-arrow">&#9660;</span>
+              <span>How do I correct a wrong category?</span><span class="help-arrow">&#9660;</span>
             </button>
             <div class="help-faq-a">
-              Go to <strong>Clinical Knowledge Base → Corrections tab</strong> and click <strong>Load Response Corrections</strong>. Find the incorrect entry and click <strong>Delete</strong>. This clears the mistaken correction from the database so it does not influence future responses. The underlying triage record is preserved — only the correction is removed.
+              Scroll to the <strong>Message Category</strong> card below the response. Click the correct category in the Clinical or Non-Clinical list (click again to deselect the wrong one), then click <strong>Save Categories</strong>. Each correction is stored and builds a dataset that can be reviewed to improve the AI's classification accuracy over time.
             </div>
           </div>
 
           <div class="help-faq">
             <button class="help-faq-q" onclick="toggleFaq(this)">
-              <span>How do category corrections help?</span><span class="help-arrow">&#9660;</span>
+              <span>What is the "Not a side effect" checkbox for?</span><span class="help-arrow">&#9660;</span>
             </button>
             <div class="help-faq-a">
-              The <strong>Clinical Category</strong> and <strong>Non-Clinical</strong> dropdowns in the Classification card are editable. If the AI mis-tagged a message — for example, categorizing a vomiting question as &quot;General&quot; when it clearly belongs to &quot;GI side effects,&quot; or tagging a dosing question as &quot;Injection/administration&quot; when it should be &quot;Dosing question&quot; — fix it and click Save. Each correction is stored in the database and builds a dataset of right vs. wrong classifications that can be reviewed to improve KB rules over time.
+              It appears in the Message Category card when a severity badge was triggered. If the AI incorrectly flagged something as a side effect &mdash; for example, a food noise or plateau question triggering a "Mild" badge &mdash; check this box and click <strong>Save Categories</strong>. This records a false positive in the database so the pattern can be addressed.
             </div>
           </div>
 
@@ -599,70 +606,69 @@ textarea::placeholder{color:var(--gray-400);}
               <span>What do thumbs up and thumbs down do?</span><span class="help-arrow">&#9660;</span>
             </button>
             <div class="help-faq-a">
-              Voting records specific feedback about AI performance on each triage. Select as many reasons as apply before submitting — this is richer data than a single rating. The votes are stored in the database and can be reviewed to find patterns: if the AI is consistently missing dose checks, or getting tone wrong, or mis-routing — that signal should be addressed by updating the corresponding KB rule or protocol.
+              The voting buttons appear directly under the draft response. They record qualitative feedback about AI performance. Select as many reasons as apply and click Submit. Votes are stored in the database and can be reviewed to spot patterns &mdash; if the AI is consistently getting tone wrong, or missing routing decisions, that signal should be addressed by updating the relevant Knowledge Base entry.
+            </div>
+          </div>
+
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)">
+              <span>What if I entered the wrong correction?</span><span class="help-arrow">&#9660;</span>
+            </button>
+            <div class="help-faq-a">
+              Go to <strong>Clinical Knowledge Base &rarr; Corrections tab</strong> and click <strong>Load Response Corrections</strong>. Find the incorrect entry and click <strong>Delete</strong>. This removes the mistaken correction from the database. The underlying triage record is preserved &mdash; only the correction note is cleared.
             </div>
           </div>
         </div>
 
-        <!-- Section: Knowledge Base -->
         <div class="help-section">
-          <div class="help-section-title">Managing the Knowledge Base</div>
+          <div class="help-section-title">Knowledge Base</div>
 
           <div class="help-faq">
             <button class="help-faq-q" onclick="toggleFaq(this)">
-              <span>What is the Knowledge Base and how does the AI use it?</span><span class="help-arrow">&#9660;</span>
+              <span>What is the Knowledge Base?</span><span class="help-arrow">&#9660;</span>
             </button>
             <div class="help-faq-a">
-              The Knowledge Base is the AI's memory. Every time you run a triage, the AI reads the entire KB — protocols, side effect guidance, routing rules, urgency rules — before processing the patient message. This means any edit you make takes effect immediately on the next run. The KB is shared across all nurses on your team. There is no retraining involved — it is just a document the AI reads.
+              The Knowledge Base is everything the AI reads before responding to a patient message. It contains your clinical protocols, side effect guidance, routing rules, urgency thresholds, and response templates. Any change you make takes effect immediately on the next triage. It is shared across all staff on your team.
             </div>
           </div>
 
           <div class="help-faq">
             <button class="help-faq-q" onclick="toggleFaq(this)">
-              <span>When should I add a new KB entry?</span><span class="help-arrow">&#9660;</span>
+              <span>When should I add a KB entry?</span><span class="help-arrow">&#9660;</span>
             </button>
             <div class="help-faq-a">
-              Add an entry when you find yourself writing the same type of response repeatedly and the AI is not producing it correctly. Good candidates: a medication tip you give to every plateau patient, a specific protocol for a patient population you see often, a routing rule for a new department, a URL you reference constantly. If you had to edit the draft significantly, that is a signal — add a note to the KB explaining what the response should look like.
+              Add an entry when the AI keeps missing something you know well &mdash; a specific response pattern, a protocol you use often, a routing rule for a new scenario, or a URL you reference regularly. If you edited the draft significantly for the same type of message twice, that's a signal to document it in the KB.
             </div>
           </div>
 
           <div class="help-faq">
             <button class="help-faq-q" onclick="toggleFaq(this)">
-              <span>What section should I add an entry to?</span><span class="help-arrow">&#9660;</span>
+              <span>Which KB section should I use?</span><span class="help-arrow">&#9660;</span>
             </button>
             <div class="help-faq-a">
-              <strong>Side Effects</strong> — education and management for any side effect patients report.<br>
-              <strong>Templates</strong> — response frameworks for common non-emergency messages like plateau questions or food noise.<br>
-              <strong>Protocols</strong> — if/then decision trees: "if symptom X and condition Y, do Z."<br>
-              <strong>Rules and Notes</strong> — urgency thresholds, severity classification, dose verification rules. Be careful editing these — they govern how the AI routes and classifies everything.<br>
-              <strong>Routing</strong> — rules about when to escalate clinically or route non-clinically.<br>
-              <strong>URLs</strong> — links you reference in patient responses.
+              <strong>Side Effects</strong> &mdash; education and management guidance for patient-reported side effects.<br>
+              <strong>Templates</strong> &mdash; response frameworks for common non-emergency messages (plateau questions, food noise).<br>
+              <strong>Protocols</strong> &mdash; if/then decision logic: if symptom X and condition Y, do Z.<br>
+              <strong>Rules &amp; Notes</strong> &mdash; urgency thresholds, severity rules, dose verification. Edit carefully &mdash; these govern everything.<br>
+              <strong>Routing</strong> &mdash; when and how to escalate or route messages.<br>
+              <strong>URLs</strong> &mdash; links you reference in patient responses.
             </div>
           </div>
 
-          <div class="help-faq">
-            <button class="help-faq-q" onclick="toggleFaq(this)">
-              <span>Can editing the KB break things?</span><span class="help-arrow">&#9660;</span>
-            </button>
-            <div class="help-faq-a">
-              Entries under <strong>Rules and Notes</strong> and <strong>Routing</strong> govern the AI's core behavior — urgency classification, severity levels, routing logic. Editing these carelessly can cause the AI to mis-classify or miss escalations. Before editing a rules entry, read it fully first. If you are unsure, add a new entry rather than modifying an existing one, and test it on a few sample messages. You can always delete a new entry if it causes problems.
-            </div>
-          </div>
         </div>
 
-        <!-- Section: Common Mistakes -->
         <div class="help-section">
-          <div class="help-section-title">Common Mistakes to Avoid</div>
+          <div class="help-section-title">Common Mistakes</div>
           <div class="help-faq">
             <button class="help-faq-q" onclick="toggleFaq(this)">
-              <span>Things that reduce accuracy</span><span class="help-arrow">&#9660;</span>
+              <span>Things that reduce accuracy or create problems</span><span class="help-arrow">&#9660;</span>
             </button>
             <div class="help-faq-a">
-              <strong>Triaging a patient reply without Prior Context</strong> — the AI gets a fragment with no history and produces a generic response.<br><br>
-              <strong>Skipping "What Did You Actually Send?"</strong> — the learning loop does not run. The system cannot improve without this data.<br><br>
-              <strong>Entering the wrong response in the correction field</strong> — this teaches the AI the wrong thing. If you make a mistake, delete it in the Corrections tab immediately.<br><br>
-
-              <strong>Ignoring the red severity badge</strong> — a severe badge means escalate now, not send an education response. Always check routing cards before using the draft.
+              <strong>Triaging a reply without Prior Context</strong> &mdash; the AI gets a fragment and produces a generic, often unhelpful response.<br><br>
+              <strong>Ignoring the red severity badge</strong> &mdash; Severe means escalate to a provider now, not draft an education response.<br><br>
+              <strong>Ignoring the routing card</strong> &mdash; if a non-clinical item is flagged, the internal note needs to go into Bask before the thread is reassigned.<br><br>
+              <strong>Entering the wrong thing in "I Edited Before Sending"</strong> &mdash; this teaches the AI incorrect behavior. Delete it in the Corrections tab immediately.<br><br>
+              <strong>Editing KB rules entries without reading them fully first</strong> &mdash; the Rules &amp; Notes and Routing entries govern how the AI classifies every message. Small changes have broad effects.
             </div>
           </div>
         </div>
@@ -670,6 +676,7 @@ textarea::placeholder{color:var(--gray-400);}
       </div>
     </div>
   </div>
+</div>
 </div>
 <div class="save-toast" id="saveToast">Synced</div>
 
