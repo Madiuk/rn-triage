@@ -254,8 +254,8 @@ textarea::placeholder{color:var(--gray-400);}
 
 .cat-pill{display:inline-flex;align-items:center;padding:5px 12px;border-radius:20px;border:1.5px solid var(--gray-200);background:var(--white);font-family:var(--sans);font-size:var(--fs-sm);color:var(--gray-600);cursor:pointer;transition:all .15s;user-select:none;line-height:1.3;}
 .cat-pill:hover{border-color:var(--blue-m);color:var(--blue);}
-.cat-pill.sel-clin{border-color:var(--blue-m);background:var(--blue-l);color:var(--blue);font-weight:600;}
-.cat-pill.sel-nc{border-color:var(--amber-m);background:var(--amber-l);color:var(--amber);font-weight:600;}
+.cat-pill.sel-clin{border-color:var(--blue);background:var(--blue);color:white;font-weight:600;}
+.cat-pill.sel-nc{border-color:var(--amber);background:var(--amber);color:white;font-weight:600;}
 .cat-save-btn{padding:7px 20px;background:var(--blue);border:1.5px solid var(--blue);border-radius:7px;color:white;font-family:var(--sans);font-size:var(--fs-sm);font-weight:600;cursor:pointer;white-space:nowrap;transition:all .15s;display:inline-block;}
 .cat-save-btn:hover{background:#1d4ed8;}
 .cat-save-btn.saved{background:var(--green);border-color:var(--green);}
@@ -684,7 +684,7 @@ internal_note: A task-assignment note to paste into Bask chat as an internal sta
 clinical_routing_flag: true if any side effect present.
 clinical_routing_level: per SIDE EFFECT SEVERITY rules. "none" if no side effects.
 clinical_routing_note: empty string always (deprecated).
-clinical_category: the PRIMARY clinical category for this message. Use the category that best describes the clinical nature of the message as a whole — not just the most prominent word. If a patient mentions nausea as part of a broader GI complaint, use "GI side effects" not "Nausea". If the message is about multiple side effects, use the most clinically significant one. Closest match from the list.
+clinical_category: MUST be EXACTLY one of these values — copy it verbatim: "GI side effects" | "Weight plateau" | "No early weight loss" | "Food noise/cravings" | "Hair loss" | "Fatigue" | "Heartburn/reflux" | "Diarrhea" | "Injection/administration" | "Dosing question" | "Skin/site reaction" | "Medication storage" | "Urgent-escalate" | "General/multiple". Pick the single best match. Do NOT combine values, do NOT invent new values.
 urgency: per URGENCY RULES.
 follow_up_questions: specific questions if info missing. Include dose question if dose not stated.
 draft_response: ALWAYS populate. Warm RN voice, patient details, prose with line breaks, 120 words max. If non_clinical_flag true: include one brief sentence acknowledging the non-clinical item is being handled by the support team, then address the clinical portion. If follow_up_questions present: warm opening then weave questions into flowing prose. Otherwise: complete actionable advice.
@@ -1244,10 +1244,12 @@ function onTimeframeChange(sel){
 
 async function saveTimeframe(){
   var sel=document.getElementById('timeframeSelect'),btn=document.getElementById('timeframeSaveBtn');
-  if(!sel)return;
-  btn.textContent='Saving...';btn.disabled=true;
+  if(!sel||!btn)return;
+  var orig=btn.style.background;
+  btn.style.background='var(--gray-300)';btn.disabled=true;
   if(currentHistoryId)await api('/history','POST',{action:'update_urgency',id:currentHistoryId,urgency_override:sel.value});
-  btn.textContent='Saved';btn.className='action-btn saved';setTimeout(function(){btn.textContent='Save Timeframe';btn.className='action-btn';},2000);
+  btn.style.background='var(--green)';
+  setTimeout(function(){btn.style.background='var(--green)';btn.disabled=false;},1200);
 }
 
 // VOTING
@@ -1334,16 +1336,14 @@ function renderResults(d){
       '<div class="out-card">'+
         '<div class="oc-body" style="padding:14px 16px;display:flex;flex-direction:column;gap:0;">'+
 
-          // Task type + category — one line each
+          // Task type only — no category (categories handled on right card)
           '<div style="padding-bottom:12px;">'+
-            '<div style="font-size:var(--fs-xs);color:var(--gray-500);font-weight:600;margin-bottom:2px;">Task type: <span style="color:var(--gray-800);font-weight:700;">'+taskType+'</span></div>'+
-            (isClinical?'<div style="font-size:var(--fs-xs);color:var(--gray-500);font-weight:600;">Category: <span style="color:var(--gray-800);font-weight:700;">'+esc(aiClinCat)+'</span></div>':'')+
+            '<div style="font-size:var(--fs-xs);color:var(--gray-500);font-weight:600;">Task type: <span style="color:var(--gray-800);font-weight:700;">'+taskType+'</span></div>'+
           '</div>'+
 
           // Severity — grouped, with divider
           (hasSideEffect&&isClinical?
             '<div style="padding:10px 0;border-top:1px solid var(--gray-100);">'+
-              '<div style="font-size:var(--fs-xs);color:var(--gray-500);font-weight:600;margin-bottom:6px;">Side Effect</div>'+
               severityBadge+
             '</div>'
           :'')+
