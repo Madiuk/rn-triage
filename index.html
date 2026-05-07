@@ -93,17 +93,17 @@ textarea::placeholder{color:var(--gray-400);}
 
 /* PILLS */
 .pill{font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;}
-.pill-green{background:var(--green-l);color:var(--green);border:1.5px solid var(--green-m);}
-.pill-amber{background:var(--amber-l);color:var(--amber);border:1.5px solid var(--amber-m);}
-.pill-purple{background:var(--purple-l);color:var(--purple);border:1.5px solid var(--purple-m);}
-.pill-teal{background:var(--teal-l);color:var(--teal);border:1.5px solid var(--teal-m);}
+
+
+
+
 
 /* DEPARTMENTS */
 
 /* CLASSIFICATION */
-.class-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;}
-.class-box{background:var(--gray-50);border-radius:10px;border:1px solid var(--gray-200);padding:13px 16px;}
-.class-box-label{font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--gray-500);margin-bottom:7px;}
+
+
+
 .severity-badge{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:5px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;}
 .severity-badge .sev-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
 .sev-severe{background:var(--red-l);color:var(--red);border:1.5px solid var(--red-m);}
@@ -121,9 +121,9 @@ textarea::placeholder{color:var(--gray-400);}
 .action-btn:hover{background:#1d4ed8;}
 .action-btn:disabled{background:var(--gray-300);cursor:not-allowed;}
 .action-btn.saved{background:var(--green);}
-.save-ghost-btn{padding:6px 14px;background:var(--white);border:1.5px solid var(--gray-200);border-radius:7px;color:var(--gray-600);font-family:var(--sans);font-size:var(--fs-xs);font-weight:600;cursor:pointer;transition:all .15s;}
-.save-ghost-btn:hover{border-color:var(--blue);color:var(--blue);}
-.save-ghost-btn.saved{border-color:var(--green);color:var(--green);}
+
+
+
 .save-inline-btn{margin-top:6px;width:100%;padding:6px;background:var(--white);border:1.5px solid var(--gray-300);border-radius:7px;color:var(--gray-600);font-family:var(--sans);font-size:var(--fs-xs);font-weight:600;cursor:pointer;transition:all .15s;}
 .save-inline-btn:hover{border-color:var(--blue);color:var(--blue);}
 .save-inline-btn.saved{border-color:var(--green);color:var(--green);background:var(--white);}
@@ -138,7 +138,7 @@ textarea::placeholder{color:var(--gray-400);}
 /* COPY BTN */
 .copy-btn{margin-top:10px;width:100%;padding:11px;background:var(--white);border:1.5px solid var(--gray-200);border-radius:8px;color:var(--gray-600);font-family:var(--sans);font-size:var(--fs-sm);font-weight:600;cursor:pointer;transition:all .15s;}
 .copy-btn:hover{border-color:var(--blue);color:var(--blue);background:var(--blue-l);}
-.copy-btn.copied{border-color:var(--green);color:var(--green);background:var(--green-l);}
+.copy-btn
 
 /* FEEDBACK */
 .feedback-row{display:flex;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--gray-100);}
@@ -159,7 +159,7 @@ textarea::placeholder{color:var(--gray-400);}
 .learn-status.error{color:var(--red);}
 
 /* ERROR + PLACEHOLDER */
-.error-box{background:var(--red-l);border:1.5px solid var(--red-m);border-radius:12px;padding:18px;font-size:var(--fs-base);color:var(--red);line-height:1.6;}
+
 .placeholder{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:80px 20px;gap:12px;color:var(--gray-400);}
 .placeholder-icon{font-size:40px;opacity:.4;}
 .placeholder-text{font-size:var(--fs-base);}
@@ -254,7 +254,7 @@ textarea::placeholder{color:var(--gray-400);}
 
 .save-toast{position:fixed;bottom:24px;right:24px;background:var(--green);color:white;padding:13px 22px;border-radius:10px;font-size:var(--fs-sm);font-weight:600;opacity:0;transition:opacity .2s;pointer-events:none;box-shadow:0 4px 12px rgba(0,0,0,.15);z-index:999;}
 .save-toast.show{opacity:1;}
-@media(max-width:900px){.triage-layout{grid-template-columns:1fr;}.class-grid{grid-template-columns:1fr;}.entry-add-row{flex-direction:column;}}
+@media(max-width:900px){.triage-layout{grid-template-columns:1fr;}.entry-add-row{flex-direction:column;}}
 </style>
 </head>
 <body>
@@ -697,12 +697,11 @@ const NON_CLINICAL_CATS = [
 ];
 
 const TIMEFRAMES = [
-  {v:'routine',l:'Routine -- Next Available',c:'routine'},
-  {v:'24h',l:'Within 24 Hours',c:'same-day'},
-  {v:'24-72h',l:'Within 24-72 Hours',c:'same-day'},
-  {v:'72h',l:'Within 72 Hours',c:'same-day'},
-  {v:'same-day',l:'Same Day Response',c:'same-day'},
-  {v:'urgent',l:'URGENT -- Escalate Now',c:'urgent'},
+  {v:'routine',l:'Routine',c:'routine'},
+  {v:'24h',l:'Within 24h',c:'same-day'},
+  {v:'24-72h',l:'24-72 Hours',c:'same-day'},
+  {v:'same-day',l:'Same Day',c:'same-day'},
+  {v:'urgent',l:'URGENT',c:'urgent'},
 ];
 
 const DEFAULT_KB = {
@@ -1214,51 +1213,17 @@ currentHistoryId=null;selectedUpReasons=[];selectedDownReasons=[];
   }finally{setLoading(false);}
 }
 
-function guessNonClinCat(items){
-  if(!items||!items.length) return '';
-  var item = (items[0]||'').toLowerCase();
-  if(item.includes('bill')||item.includes('payment')||item.includes('charge')||item.includes('invoice')||item.includes('credit')) return 'Billing/Payment';
-  if(item.includes('ship')||item.includes('track')||item.includes('deliver')||item.includes('package')||item.includes('order')) return 'Shipment/Tracking';
-  if(item.includes('not received')||item.includes('missing')) return 'Package not received';
-  if(item.includes('refund')||item.includes('return')) return 'Refund request';
-  if(item.includes('account')||item.includes('subscri')||item.includes('cancel')||item.includes('plan')) return 'Account/Subscription';
-  if(item.includes('prescription')||item.includes('transfer')||item.includes('pharmacy')) return 'Prescription transfer';
-  return 'Other';
-}
 
-function buildCatListbox(id, cats, defaultSelected){
-  var norm = (defaultSelected||'').trim().toLowerCase();
-  var opts = cats.map(function(c){
-    var sel = c.toLowerCase() === norm || (norm && c.toLowerCase().includes(norm) && norm.length > 3);
-    return '<option value="'+esc(c)+'"'+(sel?' selected':'')+'>'+esc(c)+'</option>';
-  }).join('');
-  // onclick on select handles click-to-toggle without Ctrl
-  return '<select class="cat-multiselect" id="'+id+'" multiple size="5" data-listbox="1">'+opts+'</select>';
-}
 
-function onCatChange(){
-  var btn=document.getElementById('categorySaveBtn');
-  if(btn){btn.textContent='Save';btn.className='action-btn';}
-}
 
-async function saveCategory(){
-  var btn=document.getElementById('categorySaveBtn');
-  if(!btn)return;
-  btn.textContent='Saving...';btn.disabled=true;
-  var clinList=document.getElementById('clinCatList');
-  var nonClinList=document.getElementById('nonClinCatList');
-  var clinSelected=[],nonClinSelected=[];
-  if(clinList) Array.from(clinList.selectedOptions).forEach(function(o){clinSelected.push(o.value);});
-  if(nonClinList) Array.from(nonClinList.selectedOptions).forEach(function(o){nonClinSelected.push(o.value);});
-  // Record what AI suggested vs what staff actually selected (deselections = learning signal)
-  var combined = (clinSelected.join(', ')||'General/multiple') + (nonClinSelected.length?' | Non-clinical: '+nonClinSelected.join(', '):'');
-  if(currentHistoryId)await api('/history','POST',{action:'update_category',id:currentHistoryId,category:combined});
-  btn.textContent='Saved';btn.className='save-ghost-btn saved';btn.disabled=false;
-}
+
+
+
+
 
 function buildTimeframeSelect(urgency){
   var mapped=urgency==='urgent'?'urgent':urgency==='same-day'?'same-day':'routine';
-  return '<select class="editable-select '+mapped+'" id="timeframeSelect" onchange="onTimeframeChange(this)">'+
+  return '<select class="editable-select '+mapped+'" id="timeframeSelect" style="width:auto;max-width:160px;" onchange="onTimeframeChange(this)">'+
     TIMEFRAMES.map(function(o){return '<option value="'+o.v+'"'+(o.v===mapped?' selected':'')+'>'+o.l+'</option>';}).join('')+
   '</select>';
 }
@@ -1279,47 +1244,11 @@ async function saveTimeframe(){
 }
 
 // VOTING
-function toggleVotePanel(type){
-  var upBtn=document.getElementById('upvoteBtn'),downBtn=document.getElementById('downvoteBtn');
 
-  if(type==='up'){
-    var open=upPanel.classList.contains('open');
-    upPanel.classList.toggle('open',!open);
-    downPanel.classList.remove('open');
-    upBtn.classList.toggle('active',!open);
-    downBtn.classList.remove('active');
-    if(!open) selectedUpReasons=[];
-  }else{
-    var open2=downPanel.classList.contains('open');
-    downPanel.classList.toggle('open',!open2);
-    upPanel.classList.remove('open');
-    downBtn.classList.toggle('active',!open2);
-    upBtn.classList.remove('active');
-    if(!open2) selectedDownReasons=[];
-  }
-}
 
-function selectVoteReason(type,reason,el){
-  var arr = type==='up' ? selectedUpReasons : selectedDownReasons;
-  var idx = arr.indexOf(reason);
-  if(idx>-1){ arr.splice(idx,1); el.classList.remove('selected'); }
-  else { arr.push(reason); el.classList.add('selected'); }
-}
 
-async function submitVote(type){
-  var reasons = type==='up' ? selectedUpReasons : selectedDownReasons;
-  if(!reasons.length){alert('Please select at least one reason.');return;}
-  if(!currentHistoryId){showToast('Run a triage first');return;}
-  var action = type==='up' ? 'upvote' : 'downvote';
-  try{
-    await api('/history','POST',{action:action,id:currentHistoryId,reason:reasons.join(', ')});
-    var btn=document.getElementById(type+'voteBtn');
-    btn.innerHTML=type==='up'?'&#128077; Liked':'&#128078; Flagged';
-    btn.classList.add('active');btn.disabled=true;
-    document.getElementById(type+'votePanel').classList.remove('open');
-    showToast('Feedback saved -- '+reasons.length+' reason'+(reasons.length>1?'s':''));
-  }catch(e){showToast('Error saving feedback');}
-}
+
+
 
 // CORRECTION
 async function submitCorrection(){
@@ -1404,22 +1333,23 @@ function renderResults(d){
         '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-top:8px;border-top:1px solid var(--gray-100);">'+
           (aiClinCat?
             '<div style="display:flex;align-items:center;gap:6px;">'+
-              '<span style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-400);">Clinical:</span>'+
+              '<span style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);">Clinical:</span>'+
               '<span style="font-size:var(--fs-sm);color:var(--gray-700);font-weight:500;">'+esc(aiClinCat)+'</span>'+
             '</div>'
           :'')+
           (aiNonClin?
             '<div style="display:flex;align-items:center;gap:6px;">'+
-              '<span style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-400);">Non-Clinical:</span>'+
+              '<span style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);">Non-Clinical:</span>'+
               '<span style="font-size:var(--fs-sm);color:var(--gray-700);font-weight:500;">'+esc(aiNonClin)+'</span>'+
             '</div>'
           :'')+
         '</div>'+
 
-        // Row 3: timeframe correction — dropdown + Save
+        // Row 3: timeframe correction — compact inline
         '<div style="display:flex;align-items:center;gap:8px;padding-top:8px;border-top:1px solid var(--gray-100);">'+
+          '<span style="font-size:var(--fs-xs);color:var(--gray-600);font-weight:600;">Timeframe:</span>'+
           buildTimeframeSelect(d.urgency)+
-          '<button class="action-btn" id="timeframeSaveBtn" onclick="saveTimeframe()" style="width:auto;padding:7px 18px;font-size:var(--fs-xs);flex-shrink:0;">Save</button>'+
+          '<button class="action-btn" id="timeframeSaveBtn" onclick="saveTimeframe()" style="width:auto;padding:5px 14px;font-size:var(--fs-xs);flex-shrink:0;">Save</button>'+
         '</div>'+
 
       '</div>'+
@@ -1494,7 +1424,7 @@ function renderResults(d){
         // What was sent
         '<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--gray-100);">'+
           '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:6px;">What was sent to the patient</div>'+
-          '<p style="font-size:var(--fs-sm);color:var(--gray-600);margin-bottom:8px;line-height:1.5;">Paste your actual response here if you changed the draft. The AI learns by comparing what you sent to what it generated.</p>'+
+          '<p style="font-size:var(--fs-sm);color:var(--gray-700);margin-bottom:8px;line-height:1.5;">Paste your actual response here if you changed the draft. The AI learns by comparing what you sent to what it generated.</p>'+
           '<textarea id="correctionInput" style="min-height:90px;font-size:var(--fs-sm);" placeholder="Paste the message you sent to the patient..."></textarea>'+
           '<div class="correction-submit-row" style="margin-top:8px;">'+
             '<button class="correction-submit-btn" id="correctionSubmitBtn" onclick="submitCorrection()">'+
