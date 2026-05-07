@@ -297,6 +297,7 @@ textarea::placeholder{color:var(--gray-400);}
     <button class="tab-btn active" onclick="switchTab('triage',this)">Triage</button>
     <button class="tab-btn" onclick="switchTab('kb',this)">Clinical Knowledge Base</button>
     <button class="tab-btn" onclick="switchTab('help',this)">Help &amp; Guide</button>
+    <button class="tab-btn" id="historyTabBtn" onclick="switchTab('history',this)" style="font-size:10px;color:var(--gray-300);padding:4px 8px;" title="Queue Infrastructure (dev)">&#8226;&#8226;&#8226;</button>
   </div>
   <div class="topbar-right">
     <div class="nurse-chip" onclick="showNurseModal()">
@@ -667,6 +668,30 @@ textarea::placeholder{color:var(--gray-400);}
   </div>
 </div>
 </div>
+<!-- HISTORY TAB — queue infrastructure, not for general use -->
+<div class="tab-panel" id="tab-history">
+  <div style="max-width:1100px;margin:0 auto;padding:28px 24px;">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+      <div>
+        <h2 style="font-size:var(--fs-xl);font-weight:700;margin-bottom:4px;">Triage Queue</h2>
+        <p style="font-size:var(--fs-sm);color:var(--gray-500);">All triage records. Infrastructure view — not for clinical use.</p>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <select id="historyFilter" onchange="loadHistory()" style="padding:7px 10px;border:1.5px solid var(--gray-200);border-radius:8px;font-family:var(--sans);font-size:var(--fs-xs);background:var(--white);">
+          <option value="all">All records</option>
+          <option value="urgent">Urgent only</option>
+          <option value="escalated">Escalated</option>
+          <option value="corrected">Corrected</option>
+          <option value="unvalidated">Escalation unvalidated</option>
+        </select>
+        <button onclick="loadHistory()" style="padding:7px 14px;background:var(--blue);border:none;border-radius:8px;color:white;font-family:var(--sans);font-size:var(--fs-xs);font-weight:600;cursor:pointer;">Load</button>
+      </div>
+    </div>
+    <div id="historyStats" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;"></div>
+    <div id="historyList"><div style="text-align:center;padding:40px;color:var(--gray-400);font-size:var(--fs-sm);">Click Load to fetch records</div></div>
+  </div>
+</div>
+
 <div class="save-toast" id="saveToast">Synced</div>
 
 <script>
@@ -773,6 +798,7 @@ const DEFAULT_KB = {
 
 let kb = JSON.parse(JSON.stringify(DEFAULT_KB));
 let currentHistoryId = null;
+let triageStartTime = null;
 let currentNurse = localStorage.getItem('rn_triage_current_nurse') || '';
 
 // Cache for KB section strings -- rebuilt only when KB changes
@@ -981,17 +1007,32 @@ async function saveKB(){
   finally{btn.disabled=false;txt.textContent='Save & Sync to Team';spin.className='kb-spinner';}
 }
 
+
+function computeUrgencyScore(urgency, routingLevel, hasSideEffect){
+  // Base score from urgency
+  var base = urgency==='urgent' ? 9 : urgency==='same-day' ? 6 : 3;
+  // Severity modifier
+  var sev = routingLevel==='severe' ? 2 : routingLevel==='moderate' ? 1 : 0;
+  // Cap at 10
+  return Math.min(10, base + (hasSideEffect ? sev : 0));
+}
+
 async function saveHistoryRecord(parsed,msg){
   if(!currentNurse)return null;
   try{
+    var hasSE = parsed.clinical_routing_flag && (parsed.clinical_routing_level||'none')!=='none';
+    var score = computeUrgencyScore(parsed.urgency, parsed.clinical_routing_level||'none', hasSE);
     var r=await api('/history','POST',{
       nurse_name:currentNurse,patient_message:msg,
       clinical_category:parsed.clinical_category,urgency_original:parsed.urgency,urgency_override:null,
+      urgency_score:score,
+      clinical_routing_level:parsed.clinical_routing_level||'none',
+      routed_to:parsed.routed_to||null,
       non_clinical_flag:parsed.non_clinical_flag,non_clinical_items:parsed.non_clinical_items||[],
-      clinical_facts:[],
       follow_up_questions:parsed.follow_up_questions||[],
       draft_response:parsed.draft_response||''
     });
+    triageStartTime = Date.now();
     return Array.isArray(r)&&r[0]?r[0].id:null;
   }catch(e){return null;}
 }
@@ -1269,17 +1310,27 @@ async function submitCorrection(){
   try{
     if(currentHistoryId)await api('/history','POST',{action:'save_actual',id:currentHistoryId,actual_response:actual,correction_note:''});
     var aiDraft=document.getElementById('aiDraftText')?document.getElementById('aiDraftText').innerText:'';
+    // Collect category corrections as additional context for the learning note
+    var catPills=document.querySelectorAll('.cat-pill.sel-clin');
+    var catNote='';
+    if(catPills.length){
+      var catVals=[].map.call(catPills,function(p){return p.getAttribute('data-val');}).join(', ');
+      if(catVals) catNote='\n\nCategory selected by staff: '+catVals+'.';
+    }
+    var tfEl=document.getElementById('timeframeSelect');
+    if(tfEl) catNote+=' Timeframe: '+tfEl.value+'.';
     var analyzeRes=await fetch('/.netlify/functions/kb/analyze',{
       method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
         model:'claude-haiku-4-5',max_tokens:200,
-        system:'Compare an AI draft response with the actual response sent by a nurse. Output 1-3 sentences summarizing what changed and what the AI should do differently next time. Plain text only -- no labels, no preamble.',
-        messages:[{role:'user',content:'AI draft:\n'+aiDraft+'\n\nActual sent:\n'+actual}]
+        system:'Compare an AI draft clinical response with what the nurse actually sent. Output 2-3 sentences: what changed, what this reveals about the AI gap, one improvement suggestion. Plain text only.',
+        messages:[{role:'user',content:'AI draft:\n'+aiDraft+'\n\nActual sent:\n'+actual+catNote}]
       })
     });
     var analyzeData=await analyzeRes.json();
     var note=(analyzeData.content||[]).map(function(b){return b.text||'';}).join('').trim();
-    if(currentHistoryId)await api('/history','POST',{action:'save_actual',id:currentHistoryId,actual_response:actual,correction_note:note});
+    var duration = triageStartTime ? Math.round((Date.now()-triageStartTime)/1000) : null;
+    if(currentHistoryId)await api('/history','POST',{action:'save_actual',id:currentHistoryId,actual_response:actual,correction_note:note,session_duration_seconds:duration});
     status.textContent=note?'OK Saved. Learning note: "'+note.substring(0,90)+(note.length>90?'...':'')+'"':'OK Response saved.';
     status.className='learn-status success';
     document.getElementById('correctionInput').value='';
@@ -1340,10 +1391,17 @@ function renderResults(d){
             '<div style="font-size:var(--fs-xs);color:var(--gray-500);font-weight:600;">Task type: <span style="color:var(--gray-800);font-weight:700;">'+taskType+'</span></div>'+
           '</div>'+
 
-          // Severity — grouped, with divider
+          // Severity + escalation validation — only when side effect detected
           (hasSideEffect&&isClinical?
             '<div style="padding:10px 0;border-top:1px solid var(--gray-100);">'+
               severityBadge+
+              '<div style="margin-top:10px;">'+
+                '<div style="font-size:var(--fs-xs);color:var(--gray-500);font-weight:600;margin-bottom:6px;">Escalation appropriate?</div>'+
+                '<div style="display:flex;gap:6px;">'+
+                  '<button id="escYesBtn" onclick="recordEscalation(true)" style="flex:1;padding:5px 8px;border:1.5px solid var(--green-m);border-radius:7px;background:var(--white);color:var(--green);font-family:var(--sans);font-size:var(--fs-xs);font-weight:600;cursor:pointer;transition:all .15s;">&#10003; Yes</button>'+
+                  '<button id="escNoBtn" onclick="recordEscalation(false)" style="flex:1;padding:5px 8px;border:1.5px solid var(--red-m);border-radius:7px;background:var(--white);color:var(--red);font-family:var(--sans);font-size:var(--fs-xs);font-weight:600;cursor:pointer;transition:all .15s;">&#10007; No</button>'+
+                '</div>'+
+              '</div>'+
             '</div>'
           :'')+
 
@@ -1372,7 +1430,7 @@ function renderResults(d){
               '<div style="display:flex;flex-wrap:wrap;gap:6px;">'+ncPills+'</div>'+
             '</div>'
           :'')+
-          '<div style="padding-top:10px;border-top:1px solid var(--gray-100);">'+
+          '<div style="padding-top:10px;border-top:1px solid var(--gray-100);display:flex;justify-content:flex-end;">'+
             '<button class="cat-save-btn" id="catSaveBtn" onclick="saveCategoryTags()">Save</button>'+
           '</div>'+
         '</div>'+
@@ -1618,6 +1676,25 @@ async function saveCategoryTags(){
 }
 
 
+async function recordEscalation(correct){
+  if(!currentHistoryId){ showToast('Run a triage first'); return; }
+  var yBtn=document.getElementById('escYesBtn');
+  var nBtn=document.getElementById('escNoBtn');
+  // Visual feedback
+  if(correct){
+    if(yBtn){ yBtn.style.background='var(--green)'; yBtn.style.color='white'; yBtn.disabled=true; }
+    if(nBtn){ nBtn.disabled=true; nBtn.style.opacity='0.4'; }
+  } else {
+    if(nBtn){ nBtn.style.background='var(--red)'; nBtn.style.color='white'; nBtn.disabled=true; }
+    if(yBtn){ yBtn.disabled=true; yBtn.style.opacity='0.4'; }
+  }
+  try{
+    await api('/history','POST',{action:'update_escalation',id:currentHistoryId,correct:correct});
+    showToast(correct?'Escalation confirmed':'Escalation flagged as incorrect');
+  }catch(e){ showToast('Error saving'); }
+}
+
+
 async function castVote(type, btn){
   if(!currentHistoryId){ showToast('Run a triage first'); return; }
   if(btn.classList.contains('active')) return;
@@ -1630,6 +1707,83 @@ async function castVote(type, btn){
     showToast(type==='up'?'Positive feedback saved':'Flagged for review');
   } catch(e){ showToast('Error saving feedback'); }
 }
+
+async function loadHistory(){
+  var filter = document.getElementById('historyFilter');
+  var filterVal = filter ? filter.value : 'all';
+  var list = document.getElementById('historyList');
+  var stats = document.getElementById('historyStats');
+  list.innerHTML = '<div style="text-align:center;padding:40px;color:var(--gray-400);">Loading...</div>';
+  try{
+    var rows = await api('/history/all');
+    if(!Array.isArray(rows)||!rows.length){
+      list.innerHTML = '<div style="text-align:center;padding:40px;color:var(--gray-400);">No records yet.</div>';
+      return;
+    }
+    // Filter
+    var filtered = rows.filter(function(r){
+      if(filterVal==='urgent') return r.urgency_score>=9;
+      if(filterVal==='escalated') return r.clinical_routing_level&&r.clinical_routing_level!=='none';
+      if(filterVal==='corrected') return r.actual_response_sent;
+      if(filterVal==='unvalidated') return r.clinical_routing_level&&r.clinical_routing_level!=='none'&&!r.escalation_validated;
+      return true;
+    });
+    // Stats
+    var total=rows.length, urgent=rows.filter(function(r){return r.urgency_score>=9;}).length;
+    var escalated=rows.filter(function(r){return r.clinical_routing_level&&r.clinical_routing_level!=='none';}).length;
+    var corrected=rows.filter(function(r){return r.actual_response_sent;}).length;
+    var wrongEsc=rows.filter(function(r){return r.escalation_validated&&!r.escalation_correct;}).length;
+    var avgScore=rows.reduce(function(a,r){return a+(r.urgency_score||0);},0)/Math.max(rows.length,1);
+    stats.innerHTML=[
+      {label:'Total Triages',val:total,color:'var(--blue)'},
+      {label:'Avg Priority Score',val:avgScore.toFixed(1)+' / 10',color:'var(--gray-700)'},
+      {label:'Escalated',val:escalated,color:'var(--amber)'},
+      {label:'Flagged Incorrect',val:wrongEsc,color:'var(--red)'},
+    ].map(function(s){
+      return '<div style="background:var(--white);border:1.5px solid var(--gray-200);border-radius:12px;padding:16px 18px;">'+
+        '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:6px;">'+s.label+'</div>'+
+        '<div style="font-size:var(--fs-xl);font-weight:700;color:'+s.color+';">'+s.val+'</div>'+
+      '</div>';
+    }).join('');
+    // Table
+    list.innerHTML='<div style="background:var(--white);border:1.5px solid var(--gray-200);border-radius:12px;overflow:hidden;">'+
+      '<table style="width:100%;border-collapse:collapse;font-size:var(--fs-xs);">'+
+        '<thead><tr style="background:var(--gray-50);border-bottom:1px solid var(--gray-200);">'+
+          '<th style="padding:10px 14px;text-align:left;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);">Date</th>'+
+          '<th style="padding:10px 14px;text-align:left;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);">Staff</th>'+
+          '<th style="padding:10px 14px;text-align:left;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);">Category</th>'+
+          '<th style="padding:10px 14px;text-align:center;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);">Score</th>'+
+          '<th style="padding:10px 14px;text-align:left;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);">Urgency</th>'+
+          '<th style="padding:10px 14px;text-align:center;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);">Corrected</th>'+
+          '<th style="padding:10px 14px;text-align:center;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);">Esc. Valid</th>'+
+        '</tr></thead>'+
+        '<tbody>'+
+        filtered.slice(0,100).map(function(r,i){
+          var dt=new Date(r.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+          var score=r.urgency_score||'-';
+          var scoreColor=score>=9?'var(--red)':score>=6?'var(--amber)':'var(--green)';
+          var urg=r.urgency_override||r.urgency_original||'-';
+          var corrected=r.actual_response_sent?'&#10003;':'-';
+          var escStatus=!r.escalation_validated?'-':r.escalation_correct?'<span style="color:var(--green)">&#10003;</span>':'<span style="color:var(--red)">&#10007;</span>';
+          var bg=i%2===0?'var(--white)':'var(--gray-50)';
+          return '<tr style="background:'+bg+';border-bottom:1px solid var(--gray-100);">'+
+            '<td style="padding:9px 14px;color:var(--gray-600);">'+dt+'</td>'+
+            '<td style="padding:9px 14px;color:var(--gray-700);font-weight:500;">'+esc(r.nurse_name||'')+'</td>'+
+            '<td style="padding:9px 14px;color:var(--gray-800);">'+esc(r.clinical_category||'')+'</td>'+
+            '<td style="padding:9px 14px;text-align:center;font-weight:700;color:'+scoreColor+';">'+score+'</td>'+
+            '<td style="padding:9px 14px;color:var(--gray-700);">'+esc(urg)+'</td>'+
+            '<td style="padding:9px 14px;text-align:center;color:var(--green);">'+corrected+'</td>'+
+            '<td style="padding:9px 14px;text-align:center;">'+escStatus+'</td>'+
+          '</tr>';
+        }).join('')+
+        '</tbody>'+
+      '</table>'+
+    '</div>';
+  }catch(e){
+    list.innerHTML='<div style="color:var(--red);padding:20px;">Error: '+esc(e.message)+'</div>';
+  }
+}
+
 
 function showToast(msg){
   var t=document.getElementById('saveToast');t.textContent=msg;t.classList.add('show');
