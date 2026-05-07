@@ -125,7 +125,7 @@ textarea::placeholder{color:var(--gray-400);}
 .save-ghost-btn:hover{border-color:var(--blue);color:var(--blue);}
 .save-ghost-btn.saved{border-color:var(--green);color:var(--green);}
 .save-inline-btn{margin-top:6px;width:100%;padding:6px;background:var(--white);border:1.5px solid var(--gray-300);border-radius:7px;color:var(--gray-600);font-family:var(--sans);font-size:var(--fs-xs);font-weight:600;cursor:pointer;transition:all .15s;}
-.save-inline-btn:hover{background:#1d4ed8;}
+.save-inline-btn:hover{border-color:var(--blue);color:var(--blue);}
 .save-inline-btn.saved{border-color:var(--green);color:var(--green);background:var(--white);}
 
 /* FACTS */
@@ -1260,8 +1260,7 @@ function buildTimeframeSelect(urgency){
   var mapped=urgency==='urgent'?'urgent':urgency==='same-day'?'same-day':'routine';
   return '<select class="editable-select '+mapped+'" id="timeframeSelect" onchange="onTimeframeChange(this)">'+
     TIMEFRAMES.map(function(o){return '<option value="'+o.v+'"'+(o.v===mapped?' selected':'')+'>'+o.l+'</option>';}).join('')+
-  '</select>'+
-  '<button class="save-inline-btn" id="timeframeSaveBtn" onclick="saveTimeframe()">Save correction</button>';
+  '</select>';
 }
 
 function onTimeframeChange(sel){
@@ -1400,10 +1399,10 @@ function renderResults(d){
               '<span style="font-size:var(--fs-sm);color:var(--gray-700);">'+esc(aiClinCat)+'</span>'+
             '</div>'
           :'')+
-          (d.non_clinical_items&&d.non_clinical_items.length?
+          (aiNonClin?
             '<div style="display:flex;align-items:center;gap:6px;">'+
               '<span style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-400);">Non-Clinical:</span>'+
-              '<span style="font-size:var(--fs-sm);color:var(--gray-700);">'+d.non_clinical_items.map(esc).join(', ')+'</span>'+
+              '<span style="font-size:var(--fs-sm);color:var(--gray-700);">'+esc(aiNonClin)+'</span>'+
             '</div>'
           :'')+
         '</div>'+
@@ -1435,10 +1434,9 @@ function renderResults(d){
           '</div>'+
 
           (_in?
-            // Label + workflow instruction together
             '<div style="margin-bottom:8px;">'+
-              '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:3px;">Internal Note &mdash; paste into Bask chat</div>'+
-              '<div style="font-size:var(--fs-xs);color:var(--gray-600);line-height:1.5;">Copy this note &rarr; open Bask chat &rarr; submit as internal note &rarr; assign to <strong>'+esc(routedTo)+'</strong></div>'+
+              '<div style="font-size:var(--fs-sm);font-weight:600;color:var(--gray-700);margin-bottom:2px;">Internal Note &mdash; paste into Bask chat</div>'+
+              '<div style="font-size:var(--fs-xs);color:var(--gray-600);line-height:1.5;">Copy &rarr; open Bask chat &rarr; submit as internal note &rarr; assign to <strong>'+esc(routedTo)+'</strong></div>'+
             '</div>'+
             '<div style="background:var(--amber-l);border:1.5px solid var(--amber-m);border-radius:8px;padding:13px 16px;font-size:var(--fs-base);color:var(--gray-800);line-height:1.75;position:relative;">'+
               esc(_in)+
