@@ -142,7 +142,7 @@ textarea::placeholder{color:var(--gray-400);}
 
 /* FEEDBACK */
 .feedback-row{display:flex;flex-direction:row;flex-wrap:nowrap;gap:10px;margin-top:14px;align-items:center;}
-.vote-btn{display:flex;align-items:center;gap:5px;padding:8px 16px;background:var(--white);border:1.5px solid var(--gray-200);border-radius:8px;color:var(--gray-600);font-family:var(--sans);font-size:var(--fs-sm);font-weight:500;cursor:pointer;transition:all .15s;white-space:nowrap;}
+.vote-btn{display:inline-flex;align-items:center;gap:5px;padding:8px 16px;background:var(--white);border:1.5px solid var(--gray-200);border-radius:8px;color:var(--gray-600);font-family:var(--sans);font-size:var(--fs-sm);font-weight:500;cursor:pointer;transition:all .15s;white-space:nowrap;}
 .vote-btn.up:hover,.vote-btn.up.active{border-color:var(--green-m);color:var(--green);background:var(--green-l);}
 .vote-btn.down:hover,.vote-btn.down.active{border-color:var(--red-m);color:var(--red);background:var(--red-l);}
 
@@ -1423,7 +1423,7 @@ function renderResults(d){
             '<button class="copy-inline-btn" data-copy-target="draft" style="position:absolute;top:8px;right:8px;background:var(--white);border:1.5px solid var(--gray-200);border-radius:6px;padding:4px 9px;cursor:pointer;font-size:12px;color:var(--gray-500);">Copy</button>'+
           '</div>'
         )+
-        '<div id="feedbackRow"></div>'+
+        '<div class="feedback-row"><button class="vote-btn up" id="upvoteBtn">&#128077; Good response</button><button class="vote-btn down" id="downvoteBtn">&#128078; Needs work</button></div>'+
         '<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--gray-100);">'+
           '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-600);margin-bottom:6px;">What was sent to the patient</div>'+
           '<p style="font-size:var(--fs-sm);color:var(--gray-700);margin-bottom:8px;line-height:1.5;">Paste your actual response if you changed the draft. The AI learns by comparing what you sent to what it generated.</p>'+
@@ -1455,21 +1455,11 @@ function renderResults(d){
     });
   });
 
-  // Wire vote buttons — built via DOM to avoid whitespace text nodes in flex container
-  var feedbackRow = document.getElementById('feedbackRow');
-  if(feedbackRow){
-    feedbackRow.className = 'feedback-row';
-    var upBtn = document.createElement('button');
-    upBtn.className = 'vote-btn up'; upBtn.id = 'upvoteBtn';
-    upBtn.innerHTML = '&#128077; Good response';
-    upBtn.addEventListener('click', function(){ castVote('up', upBtn); });
-    var dnBtn = document.createElement('button');
-    dnBtn.className = 'vote-btn down'; dnBtn.id = 'downvoteBtn';
-    dnBtn.innerHTML = '&#128078; Needs work';
-    dnBtn.addEventListener('click', function(){ castVote('down', dnBtn); });
-    feedbackRow.appendChild(upBtn);
-    feedbackRow.appendChild(dnBtn);
-  }
+  // Wire vote buttons
+  var upBtn = document.getElementById('upvoteBtn');
+  var dnBtn = document.getElementById('downvoteBtn');
+  if(upBtn) upBtn.addEventListener('click', function(){ castVote('up', upBtn); });
+  if(dnBtn) dnBtn.addEventListener('click', function(){ castVote('down', dnBtn); });
 
   // Wire multiselect click-to-toggle (no ctrl needed)
   el.querySelectorAll('.cat-multiselect').forEach(function(sel){
