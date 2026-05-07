@@ -252,11 +252,11 @@ textarea::placeholder{color:var(--gray-400);}
 
 
 
-.cat-multiselect{width:100%;max-width:260px;border:1.5px solid var(--gray-200);border-radius:8px;font-family:var(--sans);font-size:var(--fs-sm);color:var(--gray-800);background:var(--white);outline:none;padding:2px;cursor:pointer;}
-.cat-multiselect:focus{border-color:var(--blue);}
-.cat-multiselect option{padding:4px 8px;font-size:var(--fs-sm);}
-.cat-multiselect option:checked{background:var(--blue-l);color:var(--blue);font-weight:600;}
-.cat-save-btn{padding:7px 20px;background:var(--white);border:1.5px solid var(--blue);border-radius:7px;color:var(--blue);font-family:var(--sans);font-size:var(--fs-xs);font-weight:600;cursor:pointer;white-space:nowrap;transition:all .15s;display:inline-block;margin-top:10px;}
+.cat-pill{display:inline-flex;align-items:center;padding:5px 12px;border-radius:20px;border:1.5px solid var(--gray-200);background:var(--white);font-family:var(--sans);font-size:var(--fs-sm);color:var(--gray-600);cursor:pointer;transition:all .15s;user-select:none;line-height:1.3;}
+.cat-pill:hover{border-color:var(--blue-m);color:var(--blue);}
+.cat-pill.sel-clin{border-color:var(--blue-m);background:var(--blue-l);color:var(--blue);font-weight:600;}
+.cat-pill.sel-nc{border-color:var(--amber-m);background:var(--amber-l);color:var(--amber);font-weight:600;}
+.cat-save-btn{padding:6px 18px;background:var(--white);border:1.5px solid var(--blue);border-radius:7px;color:var(--blue);font-family:var(--sans);font-size:var(--fs-sm);font-weight:600;cursor:pointer;white-space:nowrap;transition:all .15s;display:inline-block;}
 .cat-save-btn:hover{background:var(--blue);color:white;}
 .cat-save-btn.saved{background:var(--green);border-color:var(--green);color:white;}
 .save-toast{position:fixed;bottom:24px;right:24px;background:var(--green);color:white;padding:13px 22px;border-radius:10px;font-size:var(--fs-sm);font-weight:600;opacity:0;transition:opacity .2s;pointer-events:none;box-shadow:0 4px 12px rgba(0,0,0,.15);z-index:999;}
@@ -1313,70 +1313,93 @@ function renderResults(d){
   var routedTo=d.routed_to||'Support Team';
   var urgLabel=d.urgency==='urgent'?'URGENT':d.urgency==='same-day'?'Same Day':'Routine';
   var urgColor=d.urgency==='urgent'?'var(--red)':d.urgency==='same-day'?'var(--amber)':'var(--green)';
+  var urgBg=d.urgency==='urgent'?'var(--red-l)':d.urgency==='same-day'?'var(--amber-l)':'var(--green-l)';
+  var urgBorder=d.urgency==='urgent'?'var(--red-m)':d.urgency==='same-day'?'var(--amber-m)':'var(--green-m)';
   var hasNonClin=!!(d.non_clinical_flag&&d.non_clinical_items&&d.non_clinical_items.length);
   var isClinical=!!(aiClinCat&&aiClinCat!=='General/multiple');
 
-  // ── Message Type card ─────────────────────────────────────────────────────
-  // Build multiselect options
-  var clinOpts=CLINICAL_CATS.map(function(c){
-    return '<option value="'+esc(c)+'"'+(c===aiClinCat?' selected':'')+'>'+esc(c)+'</option>';
-  }).join('');
+  // Build pill HTML for categories
   var ncCats=['Billing/Payment','Shipment/Tracking','Account/Subscription','Refund request','Prescription transfer','General inquiry'];
-  var ncOpts=ncCats.map(function(c){
+  var clinPills=CLINICAL_CATS.map(function(c){
+    var sel=c===aiClinCat;
+    return '<button class="cat-pill'+(sel?' sel-clin':'')+'" data-val="'+esc(c)+'" data-type="clin">'+esc(c)+'</button>';
+  }).join(' ');
+  var ncPills=ncCats.map(function(c){
     var sel=aiNonClin.includes(c);
-    return '<option value="'+esc(c)+'"'+(sel?' selected':'')+'>'+esc(c)+'</option>';
-  }).join('');
+    return '<button class="cat-pill'+(sel?' sel-nc':'')+'" data-val="'+esc(c)+'" data-type="nc">'+esc(c)+'</button>';
+  }).join(' ');
 
+  // ── Two side-by-side cards: Classification (left) + Correct It (right) ────
   html+=
-    '<div class="out-card">'+
-      '<div class="oc-body" style="padding:14px 18px;display:flex;flex-direction:column;gap:0;">'+
+    '<div style="display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:start;">'+
 
-        // Row 1 — urgency + message type + severity (clinical only)
-        '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding-bottom:10px;">'+
-          '<span style="font-size:var(--fs-sm);font-weight:700;color:'+urgColor+';">'+urgLabel+'</span>'+
-          '<span style="color:var(--gray-300);">|</span>'+
-          '<span style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-700);">'+
-            (hasNonClin&&isClinical?'Dual Task':hasNonClin?'Non-Clinical':'Clinical')+
-          '</span>'+
-          (isClinical?
-            '<span style="color:var(--gray-300);">|</span>'+
-            '<span style="font-size:var(--fs-sm);font-weight:600;color:var(--gray-800);">'+esc(aiClinCat)+'</span>'
-          :'')+
-          (aiNonClin&&!isClinical?
-            '<span style="color:var(--gray-300);">|</span>'+
-            '<span style="font-size:var(--fs-sm);font-weight:600;color:var(--gray-800);">'+esc(aiNonClin)+'</span>'
-          :'')+
-          (hasSideEffect&&isClinical?'<span style="color:var(--gray-300);">|</span>'+severityBadge:'')+
-        '</div>'+
+      // LEFT — Classification display
+      '<div class="out-card" style="min-width:180px;">'+
+        '<div class="oc-body" style="padding:14px 16px;display:flex;flex-direction:column;gap:10px;">'+
 
-        // Row 2 — side-by-side category selectors
-        '<div style="border-top:1px solid var(--gray-100);padding-top:10px;padding-bottom:10px;">'+
-          '<div style="display:flex;flex-wrap:wrap;gap:14px;margin-bottom:4px;">'+
-            '<div>'+
-              '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-700);margin-bottom:5px;">Clinical</div>'+
-              '<select class="cat-multiselect" id="clinCatSelect" size="3" data-cattype="clin">'+clinOpts+'</select>'+
-            '</div>'+
-            (hasNonClin?
-              '<div>'+
-                '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-700);margin-bottom:5px;">Non-Clinical</div>'+
-                '<select class="cat-multiselect" id="ncCatSelect" size="3" multiple data-cattype="nc">'+ncOpts+'</select>'+
-              '</div>'
-            :'')+
+          // Urgency pill — prominent, colored
+          '<div style="display:inline-flex;align-items:center;padding:6px 14px;border-radius:20px;background:'+urgBg+';border:1.5px solid '+urgBorder+';gap:6px;align-self:flex-start;">'+
+            '<span style="width:8px;height:8px;border-radius:50%;background:'+urgColor+';flex-shrink:0;"></span>'+
+            '<span style="font-size:var(--fs-sm);font-weight:700;color:'+urgColor+';">'+urgLabel+'</span>'+
           '</div>'+
-          '<button class="cat-save-btn" id="catSaveBtn" onclick="saveCategoryTags()">Save Categories</button>'+
-        '</div>'+
 
-        // Row 3 — timeframe
-        '<div style="border-top:1px solid var(--gray-100);padding-top:10px;display:flex;align-items:center;gap:8px;">'+
-          '<span style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-700);">Timeframe:</span>'+
-          buildTimeframeSelect(d.urgency)+
-          '<button class="action-btn" id="timeframeSaveBtn" onclick="saveTimeframe()" style="width:auto;padding:5px 14px;font-size:var(--fs-xs);flex-shrink:0;">Save</button>'+
-        '</div>'+
+          // Task type
+          '<div>'+
+            '<div style="font-size:var(--fs-xs);color:var(--gray-500);margin-bottom:3px;">Task type</div>'+
+            '<div style="font-size:var(--fs-sm);font-weight:600;color:var(--gray-800);">'+
+              (hasNonClin&&isClinical?'Dual Task':hasNonClin?'Non-Clinical':'Clinical')+
+            '</div>'+
+          '</div>'+
 
+          // Clinical category
+          (isClinical?
+            '<div>'+
+              '<div style="font-size:var(--fs-xs);color:var(--gray-500);margin-bottom:3px;">Category</div>'+
+              '<div style="font-size:var(--fs-sm);font-weight:600;color:var(--gray-800);">'+esc(aiClinCat)+'</div>'+
+            '</div>'
+          :'')+
+
+          // Severity badge — only when clinical + side effect
+          (hasSideEffect&&isClinical?
+            '<div>'+severityBadge+'</div>'
+          :'')+
+
+        '</div>'+
       '</div>'+
+
+      // RIGHT — Correct It
+      '<div class="out-card">'+
+        '<div class="oc-body" style="padding:14px 16px;display:flex;flex-direction:column;gap:12px;">'+
+
+          // Clinical pills
+          '<div>'+
+            '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-600);margin-bottom:7px;">Clinical Category</div>'+
+            '<div style="display:flex;flex-wrap:wrap;gap:6px;">'+clinPills+'</div>'+
+          '</div>'+
+
+          // Non-clinical pills — only for dual task
+          (hasNonClin?
+            '<div>'+
+              '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-600);margin-bottom:7px;">Non-Clinical Category</div>'+
+              '<div style="display:flex;flex-wrap:wrap;gap:6px;">'+ncPills+'</div>'+
+            '</div>'
+          :'')+
+
+          // Timeframe — dropdown only (urgency already displayed in left card)
+          '<div style="display:flex;align-items:center;gap:8px;padding-top:8px;border-top:1px solid var(--gray-100);">'+
+            '<span style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-600);white-space:nowrap;">Timeframe:</span>'+
+            buildTimeframeSelect(d.urgency)+
+          '</div>'+
+
+          // One save button — saves both category + timeframe
+          '<button class="cat-save-btn" id="catSaveBtn" onclick="saveCategoryTags()" style="align-self:flex-start;">Save</button>'+
+
+        '</div>'+
+      '</div>'+
+
     '</div>';
 
-  // ── Routing card — only non-clinical items, no clinical summary (already in top card) ──
+  // ── Routing card ──────────────────────────────────────────────────────────
   if(hasNonClin){
     html+=
       '<div class="out-card" style="border-color:var(--amber-m);">'+
@@ -1456,19 +1479,22 @@ function renderResults(d){
   });
 
   // Wire vote buttons
-  var upBtn = document.getElementById('upvoteBtn');
-  var dnBtn = document.getElementById('downvoteBtn');
-  if(upBtn) upBtn.addEventListener('click', function(){ castVote('up', upBtn); });
-  if(dnBtn) dnBtn.addEventListener('click', function(){ castVote('down', dnBtn); });
+  var upBtn=document.getElementById('upvoteBtn');
+  var dnBtn=document.getElementById('downvoteBtn');
+  if(upBtn) upBtn.addEventListener('click',function(){ castVote('up',upBtn); });
+  if(dnBtn) dnBtn.addEventListener('click',function(){ castVote('down',dnBtn); });
 
-  // Wire multiselect click-to-toggle (no ctrl needed)
-  el.querySelectorAll('.cat-multiselect').forEach(function(sel){
-    sel.addEventListener('mousedown',function(e){
-      e.preventDefault();
-      var opt=e.target;
-      if(opt.tagName!=='OPTION')return;
-      opt.selected=!opt.selected;
-      sel.focus();
+  // Wire pill toggles
+  el.querySelectorAll('.cat-pill').forEach(function(pill){
+    pill.addEventListener('click',function(){
+      var type=pill.getAttribute('data-type');
+      if(type==='clin'){
+        // Single select — deselect others
+        el.querySelectorAll('.cat-pill[data-type="clin"]').forEach(function(p){ p.classList.remove('sel-clin'); });
+        pill.classList.add('sel-clin');
+      } else {
+        pill.classList.toggle('sel-nc');
+      }
     });
   });
 }
@@ -1616,14 +1642,16 @@ async function saveCategoryTags(){
   var btn=document.getElementById('catSaveBtn');
   if(!btn||!currentHistoryId)return;
   btn.textContent='Saving...';btn.disabled=true;
-  var clinSel=document.getElementById('clinCatSelect');
-  var ncSel=document.getElementById('ncCatSelect');
-  var clinVals=clinSel?[...clinSel.selectedOptions].map(function(o){return o.value;}).filter(Boolean):[];
-  var ncVals=ncSel?[...ncSel.selectedOptions].map(function(o){return o.value;}).filter(Boolean):[];
-  var combined=(clinVals.join(', ')||'')+(ncVals.length?' | Non-clinical: '+ncVals.join(', '):'');
-  await api('/history','POST',{action:'update_category',id:currentHistoryId,category:combined});
+  var clinVals=[],ncVals=[];
+  document.querySelectorAll('.cat-pill.sel-clin').forEach(function(p){clinVals.push(p.getAttribute('data-val'));});
+  document.querySelectorAll('.cat-pill.sel-nc').forEach(function(p){ncVals.push(p.getAttribute('data-val'));});
+  // Also save timeframe in same call
+  var tfSel=document.getElementById('timeframeSelect');
+  var saves=[api('/history','POST',{action:'update_category',id:currentHistoryId,category:(clinVals.join(', ')||'')+(ncVals.length?' | Non-clinical: '+ncVals.join(', '):'')})];
+  if(tfSel) saves.push(api('/history','POST',{action:'update_urgency',id:currentHistoryId,urgency_override:tfSel.value}));
+  await Promise.all(saves);
   btn.textContent='Saved';btn.className='cat-save-btn saved';
-  setTimeout(function(){btn.textContent='Save Categories';btn.className='cat-save-btn';btn.disabled=false;},2000);
+  setTimeout(function(){btn.textContent='Save';btn.className='cat-save-btn';btn.disabled=false;},2000);
 }
 
 
