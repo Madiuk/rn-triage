@@ -335,6 +335,7 @@ textarea::placeholder{color:var(--gray-400);}
             <span id="btnText">Run Triage</span>
             <div class="spinner" id="btnSpinner"></div>
           </button>
+          <div id="tokenIndicator" style="font-size:11px;color:var(--gray-400);text-align:right;margin-top:4px;"></div>
         </div>
       </div>
     </div>
@@ -672,25 +673,23 @@ textarea::placeholder{color:var(--gray-400);}
 // Today's date injected at runtime so AI never uses stale year
 const TODAY = new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
 
-const BASE_PROMPT = `GLP-1 telehealth triage AI. Today is ${TODAY}. Output ONLY valid JSON -- no markdown, no prose outside JSON.
+const BASE_PROMPT = `GLP-1 telehealth RN triage. Today: ${TODAY}. Output ONLY valid JSON.
 
-JSON schema (every field required):
 {"non_clinical_flag":bool,"non_clinical_items":["..."],"routing_language":"string","internal_note":"string","clinical_routing_flag":bool,"clinical_routing_level":"severe|moderate|mild|none","clinical_routing_note":"string","clinical_category":"GI side effects|Weight plateau|No early weight loss|Food noise/cravings|Hair loss|Fatigue|Heartburn/reflux|Diarrhea|Injection/administration|Dosing question|Skin/site reaction|Medication storage|Urgent-escalate|General/multiple","urgency":"routine|same-day|urgent","follow_up_questions":["..."],"draft_response":"string"}
 
-FIELD RULES:
-non_clinical_flag: true if the message contains ANY non-clinical content — billing, payment, charges, refunds, shipping, tracking, delivery, package not received, account access, subscription, cancellation, prescription transfer, pharmacy logistics, or any administrative/operational request that is not about clinical symptoms, medication effects, or health guidance. When in doubt, set true and populate non_clinical_items.
-non_clinical_items: list each distinct non-clinical topic found (e.g. ["Shipping/tracking", "Billing question"]). Empty array if non_clinical_flag false.
-routing_language: 1-2 sentence message to send the patient acknowledging their non-clinical item is being routed to another team. Empty if non_clinical_flag false.
-internal_note: Brief handoff note left inside the Bask chat thread for the newly assigned staff member. 2-3 sentences. Write as if leaving a note for a colleague: summarize what the patient needs, what has already been handled clinically, and what the staff member should look into. Do NOT write routing instructions. Example: "Patient is inquiring about a billing charge from last month. Their clinical question about nausea has been addressed separately by the RN. Please check the account and follow up on the charge." Empty if non_clinical_flag false.
-clinical_routing_flag: true if any side effect detected.
-clinical_routing_level: severity per SIDE EFFECT SEVERITY CLASSIFICATION in knowledge base. "none" if no side effects.
-clinical_routing_note: routing note per CLINICAL ROUTING RULES in knowledge base. Empty if clinical_routing_level is "none".
-clinical_category: closest match from category list.
-urgency: per URGENCY RULES in knowledge base.
-follow_up_questions: questions for missing info. Include dose question if dose not stated.
-draft_response: ALWAYS populate. Warm RN voice, patient details, prose with line breaks, 140 words max, clinical only. If follow_up_questions present: warm opening then weave questions into flowing prose. Otherwise: complete actionable advice.
+non_clinical_flag: true if ANY non-clinical content present (billing, payment, shipping, tracking, refund, account, subscription, cancellation, prescription transfer, or any administrative request).
+non_clinical_items: list each non-clinical topic found. Empty array if none.
+routing_language: 1-2 sentences to patient acknowledging non-clinical item is being routed. Empty if non_clinical_flag false.
+internal_note: 2-3 sentence Bask chat handoff note for the incoming staff member. Colleague-to-colleague synopsis of what patient needs and what to investigate. NOT routing instructions. Empty if non_clinical_flag false.
+clinical_routing_flag: true if any side effect present.
+clinical_routing_level: per SIDE EFFECT SEVERITY rules. "none" if no side effects.
+clinical_routing_note: empty string always (deprecated).
+clinical_category: closest match.
+urgency: per URGENCY RULES.
+follow_up_questions: specific questions if info missing. Include dose question if dose not stated.
+draft_response: ALWAYS populate. Warm RN voice, patient details, prose with line breaks, 120 words max. If follow_up_questions present: warm opening then weave questions into flowing prose. Otherwise: complete actionable advice.
 
-All clinical rules, severity thresholds, routing logic, and response protocols are in the KNOWLEDGE BASE sections below. Follow them precisely.`;
+Knowledge base sections follow. Apply them precisely.`;
 
 const CLINICAL_CATS = [
   'GI side effects','Weight plateau','No early weight loss','Food noise/cravings',
@@ -779,15 +778,75 @@ let currentHistoryId = null;
 let currentNurse = localStorage.getItem('rn_triage_current_nurse') || '';
 let selectedUpReasons = [], selectedDownReasons = [];
 
-function getKBPrompt(){
-  var p=[];
-  if(kb.notes&&kb.notes.length) p.push('=== CLINICAL RULES (read first) ===\n'+kb.notes.map(function(e){return '['+e.name+']\n'+e.text;}).join('\n\n'));
-  if(kb.routing&&kb.routing.length) p.push('=== ROUTING RULES ===\n'+kb.routing.map(function(e){return '['+e.name+']\n'+e.text;}).join('\n\n'));
-  if(kb.sideeffects&&kb.sideeffects.length) p.push('=== SIDE EFFECT GUIDANCE ===\n'+kb.sideeffects.map(function(e){return '['+e.name+']\n'+e.text;}).join('\n\n'));
-  if(kb.templates&&kb.templates.length) p.push('=== RESPONSE TEMPLATES ===\n'+kb.templates.map(function(e){return '['+e.name+']\n'+e.text;}).join('\n\n'));
-  if(kb.protocols&&kb.protocols.length) p.push('=== PROTOCOLS ===\n'+kb.protocols.map(function(e){return '['+e.name+']\n'+e.text;}).join('\n\n'));
-  if(kb.urls&&kb.urls.length) p.push('=== URLS ===\n'+kb.urls.map(function(e){return e.name+': '+e.text;}).join('\n'));
-  return p.join('\n\n');
+// Cache for KB section strings -- rebuilt only when KB changes
+var kbCache = {};
+var kbCacheKey = '';
+
+function getKBSection(section, label){
+  if(!kb[section]||!kb[section].length) return '';
+  if(!kbCache[section]){
+    kbCache[section] = '=== '+label+' ===\n'+kb[section].map(function(e){
+      return '['+e.name+']\n'+e.text;
+    }).join('\n\n');
+  }
+  return kbCache[section];
+}
+
+function invalidateKBCache(){ kbCache = {}; }
+
+// Local message classifier -- runs client-side, zero cost, zero latency
+// Returns array of relevant content types to include in KB prompt
+function classifyMessage(msg){
+  var m = msg.toLowerCase();
+  var types = [];
+
+  // Always include: rules + routing (small, always needed)
+  types.push('rules');
+  types.push('routing');
+
+  // Non-clinical signals
+  var nonClinical = /bill|pay|charg|invoice|refund|ship|track|deliver|package|order|account|subscri|cancel|prescription transfer|pharmacy|credit card|receipt/.test(m);
+  if(nonClinical) types.push('routing_detail');
+
+  // Side effect signals
+  var sideEffect = /nausea|vomit|sick|diarrhea|constip|heartburn|reflux|hair|fatigue|tired|inject|site|react|itch|swell|rash|pain|hurt|ache|hypoglyc|shak|sweat|dizz|weak|fever|bleed/.test(m);
+  if(sideEffect){ types.push('sideeffects'); types.push('protocols'); }
+
+  // Weight/plateau/food signals
+  var weightFocus = /weight|plateau|stall|loss|gain|scale|food noise|crav|hungry|hunger|calorie|eat|diet|appetite/.test(m);
+  if(weightFocus) types.push('templates');
+
+  // Dosing/injection signals
+  var dosing = /dose|dosing|inject|units|mg|ml|syringe|vial|concentrat|titrat|missed|skip|forgot|storage|refriger|freez/.test(m);
+  if(dosing){ types.push('protocols'); }
+
+  // URLs only if likely giving advice (weight, plateau, food)
+  if(weightFocus) types.push('urls');
+
+  // If nothing clinical detected, still include sideeffects rules for classification
+  if(!sideEffect && !weightFocus && !dosing) types.push('sideeffects');
+
+  return [...new Set(types)]; // deduplicate
+}
+
+function getKBPrompt(msg){
+  var types = msg ? classifyMessage(msg) : ['rules','routing','sideeffects','templates','protocols','urls'];
+  var p = [];
+
+  if(types.includes('rules'))
+    p.push(getKBSection('notes','CLINICAL RULES (read first)'));
+  if(types.includes('routing') || types.includes('routing_detail'))
+    p.push(getKBSection('routing','ROUTING RULES'));
+  if(types.includes('sideeffects'))
+    p.push(getKBSection('sideeffects','SIDE EFFECT GUIDANCE'));
+  if(types.includes('templates'))
+    p.push(getKBSection('templates','RESPONSE TEMPLATES'));
+  if(types.includes('protocols'))
+    p.push(getKBSection('protocols','PROTOCOLS'));
+  if(types.includes('urls'))
+    p.push(getKBSection('urls','URLS'));
+
+  return p.filter(Boolean).join('\n\n');
 }
 
 // NURSE
@@ -856,7 +915,7 @@ async function loadKBFromServer(){
         if(!nkb[s]) s = (s==='snippets'?'notes':'notes');
         if(nkb[s]) nkb[s].push({name:row.name,text:row.content,nurse_name:row.nurse_name||'Unknown'});
       });
-      kb=nkb;
+      kb=nkb; invalidateKBCache();
       setSyncBar('synced','Synced . '+new Date().toLocaleTimeString());
     }else{
       // Empty DB -- seed with defaults and save so rules are in Supabase
@@ -904,7 +963,7 @@ async function submitEntry(){
   btn.disabled=true;txt.textContent='Saving...';spin.className='spinner active';
   try{
     if(!kb[section])kb[section]=[];
-    kb[section].push({name:title,text:content,nurse_name:currentNurse});
+    kb[section].push({name:title,text:content,nurse_name:currentNurse}); invalidateKBCache();
     await saveKBSilent();
     document.getElementById('entryTitle').value='';
     document.getElementById('entryContent').value='';
@@ -918,7 +977,7 @@ async function saveKB(){
   var btn=document.getElementById('kbSaveBtn'),txt=document.getElementById('kbSaveTxt'),spin=document.getElementById('kbSpinner');
   btn.disabled=true;txt.textContent='Syncing...';spin.className='kb-spinner active';
   try{
-    await api('/kb','POST',{entries:buildEntries()});
+    await api('/kb','POST',{entries:buildEntries()}); invalidateKBCache();
     setSyncBar('synced','Synced . '+new Date().toLocaleTimeString());
     showToast('Knowledge base synced');
   }catch(e){setSyncBar('error','Sync failed');}
@@ -1110,8 +1169,11 @@ async function runTriage(){
   setLoading(true);
 currentHistoryId=null;selectedUpReasons=[];selectedDownReasons=[];
   document.getElementById('results').innerHTML='<div class="placeholder"><div class="spinner active" style="width:26px;height:26px;border-color:var(--gray-300);border-top-color:var(--blue);"></div><div class="placeholder-text" style="margin-top:14px;">Analyzing message...</div></div>';
-  var kbContent=getKBPrompt();
+  var kbContent=getKBPrompt(msg);
   var sysPrompt=kbContent?BASE_PROMPT+'\n\n'+kbContent:BASE_PROMPT;
+  var estTokens = Math.round(sysPrompt.length/4) + Math.round(msg.length/4);
+  var tokenEl = document.getElementById('tokenIndicator');
+  if(tokenEl) tokenEl.textContent = '~' + estTokens.toLocaleString() + ' tokens';
 
   // Build user content -- include prior conversation if provided
   var prior = (document.getElementById('priorInput')||{}).value||'';
@@ -1123,7 +1185,7 @@ currentHistoryId=null;selectedUpReasons=[];selectedDownReasons=[];
   try{
     var res=await fetch('/.netlify/functions/triage',{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({model:'claude-haiku-4-5',max_tokens:1500,system:sysPrompt,messages:[{role:'user',content:userContent}]})
+      body:JSON.stringify({model:'claude-haiku-4-5',max_tokens:1024,system:sysPrompt,messages:[{role:'user',content:userContent}]})
     });
     var data=await res.json();
     if(data.error)throw new Error(typeof data.error==='string'?data.error:(data.error.message||JSON.stringify(data.error)));
