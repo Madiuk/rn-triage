@@ -256,9 +256,9 @@ textarea::placeholder{color:var(--gray-400);}
 .cat-pill:hover{border-color:var(--blue-m);color:var(--blue);}
 .cat-pill.sel-clin{border-color:var(--blue-m);background:var(--blue-l);color:var(--blue);font-weight:600;}
 .cat-pill.sel-nc{border-color:var(--amber-m);background:var(--amber-l);color:var(--amber);font-weight:600;}
-.cat-save-btn{padding:6px 18px;background:var(--white);border:1.5px solid var(--blue);border-radius:7px;color:var(--blue);font-family:var(--sans);font-size:var(--fs-sm);font-weight:600;cursor:pointer;white-space:nowrap;transition:all .15s;display:inline-block;}
-.cat-save-btn:hover{background:var(--blue);color:white;}
-.cat-save-btn.saved{background:var(--green);border-color:var(--green);color:white;}
+.cat-save-btn{padding:7px 20px;background:var(--blue);border:1.5px solid var(--blue);border-radius:7px;color:white;font-family:var(--sans);font-size:var(--fs-sm);font-weight:600;cursor:pointer;white-space:nowrap;transition:all .15s;display:inline-block;}
+.cat-save-btn:hover{background:#1d4ed8;}
+.cat-save-btn.saved{background:var(--green);border-color:var(--green);}
 .save-toast{position:fixed;bottom:24px;right:24px;background:var(--green);color:white;padding:13px 22px;border-radius:10px;font-size:var(--fs-sm);font-weight:600;opacity:0;transition:opacity .2s;pointer-events:none;box-shadow:0 4px 12px rgba(0,0,0,.15);z-index:999;}
 .save-toast.show{opacity:1;}
 @media(max-width:900px){.triage-layout{grid-template-columns:1fr;}.entry-add-row{flex-direction:column;}}
@@ -680,7 +680,7 @@ const BASE_PROMPT = `GLP-1 telehealth RN triage. Today: ${TODAY}. Output ONLY va
 non_clinical_flag: true if ANY non-clinical content present (billing, payment, shipping, tracking, refund, account, subscription, cancellation, prescription transfer, or any administrative request).
 non_clinical_items: list the NON-CLINICAL CATEGORY for each non-clinical topic — use short standard labels only, never describe the patient's situation. Valid labels: "Billing/Payment" | "Shipment/Tracking" | "Account/Subscription" | "Refund request" | "Prescription transfer" | "General inquiry". Example: ["Shipment/Tracking"]. Empty array if none.
 routed_to: the specific support department this should go to. Choose the closest match: "Shipping & Fulfillment" | "Billing Team" | "Account Support" | "Pharmacy Team" | "General Support". Empty string if non_clinical_flag false.
-internal_note: A task-assignment note to paste into Bask chat as an internal staff note when routing. Written as a direct instruction to the incoming staff member — tell them exactly what task needs to be completed and any relevant details. Do NOT summarize the clinical content. Do NOT describe the patient message. Focus only on the non-clinical action required. Example: "Patient has not received their order after 10 days. Please check order status, locate tracking information, and follow up with the patient directly. Clinical questions have been addressed by the RN." Empty if non_clinical_flag false.
+internal_note: A task-assignment note to paste into Bask chat as an internal staff note when routing. Direct instruction to the incoming staff member — what non-clinical task needs to be completed. Do NOT include any clinical information, symptoms, or medication details. Do NOT speculate about clinical causes. End every note with exactly this sentence: "Clinical concerns have been addressed by the RN." Example: "Patient has not received their order after 10 days. Please check order status, locate tracking information, and follow up with the patient directly. Clinical concerns have been addressed by the RN." Empty if non_clinical_flag false.
 clinical_routing_flag: true if any side effect present.
 clinical_routing_level: per SIDE EFFECT SEVERITY rules. "none" if no side effects.
 clinical_routing_note: empty string always (deprecated).
@@ -1239,7 +1239,7 @@ function onTimeframeChange(sel){
   var v=sel.value;
   sel.className='editable-select '+(v==='urgent'?'urgent':v==='routine'?'routine':'same-day');
   var btn=document.getElementById('timeframeSaveBtn');
-  if(btn){btn.textContent='Save';btn.className='action-btn';}
+  // checkmark button — no text change needed
 }
 
 async function saveTimeframe(){
@@ -1313,6 +1313,7 @@ function renderResults(d){
   var routedTo=d.routed_to||'Support Team';
   var hasNonClin=!!(d.non_clinical_flag&&d.non_clinical_items&&d.non_clinical_items.length);
   var isClinical=!!(aiClinCat&&aiClinCat!=='General/multiple');
+  var taskType=hasNonClin&&isClinical?'Dual Task':hasNonClin?'Non-Clinical':'Clinical';
 
   // Build pills
   var ncCats=['Billing/Payment','Shipment/Tracking','Account/Subscription','Refund request','Prescription transfer','General inquiry'];
@@ -1325,37 +1326,35 @@ function renderResults(d){
     return '<button class="cat-pill'+(sel?' sel-nc':'')+'" data-val="'+esc(c)+'" data-type="nc">'+esc(c)+'</button>';
   }).join(' ');
 
-  // ── Two side-by-side cards ────────────────────────────────────────────────
+  // ── Two side-by-side top cards ────────────────────────────────────────────
   html+=
     '<div style="display:grid;grid-template-columns:220px 1fr;gap:12px;align-items:start;">'+
 
-      // LEFT — Timeframe (editable) + severity + task info
+      // LEFT — Status + timeframe editable
       '<div class="out-card">'+
-        '<div class="oc-body" style="padding:14px 16px;display:flex;flex-direction:column;gap:12px;">'+
+        '<div class="oc-body" style="padding:14px 16px;display:flex;flex-direction:column;gap:0;">'+
 
-          // Timeframe dropdown + save inline
-          '<div>'+
-            '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-600);margin-bottom:6px;">Response Timeframe</div>'+
-            '<div style="display:flex;align-items:center;gap:6px;">'+
-              buildTimeframeSelect(d.urgency)+
-              '<button id="timeframeSaveBtn" onclick="saveTimeframe()" title="Save timeframe" style="flex-shrink:0;width:30px;height:30px;border-radius:7px;border:none;background:var(--blue);color:white;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;">&#10003;</button>'+
-            '</div>'+
+          // Task type + category — one line each
+          '<div style="padding-bottom:12px;">'+
+            '<div style="font-size:var(--fs-xs);color:var(--gray-500);font-weight:600;margin-bottom:2px;">Task type: <span style="color:var(--gray-800);font-weight:700;">'+taskType+'</span></div>'+
+            (isClinical?'<div style="font-size:var(--fs-xs);color:var(--gray-500);font-weight:600;">Category: <span style="color:var(--gray-800);font-weight:700;">'+esc(aiClinCat)+'</span></div>':'')+
           '</div>'+
 
-          // Severity badge — only when side effect detected
+          // Severity — grouped, with divider
           (hasSideEffect&&isClinical?
-            '<div>'+severityBadge+'</div>'
+            '<div style="padding:10px 0;border-top:1px solid var(--gray-100);">'+
+              '<div style="font-size:var(--fs-xs);color:var(--gray-500);font-weight:600;margin-bottom:6px;">Side Effect</div>'+
+              severityBadge+
+            '</div>'
           :'')+
 
-          // Task type + category
-          '<div style="padding-top:10px;border-top:1px solid var(--gray-100);">'+
-            '<div style="font-size:var(--fs-xs);color:var(--gray-500);margin-bottom:3px;">Task type</div>'+
-            '<div style="font-size:var(--fs-sm);font-weight:600;color:var(--gray-800);">'+
-              (hasNonClin&&isClinical?'Dual Task':hasNonClin?'Non-Clinical':'Clinical')+
+          // Timeframe — with divider, dropdown + green checkmark button
+          '<div style="padding-top:12px;border-top:1px solid var(--gray-100);">'+
+            '<div style="font-size:var(--fs-xs);color:var(--gray-500);font-weight:600;margin-bottom:6px;">Response Timeframe</div>'+
+            '<div style="display:flex;align-items:center;gap:6px;">'+
+              buildTimeframeSelect(d.urgency)+
+              '<button id="timeframeSaveBtn" onclick="saveTimeframe()" title="Save timeframe" style="flex-shrink:0;width:30px;height:30px;border-radius:7px;border:none;background:var(--green);color:white;cursor:pointer;font-size:16px;line-height:1;display:flex;align-items:center;justify-content:center;transition:background .2s;">&#10003;</button>'+
             '</div>'+
-            (isClinical?
-              '<div style="font-size:var(--fs-xs);color:var(--gray-600);margin-top:4px;">'+esc(aiClinCat)+'</div>'
-            :'')+
           '</div>'+
 
         '</div>'+
@@ -1364,29 +1363,25 @@ function renderResults(d){
       // RIGHT — Category correction pills
       '<div class="out-card">'+
         '<div class="oc-body" style="padding:14px 16px;display:flex;flex-direction:column;gap:12px;">'+
-
           '<div>'+
             '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-600);margin-bottom:7px;">Clinical Category</div>'+
             '<div style="display:flex;flex-wrap:wrap;gap:6px;">'+clinPills+'</div>'+
           '</div>'+
-
           (hasNonClin?
-            '<div>'+
+            '<div style="padding-top:10px;border-top:1px solid var(--gray-100);">'+
               '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-600);margin-bottom:7px;">Non-Clinical Category</div>'+
               '<div style="display:flex;flex-wrap:wrap;gap:6px;">'+ncPills+'</div>'+
             '</div>'
           :'')+
-
-          '<div style="padding-top:8px;border-top:1px solid var(--gray-100);">'+
+          '<div style="padding-top:10px;border-top:1px solid var(--gray-100);">'+
             '<button class="cat-save-btn" id="catSaveBtn" onclick="saveCategoryTags()">Save</button>'+
           '</div>'+
-
         '</div>'+
       '</div>'+
 
     '</div>';
 
-  // ── Routing card ──────────────────────────────────────────────────────────
+  // ── Routing card — no "clinical first" notice, just the task ─────────────
   if(hasNonClin){
     html+=
       '<div class="out-card" style="border-color:var(--amber-m);">'+
@@ -1395,9 +1390,6 @@ function renderResults(d){
           '<span style="font-size:var(--fs-sm);font-weight:700;color:var(--gray-800);">'+esc(routedTo)+'</span>'+
         '</div>'+
         '<div class="oc-body">'+
-          (isClinical?
-            '<div style="font-size:var(--fs-xs);color:var(--gray-600);margin-bottom:12px;line-height:1.5;">&#10003; Complete the clinical response first, then route this task.</div>'
-          :'')+
           (_in?
             '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-700);margin-bottom:5px;">Internal Note &mdash; paste into Bask chat</div>'+
             '<div style="font-size:var(--fs-xs);color:var(--gray-600);line-height:1.5;margin-bottom:8px;">Copy &rarr; open Bask chat &rarr; submit as internal note &rarr; assign to <strong>'+esc(routedTo)+'</strong></div>'+
