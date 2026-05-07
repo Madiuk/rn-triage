@@ -249,10 +249,7 @@ textarea::placeholder{color:var(--gray-400);}
 .help-faq-a{display:none;padding:0 20px 16px;font-size:var(--fs-sm);color:var(--gray-700);line-height:1.8;}
 .help-faq-a.open{display:block;}
 @media(max-width:900px){.help-quickref-grid{grid-template-columns:1fr;}.help-cols{grid-template-columns:1fr;}}
-.cat-multiselect{width:100%;border:1.5px solid var(--gray-200);border-radius:8px;font-family:var(--sans);font-size:var(--fs-sm);color:var(--gray-800);background:var(--white);outline:none;padding:2px;}
-.cat-multiselect:focus{border-color:var(--blue);}
-.cat-multiselect option{padding:6px 10px;cursor:pointer;font-size:var(--fs-sm);}
-.cat-multiselect option:checked{background:var(--blue-l);color:var(--blue);font-weight:600;}
+
 
 
 .save-toast{position:fixed;bottom:24px;right:24px;background:var(--green);color:white;padding:13px 22px;border-radius:10px;font-size:var(--fs-sm);font-weight:600;opacity:0;transition:opacity .2s;pointer-events:none;box-shadow:0 4px 12px rgba(0,0,0,.15);z-index:999;}
@@ -1241,7 +1238,7 @@ function buildCatListbox(id, cats, defaultSelected){
 
 function onCatChange(){
   var btn=document.getElementById('categorySaveBtn');
-  if(btn){btn.textContent='Save correction';btn.className='save-inline-btn';}
+  if(btn){btn.textContent='Save';btn.className='action-btn';}
 }
 
 async function saveCategory(){
@@ -1271,7 +1268,7 @@ function onTimeframeChange(sel){
   var v=sel.value;
   sel.className='editable-select '+(v==='urgent'?'urgent':v==='routine'?'routine':'same-day');
   var btn=document.getElementById('timeframeSaveBtn');
-  if(btn){btn.textContent='Save correction';btn.className='save-inline-btn';}
+  if(btn){btn.textContent='Save';btn.className='action-btn';}
 }
 
 async function saveTimeframe(){
@@ -1378,51 +1375,79 @@ function renderResults(d){
   var aiNonClin = guessNonClinCat(d.non_clinical_items);
   var _in = d.internal_note || '';
   var routedTo = d.routed_to || 'Support Team';
-
-  // ── Classification + Timeframe card ──────────────────────────────────────
   var urgLabel = d.urgency==='urgent'?'URGENT':d.urgency==='same-day'?'Same Day':'Routine';
   var urgColor = d.urgency==='urgent'?'var(--red)':d.urgency==='same-day'?'var(--amber)':'var(--green)';
+
+  // ── Message Type card — classification + categories + timeframe ───────────
   html+=
     '<div class="out-card">'+
-      '<div class="oc-body" style="padding:12px 16px;">'+
-        // Row 1: category + urgency + severity
-        '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--gray-100);">'+
-          '<span style="font-size:var(--fs-xs);color:var(--gray-500);font-weight:700;text-transform:uppercase;letter-spacing:.06em;">Message Type:</span>'+
+      '<div class="oc-body" style="padding:14px 18px;display:flex;flex-direction:column;gap:10px;">'+
+
+        // Urgency + severity row
+        '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">'+
+          '<span style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);">Message Type:</span>'+
           '<span style="font-size:var(--fs-sm);font-weight:600;color:var(--gray-800);">'+esc(aiClinCat||'General')+'</span>'+
           '<span style="color:var(--gray-300);">|</span>'+
           '<span style="font-size:var(--fs-sm);font-weight:700;color:'+urgColor+';">'+urgLabel+'</span>'+
           (severityBadge?'<span style="color:var(--gray-300);">|</span>'+severityBadge:'')+
         '</div>'+
-        // Row 2: timeframe correction inline
-        '<div style="display:flex;align-items:center;gap:10px;">'+
-          '<span style="font-size:var(--fs-xs);color:var(--gray-500);font-weight:600;white-space:nowrap;">Correct timeframe:</span>'+
-          '<div style="flex:1;">'+buildTimeframeSelect(d.urgency)+'</div>'+
-          '<button class="action-btn" id="timeframeSaveBtn" onclick="saveTimeframe()" style="width:auto;padding:6px 16px;font-size:var(--fs-xs);flex-shrink:0;">Save</button>'+
+
+        // Category display row — clinical and non-clinical inline
+        '<div style="display:flex;align-items:baseline;gap:16px;flex-wrap:wrap;padding-top:8px;border-top:1px solid var(--gray-100);">'+
+          (aiClinCat?
+            '<div style="display:flex;align-items:center;gap:6px;">'+
+              '<span style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-400);">Clinical:</span>'+
+              '<span style="font-size:var(--fs-sm);color:var(--gray-700);">'+esc(aiClinCat)+'</span>'+
+            '</div>'
+          :'')+
+          (d.non_clinical_items&&d.non_clinical_items.length?
+            '<div style="display:flex;align-items:center;gap:6px;">'+
+              '<span style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-400);">Non-Clinical:</span>'+
+              '<span style="font-size:var(--fs-sm);color:var(--gray-700);">'+d.non_clinical_items.map(esc).join(', ')+'</span>'+
+            '</div>'
+          :'')+
         '</div>'+
+
+        // Timeframe correction row — compact, no label
+        '<div style="display:flex;align-items:center;gap:8px;padding-top:8px;border-top:1px solid var(--gray-100);">'+
+          buildTimeframeSelect(d.urgency)+
+          '<button class="action-btn" id="timeframeSaveBtn" onclick="saveTimeframe()" style="width:auto;padding:7px 18px;font-size:var(--fs-xs);flex-shrink:0;">Save</button>'+
+        '</div>'+
+
       '</div>'+
     '</div>';
 
-  // ── Routing card (only when non-clinical items present) ───────────────────
+  // ── Routing card ──────────────────────────────────────────────────────────
   if(d.non_clinical_flag && d.non_clinical_items && d.non_clinical_items.length){
     var hasClinical = aiClinCat && aiClinCat !== 'General/multiple';
     var cardLabel = hasClinical ? '&#128257; Dual Task' : '&#128203; Non-Clinical Task';
     html+=
       '<div class="out-card" style="border-color:var(--amber-m);">'+
-        '<div class="oc-header" style="gap:12px;">'+
+        '<div class="oc-header">'+
           '<span class="oc-label" style="color:var(--amber);">'+cardLabel+'</span>'+
-          '<span style="font-size:var(--fs-sm);color:var(--gray-700);">Route to: <strong>'+esc(routedTo)+'</strong></span>'+
         '</div>'+
         '<div class="oc-body">'+
+
+          // Route to — prominent, styled
+          '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding:10px 14px;background:var(--gray-50);border-radius:8px;border:1px solid var(--gray-200);">'+
+            '<span style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--gray-500);">Route to</span>'+
+            '<span style="font-size:var(--fs-base);font-weight:700;color:var(--gray-900);">'+esc(routedTo)+'</span>'+
+          '</div>'+
+
           (_in?
-            '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:7px;">Internal Note &mdash; paste into Bask chat</div>'+
+            // Label + workflow instruction together
+            '<div style="margin-bottom:8px;">'+
+              '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:3px;">Internal Note &mdash; paste into Bask chat</div>'+
+              '<div style="font-size:var(--fs-xs);color:var(--gray-600);line-height:1.5;">Copy this note &rarr; open Bask chat &rarr; submit as internal note &rarr; assign to <strong>'+esc(routedTo)+'</strong></div>'+
+            '</div>'+
             '<div style="background:var(--amber-l);border:1.5px solid var(--amber-m);border-radius:8px;padding:13px 16px;font-size:var(--fs-base);color:var(--gray-800);line-height:1.75;position:relative;">'+
               esc(_in)+
               '<button class="copy-inline-btn" data-copy-target="internal" style="position:absolute;top:8px;right:8px;background:var(--white);border:1.5px solid var(--amber-m);border-radius:6px;padding:4px 10px;cursor:pointer;font-size:11px;color:var(--amber);font-weight:600;">Copy</button>'+
-            '</div>'+
-            '<div style="font-size:var(--fs-xs);color:var(--gray-500);margin-top:7px;">Copy this note, open Bask chat, submit as internal note, then assign to '+esc(routedTo)+'.</div>'
+            '</div>'
           :
-            '<div style="font-size:var(--fs-sm);color:var(--gray-600);">No internal note was generated. Run triage again if this was unexpected.</div>'
+            '<div style="font-size:var(--fs-sm);color:var(--gray-600);">No internal note generated. Run triage again if unexpected.</div>'
           )+
+
         '</div>'+
       '</div>';
   }
@@ -1456,7 +1481,7 @@ function renderResults(d){
         // I Edited Before Sending — always open
         '<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--gray-100);">'+
           '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:6px;">I Edited Before Sending</div>'+
-          '<p style="font-size:var(--fs-xs);color:var(--gray-600);margin-bottom:8px;line-height:1.5;">Only fill in if you changed the draft. Paste exactly what you sent &mdash; the AI saves a learning note comparing it to the original.</p>'+
+          '<p style="font-size:var(--fs-sm);color:var(--gray-600);margin-bottom:8px;line-height:1.5;">Only fill in if you changed the draft. Paste exactly what you sent &mdash; the AI saves a learning note.</p>'+
           '<textarea id="correctionInput" style="min-height:90px;font-size:var(--fs-sm);" placeholder="Paste the message you sent to the patient..."></textarea>'+
           '<div class="correction-submit-row" style="margin-top:8px;">'+
             '<button class="correction-submit-btn" id="correctionSubmitBtn" onclick="submitCorrection()">'+
@@ -1467,27 +1492,6 @@ function renderResults(d){
           '</div>'+
         '</div>'+
 
-      '</div>'+
-    '</div>';
-
-  // ── Message Category correction ───────────────────────────────────────────
-  html+=
-    '<div class="out-card">'+
-      '<div class="oc-header"><span class="oc-label">Message Category</span></div>'+
-      '<div class="oc-body">'+
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:12px;">'+
-          '<div>'+
-            '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:6px;">Clinical</div>'+
-            buildCatListbox('clinCatList', CLINICAL_CATS, aiClinCat)+
-          '</div>'+
-          '<div>'+
-            '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:6px;">Non-Clinical</div>'+
-            buildCatListbox('nonClinCatList', NON_CLINICAL_CATS.filter(function(c){return c!=='-- None --';}), aiNonClin)+
-          '</div>'+
-        '</div>'+
-        '<div style="padding-top:10px;border-top:1px solid var(--gray-100);">'+
-          '<button class="action-btn" id="categorySaveBtn" onclick="saveCategory()" style="width:auto;padding:8px 20px;">Save Categories</button>'+
-        '</div>'+
       '</div>'+
     '</div>';
 
@@ -1507,20 +1511,9 @@ function renderResults(d){
     });
   });
 
-  // Wire vote buttons (thumbs only — no sub-reasons)
+  // Wire vote buttons
   el.querySelectorAll('[data-vote]').forEach(function(btn){
     btn.addEventListener('click',function(){ castVote(btn.getAttribute('data-vote'), btn); });
-  });
-
-  // Wire listbox click-to-toggle
-  el.querySelectorAll('[data-listbox]').forEach(function(sel){
-    sel.addEventListener('mousedown',function(e){
-      e.preventDefault();
-      var opt=e.target;
-      if(opt.tagName!=='OPTION') return;
-      opt.selected=!opt.selected;
-      sel.focus();
-    });
   });
 }
 
