@@ -141,8 +141,8 @@ textarea::placeholder{color:var(--gray-400);}
 .copy-btn
 
 /* FEEDBACK */
-.feedback-row{display:flex;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--gray-100);}
-.vote-btn{display:flex;align-items:center;gap:5px;padding:8px 14px;background:var(--white);border:1.5px solid var(--gray-200);border-radius:8px;color:var(--gray-600);font-family:var(--sans);font-size:var(--fs-sm);font-weight:500;cursor:pointer;transition:all .15s;}
+.feedback-row{display:flex;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--gray-100);flex-wrap:nowrap;align-items:center;}
+.vote-btn{display:flex;align-items:center;gap:5px;padding:8px 16px;background:var(--white);border:1.5px solid var(--gray-200);border-radius:8px;color:var(--gray-600);font-family:var(--sans);font-size:var(--fs-sm);font-weight:500;cursor:pointer;transition:all .15s;white-space:nowrap;}
 .vote-btn.up:hover,.vote-btn.up.active{border-color:var(--green-m);color:var(--green);background:var(--green-l);}
 .vote-btn.down:hover,.vote-btn.down.active{border-color:var(--red-m);color:var(--red);background:var(--red-l);}
 
@@ -252,6 +252,13 @@ textarea::placeholder{color:var(--gray-400);}
 
 
 
+.cat-tag{display:inline-flex;align-items:center;padding:4px 11px;border-radius:20px;border:1.5px solid var(--gray-200);background:var(--white);font-family:var(--sans);font-size:var(--fs-xs);font-weight:500;color:var(--gray-600);cursor:pointer;transition:all .15s;user-select:none;white-space:nowrap;}
+.cat-tag:hover{border-color:var(--blue-m);color:var(--blue);}
+.cat-tag.sel-clin{border-color:var(--blue);background:var(--blue);color:white;font-weight:600;}
+.cat-tag.sel-nc{border-color:var(--amber-m);background:var(--amber-l);color:var(--amber);font-weight:600;}
+.cat-save-btn{padding:5px 14px;background:var(--blue);border:none;border-radius:7px;color:white;font-family:var(--sans);font-size:var(--fs-xs);font-weight:600;cursor:pointer;white-space:nowrap;transition:background .15s;}
+.cat-save-btn:hover{background:#1d4ed8;}
+.cat-save-btn.saved{background:var(--green);}
 .save-toast{position:fixed;bottom:24px;right:24px;background:var(--green);color:white;padding:13px 22px;border-radius:10px;font-size:var(--fs-sm);font-weight:600;opacity:0;transition:opacity .2s;pointer-events:none;box-shadow:0 4px 12px rgba(0,0,0,.15);z-index:999;}
 .save-toast.show{opacity:1;}
 @media(max-width:900px){.triage-layout{grid-template-columns:1fr;}.entry-add-row{flex-direction:column;}}
@@ -1297,57 +1304,57 @@ function buildSeverityBadge(routingLevel){
 function renderResults(d){
   var html='';
   var draftText=(d.draft_response||'').trim();
-  var draftIsEmpty = !draftText;
-  var severityBadge = buildSeverityBadge(d.clinical_routing_level);
-  var aiClinCat = (d.clinical_category||'').trim();
-  var aiNonClin = (d.non_clinical_items&&d.non_clinical_items.length) ? d.non_clinical_items.join(', ') : '';
-  var _in = d.internal_note || '';
-  var routedTo = d.routed_to || 'Support Team';
-  var urgLabel = d.urgency==='urgent'?'URGENT':d.urgency==='same-day'?'Same Day':'Routine';
-  var urgColor = d.urgency==='urgent'?'var(--red)':d.urgency==='same-day'?'var(--amber)':'var(--green)';
-  var hasSideEffect = d.clinical_routing_flag && (d.clinical_routing_level||'none')!=='none';
-  var hasNonClin = d.non_clinical_flag && d.non_clinical_items && d.non_clinical_items.length;
+  var draftIsEmpty=!draftText;
+  var severityBadge=buildSeverityBadge(d.clinical_routing_level);
+  var aiClinCat=(d.clinical_category||'').trim();
+  var aiNonClin=(d.non_clinical_items&&d.non_clinical_items.length)?d.non_clinical_items.join(', '):'';
+  var _in=d.internal_note||'';
+  var routedTo=d.routed_to||'Support Team';
+  var urgLabel=d.urgency==='urgent'?'URGENT':d.urgency==='same-day'?'Same Day':'Routine';
+  var urgColor=d.urgency==='urgent'?'var(--red)':d.urgency==='same-day'?'var(--amber)':'var(--green)';
+  var hasNonClin=d.non_clinical_flag&&d.non_clinical_items&&d.non_clinical_items.length;
+  var msgTypeLabel=hasNonClin&&aiClinCat&&aiClinCat!=='General/multiple'?'Clinical + Non-Clinical':hasNonClin?'Non-Clinical':aiClinCat||'General';
 
   // ── Message Type card ─────────────────────────────────────────────────────
-  // "Message Type" label reflects the nature of the triage, not a single symptom
-  var msgTypeLabel = hasNonClin && aiClinCat && aiClinCat!=='General/multiple'
-    ? 'Clinical + Non-Clinical'
-    : hasNonClin
-      ? 'Non-Clinical'
-      : aiClinCat || 'General';
+  // Build clinical category tags
+  var clinTagsHtml = CLINICAL_CATS.map(function(c){
+    var sel = c===aiClinCat;
+    var cls = 'cat-tag' + (sel ? ' sel-clin' : '');
+    return '<button class="'+cls+'" data-type="clin" data-val="'+esc(c)+'">'+esc(c)+'</button>';
+  }).join('');
+  var ncCats = ['Billing/Payment','Shipment/Tracking','Account/Subscription','Refund request','Prescription transfer','General inquiry'];
+  var ncTagsHtml = ncCats.map(function(c){
+    var sel = aiNonClin.includes(c);
+    var cls = 'cat-tag' + (sel ? ' sel-nc' : '');
+    return '<button class="'+cls+'" data-type="nc" data-val="'+esc(c)+'">'+esc(c)+'</button>';
+  }).join('');
 
   html+=
     '<div class="out-card">'+
-      '<div class="oc-body" style="padding:14px 18px;display:flex;flex-direction:column;gap:10px;">'+
+      '<div class="oc-body" style="padding:14px 18px;display:flex;flex-direction:column;gap:0;">'+
 
-        // Row 1: message type + urgency + severity
-        '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">'+
-          '<span style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);">Message Type:</span>'+
-          '<span style="font-size:var(--fs-sm);font-weight:600;color:var(--gray-800);">'+esc(msgTypeLabel)+'</span>'+
-          '<span style="color:var(--gray-300);">|</span>'+
+        // Row 1 — urgency first, then message type, no severity here
+        '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding-bottom:10px;">'+
           '<span style="font-size:var(--fs-sm);font-weight:700;color:'+urgColor+';">'+urgLabel+'</span>'+
-          (severityBadge?'<span style="color:var(--gray-300);">|</span>'+severityBadge:'')+
+          '<span style="color:var(--gray-300);">|</span>'+
+          '<span style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-700);">Message Type:</span>'+
+          '<span style="font-size:var(--fs-sm);font-weight:600;color:var(--gray-800);">'+esc(msgTypeLabel)+'</span>'+
         '</div>'+
 
-        // Row 2: category breakdown — compact inline tags
-        '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-top:8px;border-top:1px solid var(--gray-100);">'+
-          (aiClinCat?
-            '<div style="display:flex;align-items:center;gap:6px;">'+
-              '<span style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);">Clinical:</span>'+
-              '<span style="font-size:var(--fs-sm);color:var(--gray-700);font-weight:500;">'+esc(aiClinCat)+'</span>'+
-            '</div>'
+        // Row 2 — category tag selectors
+        '<div style="border-top:1px solid var(--gray-100);padding-top:10px;padding-bottom:10px;">'+
+          '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-700);margin-bottom:7px;">Clinical Category</div>'+
+          '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">'+clinTagsHtml+'</div>'+
+          (hasNonClin?
+            '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-700);margin-bottom:7px;">Non-Clinical Category</div>'+
+            '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">'+ncTagsHtml+'</div>'
           :'')+
-          (aiNonClin?
-            '<div style="display:flex;align-items:center;gap:6px;">'+
-              '<span style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);">Non-Clinical:</span>'+
-              '<span style="font-size:var(--fs-sm);color:var(--gray-700);font-weight:500;">'+esc(aiNonClin)+'</span>'+
-            '</div>'
-          :'')+
+          '<button class="cat-save-btn" id="catSaveBtn" onclick="saveCategoryTags()">Save</button>'+
         '</div>'+
 
-        // Row 3: timeframe correction — compact inline
-        '<div style="display:flex;align-items:center;gap:8px;padding-top:8px;border-top:1px solid var(--gray-100);">'+
-          '<span style="font-size:var(--fs-xs);color:var(--gray-600);font-weight:600;">Timeframe:</span>'+
+        // Row 3 — timeframe compact
+        '<div style="border-top:1px solid var(--gray-100);padding-top:10px;display:flex;align-items:center;gap:8px;">'+
+          '<span style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-700);">Timeframe:</span>'+
           buildTimeframeSelect(d.urgency)+
           '<button class="action-btn" id="timeframeSaveBtn" onclick="saveTimeframe()" style="width:auto;padding:5px 14px;font-size:var(--fs-xs);flex-shrink:0;">Save</button>'+
         '</div>'+
@@ -1355,29 +1362,23 @@ function renderResults(d){
       '</div>'+
     '</div>';
 
-  // ── Routing card — dual task: clinical first, then routing ────────────────
+  // ── Routing card ──────────────────────────────────────────────────────────
   if(hasNonClin){
-    var isDual = aiClinCat && aiClinCat !== 'General/multiple';
-    var cardLabel = isDual ? '&#128257; Dual Task' : '&#128203; Non-Clinical Task';
+    var isDual=aiClinCat&&aiClinCat!=='General/multiple';
+    var cardLabel=isDual?'&#128257; Dual Task':'&#128203; Non-Clinical Task';
     html+=
       '<div class="out-card" style="border-color:var(--amber-m);">'+
         '<div class="oc-header"><span class="oc-label" style="color:var(--amber);">'+cardLabel+'</span></div>'+
         '<div class="oc-body">'+
-
-          // Clinical priority notice for dual tasks
           (isDual?
             '<div style="background:var(--teal-l,#f0fdfa);border:1px solid var(--teal-m,#99f6e4);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:var(--fs-sm);color:var(--gray-800);line-height:1.6;">'+
-              '<strong>Clinical first:</strong> Address the clinical response below before routing the non-clinical task.'+
+              '<strong>Clinical first:</strong> Respond to the patient clinically using the response below before routing this non-clinical task.'+
             '</div>'
           :'')+
-
-          // Route to — prominent
           '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding:10px 14px;background:var(--gray-50);border-radius:8px;border:1px solid var(--gray-200);">'+
-            '<span style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--gray-500);">Route to</span>'+
+            '<span style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--gray-700);">Route to</span>'+
             '<span style="font-size:var(--fs-base);font-weight:700;color:var(--gray-900);">'+esc(routedTo)+'</span>'+
           '</div>'+
-
-          // Internal note
           (_in?
             '<div style="margin-bottom:8px;">'+
               '<div style="font-size:var(--fs-sm);font-weight:600;color:var(--gray-700);margin-bottom:3px;">Internal Note &mdash; paste into Bask chat</div>'+
@@ -1390,18 +1391,19 @@ function renderResults(d){
           :
             '<div style="font-size:var(--fs-sm);color:var(--gray-600);">No internal note generated. Run triage again if unexpected.</div>'
           )+
-
         '</div>'+
       '</div>';
   }
 
-  // ── Generated Response ────────────────────────────────────────────────────
+  // ── Generated Response — severity badge in header ─────────────────────────
+  var responseHeaderRight = severityBadge || '';
   html+=
     '<div class="out-card" style="border-color:'+(draftIsEmpty?'var(--red-m)':'var(--teal-m)')+'">'+
       '<div class="oc-header">'+
         '<span class="oc-label" style="color:'+(draftIsEmpty?'var(--red)':'var(--teal)')+'">'+
           (draftIsEmpty?'&#9888; Response Not Generated':'Generated Response for Patient')+
         '</span>'+
+        (responseHeaderRight?'<div>'+responseHeaderRight+'</div>':'')+
       '</div>'+
       '<div class="oc-body">'+
         (draftIsEmpty?
@@ -1414,17 +1416,13 @@ function renderResults(d){
             '<button class="copy-inline-btn" data-copy-target="draft" style="position:absolute;top:8px;right:8px;background:var(--white);border:1.5px solid var(--gray-200);border-radius:6px;padding:4px 9px;cursor:pointer;font-size:12px;color:var(--gray-500);">Copy</button>'+
           '</div>'
         )+
-
-        // Thumbs
         '<div class="feedback-row">'+
           '<button class="vote-btn up" id="upvoteBtn" data-vote="up">&#128077; Good response</button>'+
           '<button class="vote-btn down" id="downvoteBtn" data-vote="down">&#128078; Needs work</button>'+
         '</div>'+
-
-        // What was sent
         '<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--gray-100);">'+
-          '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:6px;">What was sent to the patient</div>'+
-          '<p style="font-size:var(--fs-sm);color:var(--gray-700);margin-bottom:8px;line-height:1.5;">Paste your actual response here if you changed the draft. The AI learns by comparing what you sent to what it generated.</p>'+
+          '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-600);margin-bottom:6px;">What was sent to the patient</div>'+
+          '<p style="font-size:var(--fs-sm);color:var(--gray-700);margin-bottom:8px;line-height:1.5;">Paste your actual response if you changed the draft. The AI learns by comparing what you sent to what it generated.</p>'+
           '<textarea id="correctionInput" style="min-height:90px;font-size:var(--fs-sm);" placeholder="Paste the message you sent to the patient..."></textarea>'+
           '<div class="correction-submit-row" style="margin-top:8px;">'+
             '<button class="correction-submit-btn" id="correctionSubmitBtn" onclick="submitCorrection()">'+
@@ -1434,29 +1432,31 @@ function renderResults(d){
             '<div class="learn-status" id="correctionStatus"></div>'+
           '</div>'+
         '</div>'+
-
       '</div>'+
     '</div>';
 
-  var el = document.getElementById('results');
-  el.innerHTML = html;
+  var el=document.getElementById('results');
+  el.innerHTML=html;
 
-  // Wire copy buttons
   el.querySelectorAll('.copy-inline-btn').forEach(function(btn){
     btn.addEventListener('click',function(){
-      var target = btn.getAttribute('data-copy-target');
-      var text = target==='internal'?_in:draftText;
-      if(!text) return;
+      var target=btn.getAttribute('data-copy-target');
+      var text=target==='internal'?_in:draftText;
+      if(!text)return;
       navigator.clipboard.writeText(text).then(function(){
-        var orig=btn.textContent; btn.textContent='Copied!'; btn.style.color='var(--green)';
-        setTimeout(function(){btn.textContent=orig; btn.style.color='';},2000);
+        var orig=btn.textContent;btn.textContent='Copied!';btn.style.color='var(--green)';
+        setTimeout(function(){btn.textContent=orig;btn.style.color='';},2000);
       });
     });
   });
 
-  // Wire vote buttons
   el.querySelectorAll('[data-vote]').forEach(function(btn){
-    btn.addEventListener('click',function(){ castVote(btn.getAttribute('data-vote'), btn); });
+    btn.addEventListener('click',function(){ castVote(btn.getAttribute('data-vote'),btn); });
+  });
+
+  // Wire cat-tag toggles
+  el.querySelectorAll('.cat-tag').forEach(function(btn){
+    btn.addEventListener('click',function(){ toggleCatTag(btn); });
   });
 }
 
@@ -1587,6 +1587,31 @@ async function deleteCorrection(id,cardEl,btn){
     showToast('Error deleting correction');
   }
 }
+
+function toggleCatTag(btn){
+  var type=btn.getAttribute('data-type');
+  var selClass=type==='clin'?'sel-clin':'sel-nc';
+  // For clinical: single select (radio style)
+  if(type==='clin'){
+    btn.closest('.out-card').querySelectorAll('.cat-tag[data-type="clin"]').forEach(function(t){ t.classList.remove('sel-clin'); });
+  }
+  btn.classList.toggle(selClass);
+}
+
+
+async function saveCategoryTags(){
+  var btn=document.getElementById('catSaveBtn');
+  if(!btn||!currentHistoryId)return;
+  btn.textContent='Saving...';btn.disabled=true;
+  var clinTags=[],ncTags=[];
+  document.querySelectorAll('.cat-tag.sel-clin').forEach(function(t){clinTags.push(t.getAttribute('data-val'));});
+  document.querySelectorAll('.cat-tag.sel-nc').forEach(function(t){ncTags.push(t.getAttribute('data-val'));});
+  var combined=(clinTags.join(', ')||'')+(ncTags.length?' | Non-clinical: '+ncTags.join(', '):'');
+  await api('/history','POST',{action:'update_category',id:currentHistoryId,category:combined});
+  btn.textContent='Saved';btn.className='cat-save-btn saved';
+  setTimeout(function(){btn.textContent='Save';btn.className='cat-save-btn';btn.disabled=false;},2000);
+}
+
 
 async function castVote(type, btn){
   if(!currentHistoryId){ showToast('Run a triage first'); return; }
