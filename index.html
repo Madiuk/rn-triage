@@ -371,8 +371,8 @@ let currentUser = null;      // Supabase user object
 let currentProfile = null;   // Profile + company data
 let currentHistoryId = null;
 let triageStartTime = null;
-const SUPABASE_URL = ''; // Set via window.__RELAI_SUPABASE_URL__ at load
-const SUPABASE_ANON_KEY = ''; // Set via window.__RELAI_SUPABASE_ANON_KEY__ at load
+const SUPABASE_URL = 'https://aturbsnqpdtvhrnujrqb.supabase.co'; // Set via window.__RELAI_SUPABASE_URL__ at load
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF0dXJic25xcGR0dmhybnVqcnFiIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3Nzg0NzkxOCwiZXhwIjoyMDkzNDIzOTE4fQ.y4t_hZs3RgmJJ9UIsH0MGt5pUkilt6kWc1wvrO0fIak'; // Set via window.__RELAI_SUPABASE_ANON_KEY__ at load
 
 function getSession(){
   try{ return JSON.parse(localStorage.getItem('relai_session')||'null'); }catch(e){ return null; }
