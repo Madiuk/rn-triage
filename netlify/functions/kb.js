@@ -35,10 +35,12 @@ exports.handler = async function (event) {
     if (path.includes("/history")) {
       const base = SUPABASE_URL + "/rest/v1/query_history";
       if (method === "GET") {
-        const r = await fetch(
-          base + "?or=(actual_response_sent.not.is.null,correction_note.not.is.null)&order=created_at.desc&limit=100",
-          { headers: h }
-        );
+        // /history/all returns everything; /history returns corrections only
+        const isAll = path.includes("/history/all");
+        const query = isAll
+          ? "?order=created_at.desc&limit=200"
+          : "?or=(actual_response_sent.not.is.null,correction_note.not.is.null)&order=created_at.desc&limit=100";
+        const r = await fetch(base + query, { headers: h });
         return { statusCode: 200, headers: { "Content-Type": "application/json" }, body: await r.text() };
       }
       if (method === "POST") {
@@ -61,7 +63,16 @@ exports.handler = async function (event) {
           return { statusCode: 200, headers: { "Content-Type": "application/json" }, body: await r.text() };
         }
         if (body.action === "save_actual") {
-          const r = await fetch(base + "?id=eq." + body.id, { method: "PATCH", headers: h, body: JSON.stringify({ actual_response_sent: body.actual_response, correction_note: body.correction_note || "" }) });
+          const patch = { actual_response_sent: body.actual_response, correction_note: body.correction_note || "" };
+          if (body.session_duration_seconds != null) patch.session_duration_seconds = body.session_duration_seconds;
+          const r = await fetch(base + "?id=eq." + body.id, { method: "PATCH", headers: h, body: JSON.stringify(patch) });
+          return { statusCode: 200, headers: { "Content-Type": "application/json" }, body: await r.text() };
+        }
+        if (body.action === "update_escalation") {
+          const r = await fetch(base + "?id=eq." + body.id, {
+            method: "PATCH", headers: h,
+            body: JSON.stringify({ escalation_validated: true, escalation_correct: body.correct })
+          });
           return { statusCode: 200, headers: { "Content-Type": "application/json" }, body: await r.text() };
         }
         if (body.action === "delete_correction") {
