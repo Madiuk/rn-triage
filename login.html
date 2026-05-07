@@ -125,7 +125,7 @@ input.error{border-color:var(--red);}
 // These are public values — safe to include in client-side code
 // Replace with your actual values from Supabase → Settings → API Keys
 const SUPABASE_URL = 'https://aturbsnqpdtvhrnujrqb.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF0dXJic25xcGR0dmhybnVqcnFiIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3Nzg0NzkxOCwiZXhwIjoyMDkzNDIzOTE4fQ.y4t_hZs3RgmJJ9UIsH0MGt5pUkilt6kWc1wvrO0fIak';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF0dXJic25xcGR0dmhybnVqcnFiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc4NDc5MTgsImV4cCI6MjA5MzQyMzkxOH0.l7LdmI8PfFiIXa1nIwwauiWh6KnzpwhlpK5uieATsic';
 
 // Check for invite token or existing session on load
 document.addEventListener('DOMContentLoaded', function() {
@@ -241,11 +241,13 @@ async function handleSubmit() {
       );
       document.getElementById('submitBtn').disabled = true;
     } else {
-      var err = await r.json();
-      showMessage('Something went wrong: ' + (err.message || 'Please try again.'), 'error');
+      var errText = await r.text();
+      var errMsg = '';
+      try{ var errJson=JSON.parse(errText); errMsg=errJson.message||errJson.error_description||errJson.error||errText; }catch(e){ errMsg=errText; }
+      showMessage('Error ' + r.status + ': ' + (errMsg||'No message returned. Check Supabase URL and anon key.'), 'error');
     }
   } catch(e) {
-    showMessage('Connection error. Please check your internet and try again.', 'error');
+    showMessage('Connection error: ' + e.message + '. Check that SUPABASE_URL is correct.', 'error');
   }
 
   setLoading(false);
