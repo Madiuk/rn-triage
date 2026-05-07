@@ -141,7 +141,7 @@ textarea::placeholder{color:var(--gray-400);}
 .copy-btn
 
 /* FEEDBACK */
-.feedback-row{display:flex;flex-direction:row;flex-wrap:nowrap;gap:8px;margin-top:16px;align-items:center;}
+.feedback-row{display:flex;flex-direction:row;flex-wrap:nowrap;gap:8px;align-items:center;}
 .vote-btn{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;background:var(--gray-50);border:1.5px solid var(--gray-200);border-radius:7px;color:var(--gray-600);font-family:var(--sans);font-size:var(--fs-sm);font-weight:500;cursor:pointer;transition:all .15s;white-space:nowrap;}
 .vote-btn.up:hover,.vote-btn.up.active{border-color:var(--green-m);color:var(--green);background:var(--green-l);}
 .vote-btn.down:hover,.vote-btn.down.active{border-color:var(--red-m);color:var(--red);background:var(--red-l);}
@@ -1415,12 +1415,12 @@ function renderResults(d){
         (draftIsEmpty?
           '<div style="background:var(--red-l);border:1.5px solid var(--red-m);border-radius:8px;padding:14px 16px;font-size:var(--fs-sm);color:var(--red);line-height:1.7;"><strong>The AI did not generate a response.</strong> Click <strong>Run Triage again</strong>.</div>'
         :
-          '<div style="position:relative;">'+
+          '<div style="position:relative;margin-bottom:20px;">'+
             '<div class="response-text" id="aiDraftText">'+esc(draftText).split('\n').join('<br>')+'</div>'+
             '<button class="copy-inline-btn" data-copy-target="draft" style="position:absolute;top:8px;right:8px;background:var(--white);border:1.5px solid var(--gray-200);border-radius:6px;padding:4px 9px;cursor:pointer;font-size:12px;color:var(--gray-500);">Copy</button>'+
           '</div>'
         )+
-        '<div style="height:1px;background:var(--gray-200);margin:16px 0 0;"></div><div class="feedback-row"><button class="vote-btn up" id="upvoteBtn">&#128077; Good response</button><button class="vote-btn down" id="downvoteBtn">&#128078; Needs work</button></div>'+
+        '<div style="height:1px;background:var(--gray-200);margin:20px 0 12px;"></div><div class="feedback-row"><button class="vote-btn up" id="upvoteBtn">&#128077; Good response</button><button class="vote-btn down" id="downvoteBtn">&#128078; Needs work</button></div>'+
         '<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--gray-100);">'+
           '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-600);margin-bottom:6px;">What was sent to the patient</div>'+
           '<p style="font-size:var(--fs-sm);color:var(--gray-700);margin-bottom:8px;line-height:1.5;">Paste your actual response if you changed the draft. The AI learns by comparing what you sent to what it generated.</p>'+
