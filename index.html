@@ -679,7 +679,8 @@ JSON schema (every field required):
 {"non_clinical_flag":bool,"non_clinical_items":["..."],"routing_language":"string","internal_note":"string","clinical_routing_flag":bool,"clinical_routing_level":"severe|moderate|mild|none","clinical_routing_note":"string","clinical_category":"GI side effects|Weight plateau|No early weight loss|Food noise/cravings|Hair loss|Fatigue|Heartburn/reflux|Diarrhea|Injection/administration|Dosing question|Skin/site reaction|Medication storage|Urgent-escalate|General/multiple","urgency":"routine|same-day|urgent","follow_up_questions":["..."],"draft_response":"string"}
 
 FIELD RULES:
-non_clinical_flag: true if message contains billing/shipping/payment/account content.
+non_clinical_flag: true if the message contains ANY non-clinical content — billing, payment, charges, refunds, shipping, tracking, delivery, package not received, account access, subscription, cancellation, prescription transfer, pharmacy logistics, or any administrative/operational request that is not about clinical symptoms, medication effects, or health guidance. When in doubt, set true and populate non_clinical_items.
+non_clinical_items: list each distinct non-clinical topic found (e.g. ["Shipping/tracking", "Billing question"]). Empty array if non_clinical_flag false.
 routing_language: 1-2 sentence message to send the patient acknowledging their non-clinical item is being routed to another team. Empty if non_clinical_flag false.
 internal_note: Brief handoff note left inside the Bask chat thread for the newly assigned staff member. 2-3 sentences. Write as if leaving a note for a colleague: summarize what the patient needs, what has already been handled clinically, and what the staff member should look into. Do NOT write routing instructions. Example: "Patient is inquiring about a billing charge from last month. Their clinical question about nausea has been addressed separately by the RN. Please check the account and follow up on the charge." Empty if non_clinical_flag false.
 clinical_routing_flag: true if any side effect detected.
@@ -687,7 +688,6 @@ clinical_routing_level: severity per SIDE EFFECT SEVERITY CLASSIFICATION in know
 clinical_routing_note: routing note per CLINICAL ROUTING RULES in knowledge base. Empty if clinical_routing_level is "none".
 clinical_category: closest match from category list.
 urgency: per URGENCY RULES in knowledge base.
-clinical_facts: medication, dose in mg+units, therapy week, symptoms, duration, history, treatments tried. 3-6 items.
 follow_up_questions: questions for missing info. Include dose question if dose not stated.
 draft_response: ALWAYS populate. Warm RN voice, patient details, prose with line breaks, 140 words max, clinical only. If follow_up_questions present: warm opening then weave questions into flowing prose. Otherwise: complete actionable advice.
 
