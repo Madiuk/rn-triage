@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Relai — Sign In</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --blue:#2563eb;--blue-l:#eff6ff;--blue-m:#bfdbfe;
+  --gray-100:#f1f3f5;--gray-200:#e9ecef;--gray-400:#ced4da;
+  --gray-500:#adb5bd;--gray-600:#6c757d;--gray-700:#495057;
+  --gray-800:#343a40;--gray-900:#212529;
+  --green:#16a34a;--red:#dc2626;--white:#fff;
+  --sans:'DM Sans',sans-serif;
+}
+body{
+  font-family:var(--sans);background:var(--gray-100);
+  min-height:100vh;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;padding:24px;
+}
+.card{
+  background:var(--white);border-radius:20px;
+  box-shadow:0 8px 40px rgba(0,0,0,.1);
+  padding:48px 44px;width:100%;max-width:420px;
+}
+.brand{display:flex;align-items:center;gap:12px;margin-bottom:36px;}
+.brand-icon{
+  width:44px;height:44px;border-radius:11px;
+  background:var(--blue);display:flex;align-items:center;justify-content:center;
+  font-size:22px;color:white;font-weight:700;letter-spacing:-1px;
+}
+.brand-name{font-size:26px;font-weight:700;color:var(--gray-900);letter-spacing:-.5px;}
+.brand-tagline{font-size:13px;color:var(--gray-500);margin-top:1px;}
+h1{font-size:20px;font-weight:700;color:var(--gray-900);margin-bottom:6px;}
+.subtitle{font-size:14px;color:var(--gray-500);margin-bottom:28px;line-height:1.5;}
+label{display:block;font-size:13px;font-weight:600;color:var(--gray-700);margin-bottom:6px;}
+input[type=email],input[type=text]{
+  width:100%;padding:12px 14px;border:1.5px solid var(--gray-200);
+  border-radius:10px;font-family:var(--sans);font-size:15px;
+  color:var(--gray-900);outline:none;transition:border-color .15s;
+  background:var(--white);
+}
+input:focus{border-color:var(--blue);}
+input.error{border-color:var(--red);}
+.btn{
+  width:100%;margin-top:16px;padding:13px;
+  background:var(--blue);border:none;border-radius:10px;
+  color:white;font-family:var(--sans);font-size:16px;
+  font-weight:600;cursor:pointer;transition:all .15s;
+}
+.btn:hover{background:#1d4ed8;}
+.btn:disabled{background:var(--gray-400);cursor:not-allowed;}
+.message{
+  margin-top:20px;padding:14px 16px;border-radius:10px;
+  font-size:14px;line-height:1.6;display:none;
+}
+.message.success{background:#f0fdf4;border:1.5px solid #bbf7d0;color:var(--green);}
+.message.error{background:#fef2f2;border:1.5px solid #fecaca;color:var(--red);}
+.message.show{display:block;}
+.divider{height:1px;background:var(--gray-200);margin:28px 0;}
+.footer{font-size:12px;color:var(--gray-500);text-align:center;margin-top:28px;line-height:1.6;}
+.spinner{
+  width:18px;height:18px;border:2.5px solid rgba(255,255,255,.4);
+  border-top-color:white;border-radius:50%;
+  animation:spin .7s linear infinite;display:none;
+  margin:0 auto;
+}
+.spinner.active{display:block;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.field{margin-bottom:16px;}
+.invite-notice{
+  background:var(--blue-l);border:1.5px solid var(--blue-m);
+  border-radius:10px;padding:12px 14px;font-size:13px;
+  color:var(--blue);margin-bottom:20px;line-height:1.5;display:none;
+}
+.invite-notice.show{display:block;}
+</style>
+</head>
+<body>
+
+<div class="card">
+  <div class="brand">
+    <div class="brand-icon">R</div>
+    <div>
+      <div class="brand-name">Relai</div>
+      <div class="brand-tagline">Intelligent task routing</div>
+    </div>
+  </div>
+
+  <div class="invite-notice" id="inviteNotice">
+    You've been invited to join a workspace. Enter your email below to get started.
+  </div>
+
+  <h1 id="formTitle">Sign in to your workspace</h1>
+  <p class="subtitle" id="formSubtitle">Enter your email and we'll send you a secure sign-in link. No password needed.</p>
+
+  <div class="field">
+    <label for="emailInput">Work email</label>
+    <input type="email" id="emailInput" placeholder="you@company.com" autocomplete="email">
+  </div>
+
+  <div class="field" id="nameField" style="display:none;">
+    <label for="nameInput">Full name</label>
+    <input type="text" id="nameInput" placeholder="Your full name">
+  </div>
+
+  <button class="btn" id="submitBtn" onclick="handleSubmit()">
+    <span id="btnText">Send sign-in link</span>
+    <div class="spinner" id="spinner"></div>
+  </button>
+
+  <div class="message" id="message"></div>
+
+  <div class="footer">
+    By signing in, you agree to Relai's terms of service.<br>
+    Having trouble? Contact your workspace administrator.
+  </div>
+</div>
+
+<script>
+// Supabase config — these are injected at deploy time via environment
+// For client-side auth we use the anon key (safe for public)
+const SUPABASE_URL = window.__RELAI_SUPABASE_URL__ || '';
+const SUPABASE_ANON_KEY = window.__RELAI_SUPABASE_ANON_KEY__ || '';
+
+// Check for invite token or existing session on load
+document.addEventListener('DOMContentLoaded', function() {
+  // Check if already signed in
+  var session = getSession();
+  if (session && session.access_token) {
+    // Validate and redirect
+    validateAndRedirect(session.access_token);
+    return;
+  }
+
+  // Check URL params for invite or magic link callback
+  var params = new URLSearchParams(window.location.search);
+  var hash = new URLSearchParams(window.location.hash.replace('#', '?'));
+  var inviteEmail = params.get('invite');
+  var accessToken = hash.get('access_token');
+  var type = hash.get('type');
+
+  if (accessToken && type === 'magiclink') {
+    // Magic link clicked — exchange for session
+    handleMagicLinkCallback(accessToken, hash.get('refresh_token'));
+    return;
+  }
+
+  if (inviteEmail) {
+    document.getElementById('emailInput').value = decodeURIComponent(inviteEmail);
+    document.getElementById('inviteNotice').classList.add('show');
+    document.getElementById('nameField').style.display = 'block';
+    document.getElementById('formTitle').textContent = 'Set up your account';
+    document.getElementById('formSubtitle').textContent = "You're almost in. Enter your name and we'll send a sign-in link.";
+    document.getElementById('btnText').textContent = 'Create account & send link';
+  }
+});
+
+function getSession() {
+  try { return JSON.parse(localStorage.getItem('relai_session') || 'null'); } catch(e) { return null; }
+}
+
+async function validateAndRedirect(token) {
+  try {
+    var r = await fetch(SUPABASE_URL + '/auth/v1/user', {
+      headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + token }
+    });
+    var user = await r.json();
+    if (user.id) {
+      window.location.href = '/';
+    }
+  } catch(e) {
+    localStorage.removeItem('relai_session');
+  }
+}
+
+async function handleMagicLinkCallback(accessToken, refreshToken) {
+  showMessage('Signing you in...', 'success');
+  // Store session
+  localStorage.setItem('relai_session', JSON.stringify({
+    access_token: accessToken,
+    refresh_token: refreshToken,
+    timestamp: Date.now()
+  }));
+  // Update last_seen
+  try {
+    await fetch('/.netlify/functions/auth/signout', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + accessToken }
+    });
+  } catch(e) {}
+  setTimeout(function() { window.location.href = '/'; }, 800);
+}
+
+async function handleSubmit() {
+  var email = document.getElementById('emailInput').value.trim();
+  var name = document.getElementById('nameInput').value.trim();
+  var isInvite = document.getElementById('nameField').style.display !== 'none';
+
+  if (!email || !email.includes('@')) {
+    document.getElementById('emailInput').classList.add('error');
+    showMessage('Please enter a valid email address.', 'error');
+    return;
+  }
+  if (isInvite && !name) {
+    document.getElementById('nameInput').classList.add('error');
+    showMessage('Please enter your full name.', 'error');
+    return;
+  }
+
+  setLoading(true);
+
+  try {
+    // Send magic link via Supabase
+    var body = {
+      email: email,
+      options: {
+        emailRedirectTo: window.location.origin + '/login.html',
+        data: name ? { full_name: name } : {}
+      }
+    };
+
+    var r = await fetch(SUPABASE_URL + '/auth/v1/otp', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify(body)
+    });
+
+    if (r.ok) {
+      showMessage(
+        'Check your email — we sent a sign-in link to <strong>' + email + '</strong>. ' +
+        'The link expires in 1 hour. You can close this tab.',
+        'success'
+      );
+      document.getElementById('submitBtn').disabled = true;
+    } else {
+      var err = await r.json();
+      showMessage('Something went wrong: ' + (err.message || 'Please try again.'), 'error');
+    }
+  } catch(e) {
+    showMessage('Connection error. Please check your internet and try again.', 'error');
+  }
+
+  setLoading(false);
+}
+
+function setLoading(on) {
+  var btn = document.getElementById('submitBtn');
+  var txt = document.getElementById('btnText');
+  var spin = document.getElementById('spinner');
+  btn.disabled = on;
+  txt.style.display = on ? 'none' : 'block';
+  spin.className = on ? 'spinner active' : 'spinner';
+}
+
+function showMessage(text, type) {
+  var el = document.getElementById('message');
+  el.innerHTML = text;
+  el.className = 'message show ' + type;
+}
+</script>
+
+</body>
+</html>
