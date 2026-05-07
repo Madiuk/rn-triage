@@ -1409,20 +1409,21 @@ function renderResults(d){
   var aiNonClin = guessNonClinCat(d.non_clinical_items);
   var _in = d.internal_note || '';
 
-  // AI decision summary -- one line, always first
-  var urgLabel = d.urgency==='urgent'?'URGENT -- Escalate Now':d.urgency==='same-day'?'Same Day':'Routine';
-  var catLabel = aiClinCat || 'General';
-  var decisionLine = catLabel + (hasSideEffect?' · '+((d.clinical_routing_level||'').charAt(0).toUpperCase()+(d.clinical_routing_level||'').slice(1))+' side effect':'') + ' · ' + urgLabel;
-  html+='<div style="padding:8px 14px;background:var(--gray-50);border:1.5px solid var(--gray-200);border-radius:10px;font-size:var(--fs-xs);color:var(--gray-500);display:flex;align-items:center;gap:8px;">'+
-    '<span style="font-weight:700;text-transform:uppercase;letter-spacing:.06em;">AI read this as:</span>'+
-    '<span style="color:var(--gray-800);font-weight:500;">'+esc(decisionLine)+'</span>'+
-    (severityBadge?severityBadge:'')+
+  // -- Summary bar -----------------------------------------------------------
+  var urgLabel = d.urgency==='urgent'?'URGENT':d.urgency==='same-day'?'Same Day':'Routine';
+  var urgColor = d.urgency==='urgent'?'var(--red)':d.urgency==='same-day'?'var(--amber)':'var(--green)';
+  html+='<div style="padding:9px 14px;background:var(--gray-50);border:1.5px solid var(--gray-200);border-radius:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">'+
+    '<span style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);">AI classified:</span>'+
+    '<span style="font-size:var(--fs-sm);color:var(--gray-800);font-weight:500);">'+esc(aiClinCat||'General')+'</span>'+
+    '<span style="color:var(--gray-300);">&middot;</span>'+
+    '<span style="font-size:var(--fs-sm);font-weight:700;color:'+urgColor+';">'+esc(urgLabel)+'</span>'+
+    (severityBadge?'<span style="color:var(--gray-300);">&middot;</span>'+severityBadge:'')+
   '</div>';
 
-  // -- Routing card -- only if non-clinical items present --------------------
+  // -- Routing card -- only when non-clinical items present ------------------
   if(d.non_clinical_flag && d.non_clinical_items && d.non_clinical_items.length){
     var hasClinical = aiClinCat && aiClinCat !== 'General/multiple';
-    var cardTitle = hasClinical ? '&#128257; Dual Task — Route Non-Clinical Items' : '→ Route to Support Team';
+    var cardTitle = hasClinical ? '&#128257; Dual Task &mdash; Route Non-Clinical Items' : '&rarr; Route to Support Team';
     html+='<div class="out-card" style="border-color:var(--amber-m);">'+
       '<div class="oc-header"><span class="oc-label" style="color:var(--amber);">'+cardTitle+'</span></div>'+
       '<div class="oc-body">'+
@@ -1443,7 +1444,7 @@ function renderResults(d){
     '</div>';
   }
 
-  // -- Generated Response -- PRIMARY card, always second --------------------
+  // -- Generated Response -- PRIMARY -----------------------------------------
   html+='<div class="out-card" style="border-color:'+(draftIsEmpty?'var(--red-m)':'var(--teal-m)')+'">'+
     '<div class="oc-header">'+
       '<span class="oc-label" style="color:'+(draftIsEmpty?'var(--red)':'var(--teal)')+'">'+
@@ -1464,14 +1465,52 @@ function renderResults(d){
     '</div>'+
   '</div>';
 
-  // -- Collapsed secondary section: Correct / Vote / Learn ------------------
+  // -- Category card -- with correction built in ----------------------------
+  html+='<div class="out-card">'+
+    '<div class="oc-header">'+
+      '<span class="oc-label">Message Category</span>'+
+      '<span style="font-size:var(--fs-xs);color:var(--gray-400);">Click to select &middot; click again to deselect</span>'+
+    '</div>'+
+    '<div class="oc-body">'+
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:12px;">'+
+        '<div>'+
+          '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:6px;">Clinical</div>'+
+          buildCatListbox('clinCatList', CLINICAL_CATS, aiClinCat)+
+        '</div>'+
+        '<div>'+
+          '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:6px;">Non-Clinical</div>'+
+          buildCatListbox('nonClinCatList', NON_CLINICAL_CATS.filter(function(c){return c!=='-- None --';}), aiNonClin)+
+        '</div>'+
+      '</div>'+
+      '<div style="display:flex;align-items:center;justify-content:space-between;padding-top:10px;border-top:1px solid var(--gray-100);">'+
+        '<button class="action-btn" id="categorySaveBtn" onclick="saveCategory()" style="width:auto;padding:8px 20px;">Save Category Correction</button>'+
+        (severityBadge?
+          '<label style="display:flex;align-items:center;gap:6px;font-size:var(--fs-xs);color:var(--gray-500);cursor:pointer;">'+
+            '<input type="checkbox" id="fpCheck" style="accent-color:var(--blue);cursor:pointer;"> Not a side effect'+
+          '</label>'
+        :'')+
+      '</div>'+
+    '</div>'+
+  '</div>';
+
+  // -- Timeframe card -- with its own correction ----------------------------
+  html+='<div class="out-card">'+
+    '<div class="oc-header"><span class="oc-label">Response Timeframe</span></div>'+
+    '<div class="oc-body" style="display:flex;align-items:flex-end;gap:12px;">'+
+      '<div style="flex:1;">'+
+        '<div style="font-size:var(--fs-xs);color:var(--gray-500);margin-bottom:6px;">Adjust if the AI got this wrong, then save.</div>'+
+        buildTimeframeSelect(d.urgency)+
+      '</div>'+
+      '<button class="action-btn" id="timeframeSaveBtn" onclick="saveTimeframe()" style="width:auto;padding:8px 20px;flex-shrink:0;">Save Timeframe</button>'+
+    '</div>'+
+  '</div>';
+
+  // -- Collapsed: Vote + Learn -----------------------------------------------
   html+='<div class="out-card" style="border-color:var(--gray-200);">'+
     '<button class="secondary-toggle" id="secondaryToggle" onclick="toggleSecondary()">'+
-      'Correct, vote, or teach the AI &nbsp;&#9660;'+
+      'Rate this response or teach the AI &nbsp;&#9660;'+
     '</button>'+
     '<div id="secondaryPanel" style="display:none;">'+
-
-      // Vote row
       '<div style="padding:14px 18px 0;">'+
         '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:8px;">Was this response helpful?</div>'+
         '<div class="feedback-row">'+
@@ -1481,7 +1520,7 @@ function renderResults(d){
         '<div class="vote-panel up-panel" id="upvotePanel">'+
           '<div class="vote-panel-label">What worked? <span style="font-weight:400;font-size:11px;opacity:.8;">(select all that apply)</span></div>'+
           '<div class="vote-reasons">'+
-            ['Accurate advice','Correct category','Right urgency','Good tone','Complete response','Good routing decision','Saved time'].map(function(r){
+            ['Accurate advice','Correct category','Right urgency','Good tone','Complete response','Good routing','Saved time'].map(function(r){
               return '<button class="vote-reason-btn" data-vote-type="up" data-vote-reason="'+r+'">'+r+'</button>';
             }).join('')+
           '</div>'+
@@ -1497,46 +1536,10 @@ function renderResults(d){
           '<button class="vote-submit-btn" data-submit-vote="down">Submit</button>'+
         '</div>'+
       '</div>'+
-
-      // Divider
       '<div style="height:1px;background:var(--gray-100);margin:14px 0;"></div>'+
-
-      // Category + timeframe corrections
-      '<div style="padding:0 18px;">'+
-        '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:10px;">Correct the Classification</div>'+
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:12px;">'+
-          '<div>'+
-            '<div style="font-size:var(--fs-xs);color:var(--gray-500);margin-bottom:5px;">Clinical Category</div>'+
-            buildCatListbox('clinCatList', CLINICAL_CATS, aiClinCat)+
-          '</div>'+
-          '<div>'+
-            '<div style="font-size:var(--fs-xs);color:var(--gray-500);margin-bottom:5px;">Non-Clinical</div>'+
-            buildCatListbox('nonClinCatList', NON_CLINICAL_CATS.filter(function(c){return c!=='-- None --';}), aiNonClin)+
-          '</div>'+
-        '</div>'+
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:end;margin-bottom:14px;">'+
-          '<div>'+
-            '<div style="font-size:var(--fs-xs);color:var(--gray-500);margin-bottom:5px;">Response Timeframe</div>'+
-            buildTimeframeSelect(d.urgency)+
-          '</div>'+
-          '<div style="display:flex;flex-direction:column;gap:6px;">'+
-            '<button class="action-btn" id="categorySaveBtn" onclick="saveCategory()">Save Corrections</button>'+
-            (severityBadge?
-              '<label style="display:flex;align-items:center;gap:6px;font-size:var(--fs-xs);color:var(--gray-500);cursor:pointer;">'+
-                '<input type="checkbox" id="fpCheck" style="accent-color:var(--blue);cursor:pointer;"> Not a side effect'+
-              '</label>'
-            :'')+
-          '</div>'+
-        '</div>'+
-      '</div>'+
-
-      // Divider
-      '<div style="height:1px;background:var(--gray-100);margin:0 0 14px;"></div>'+
-
-      // What did you send
       '<div style="padding:0 18px 18px;">'+
         '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:6px;">I Edited Before Sending</div>'+
-        '<p style="font-size:var(--fs-xs);color:var(--gray-500);margin-bottom:8px;line-height:1.6;">Paste what you actually sent. The AI compares it and saves a learning note for next time.</p>'+
+        '<p style="font-size:var(--fs-xs);color:var(--gray-500);margin-bottom:8px;line-height:1.6;">Paste what you actually sent. Only fill in if you changed the draft &mdash; the AI uses this to improve future responses.</p>'+
         '<textarea id="correctionInput" style="min-height:100px;font-size:var(--fs-sm);" placeholder="Paste the message you sent to the patient..."></textarea>'+
         '<div class="correction-submit-row">'+
           '<button class="correction-submit-btn" id="correctionSubmitBtn" onclick="submitCorrection()">'+
@@ -1546,7 +1549,6 @@ function renderResults(d){
           '<div class="learn-status" id="correctionStatus"></div>'+
         '</div>'+
       '</div>'+
-
     '</div>'+
   '</div>';
 
@@ -1585,8 +1587,6 @@ function renderResults(d){
       if(opt.tagName !== 'OPTION') return;
       opt.selected = !opt.selected;
       sel.focus();
-      var btn=document.getElementById('categorySaveBtn');
-      if(btn){btn.textContent='Save Corrections';btn.className='action-btn';}
     });
   });
 }
