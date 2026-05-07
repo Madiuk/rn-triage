@@ -122,8 +122,8 @@ input.error{border-color:var(--red);}
 <script>
 // Supabase config — these are injected at deploy time via environment
 // For client-side auth we use the anon key (safe for public)
-const SUPABASE_URL = window.__RELAI_SUPABASE_URL__ || '';
-const SUPABASE_ANON_KEY = window.__RELAI_SUPABASE_ANON_KEY__ || '';
+const SUPABASE_URL = window.__RELAI_SUPABASE_URL__ || 'https://aturbsnqpdtvhrnujrqb.supabase.co';
+const SUPABASE_ANON_KEY = window.__RELAI_SUPABASE_ANON_KEY__ || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF0dXJic25xcGR0dmhybnVqcnFiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc4NDc5MTgsImV4cCI6MjA5MzQyMzkxOH0.l7LdmI8PfFiIXa1nIwwauiWh6KnzpwhlpK5uieATsic';
 
 // Check for invite token or existing session on load
 document.addEventListener('DOMContentLoaded', function() {
