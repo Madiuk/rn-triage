@@ -141,7 +141,7 @@ textarea::placeholder{color:var(--gray-400);}
 .copy-btn
 
 /* FEEDBACK */
-.feedback-row{display:flex;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--gray-100);flex-wrap:nowrap;align-items:center;}
+.feedback-row{display:flex;flex-direction:row;flex-wrap:nowrap;gap:10px;margin-top:14px;align-items:center;}
 .vote-btn{display:flex;align-items:center;gap:5px;padding:8px 16px;background:var(--white);border:1.5px solid var(--gray-200);border-radius:8px;color:var(--gray-600);font-family:var(--sans);font-size:var(--fs-sm);font-weight:500;cursor:pointer;transition:all .15s;white-space:nowrap;}
 .vote-btn.up:hover,.vote-btn.up.active{border-color:var(--green-m);color:var(--green);background:var(--green-l);}
 .vote-btn.down:hover,.vote-btn.down.active{border-color:var(--red-m);color:var(--red);background:var(--red-l);}
@@ -252,11 +252,11 @@ textarea::placeholder{color:var(--gray-400);}
 
 
 
-.cat-tag{display:inline-flex;align-items:center;padding:4px 11px;border-radius:20px;border:1.5px solid var(--gray-200);background:var(--white);font-family:var(--sans);font-size:var(--fs-xs);font-weight:500;color:var(--gray-600);cursor:pointer;transition:all .15s;user-select:none;white-space:nowrap;}
-.cat-tag:hover{border-color:var(--blue-m);color:var(--blue);}
-.cat-tag.sel-clin{border-color:var(--blue);background:var(--blue);color:white;font-weight:600;}
-.cat-tag.sel-nc{border-color:var(--amber-m);background:var(--amber-l);color:var(--amber);font-weight:600;}
-.cat-save-btn{padding:5px 14px;background:var(--blue);border:none;border-radius:7px;color:white;font-family:var(--sans);font-size:var(--fs-xs);font-weight:600;cursor:pointer;white-space:nowrap;transition:background .15s;}
+.cat-multiselect{width:100%;border:1.5px solid var(--gray-200);border-radius:8px;font-family:var(--sans);font-size:var(--fs-xs);color:var(--gray-800);background:var(--white);outline:none;padding:2px;cursor:pointer;}
+.cat-multiselect:focus{border-color:var(--blue);}
+.cat-multiselect option{padding:5px 8px;font-size:var(--fs-xs);}
+.cat-multiselect option:checked{background:var(--blue);color:white;}
+.cat-save-btn{padding:6px 14px;background:var(--blue);border:none;border-radius:7px;color:white;font-family:var(--sans);font-size:var(--fs-xs);font-weight:600;cursor:pointer;white-space:nowrap;transition:background .15s;display:block;width:100%;margin-top:6px;}
 .cat-save-btn:hover{background:#1d4ed8;}
 .cat-save-btn.saved{background:var(--green);}
 .save-toast{position:fixed;bottom:24px;right:24px;background:var(--green);color:white;padding:13px 22px;border-radius:10px;font-size:var(--fs-sm);font-weight:600;opacity:0;transition:opacity .2s;pointer-events:none;box-shadow:0 4px 12px rgba(0,0,0,.15);z-index:999;}
@@ -1306,53 +1306,67 @@ function renderResults(d){
   var draftText=(d.draft_response||'').trim();
   var draftIsEmpty=!draftText;
   var severityBadge=buildSeverityBadge(d.clinical_routing_level);
+  var hasSideEffect=d.clinical_routing_flag&&(d.clinical_routing_level||'none')!=='none';
   var aiClinCat=(d.clinical_category||'').trim();
   var aiNonClin=(d.non_clinical_items&&d.non_clinical_items.length)?d.non_clinical_items.join(', '):'';
   var _in=d.internal_note||'';
   var routedTo=d.routed_to||'Support Team';
   var urgLabel=d.urgency==='urgent'?'URGENT':d.urgency==='same-day'?'Same Day':'Routine';
   var urgColor=d.urgency==='urgent'?'var(--red)':d.urgency==='same-day'?'var(--amber)':'var(--green)';
-  var hasNonClin=d.non_clinical_flag&&d.non_clinical_items&&d.non_clinical_items.length;
-  var msgTypeLabel=hasNonClin&&aiClinCat&&aiClinCat!=='General/multiple'?'Clinical + Non-Clinical':hasNonClin?'Non-Clinical':aiClinCat||'General';
+  var hasNonClin=!!(d.non_clinical_flag&&d.non_clinical_items&&d.non_clinical_items.length);
+  var isClinical=!!(aiClinCat&&aiClinCat!=='General/multiple');
 
   // ── Message Type card ─────────────────────────────────────────────────────
-  // Build clinical category tags
-  var clinTagsHtml = CLINICAL_CATS.map(function(c){
-    var sel = c===aiClinCat;
-    var cls = 'cat-tag' + (sel ? ' sel-clin' : '');
-    return '<button class="'+cls+'" data-type="clin" data-val="'+esc(c)+'">'+esc(c)+'</button>';
+  // Build multiselect options
+  var clinOpts=CLINICAL_CATS.map(function(c){
+    return '<option value="'+esc(c)+'"'+(c===aiClinCat?' selected':'')+'>'+esc(c)+'</option>';
   }).join('');
-  var ncCats = ['Billing/Payment','Shipment/Tracking','Account/Subscription','Refund request','Prescription transfer','General inquiry'];
-  var ncTagsHtml = ncCats.map(function(c){
-    var sel = aiNonClin.includes(c);
-    var cls = 'cat-tag' + (sel ? ' sel-nc' : '');
-    return '<button class="'+cls+'" data-type="nc" data-val="'+esc(c)+'">'+esc(c)+'</button>';
+  var ncCats=['Billing/Payment','Shipment/Tracking','Account/Subscription','Refund request','Prescription transfer','General inquiry'];
+  var ncOpts=ncCats.map(function(c){
+    var sel=aiNonClin.includes(c);
+    return '<option value="'+esc(c)+'"'+(sel?' selected':'')+'>'+esc(c)+'</option>';
   }).join('');
 
   html+=
     '<div class="out-card">'+
       '<div class="oc-body" style="padding:14px 18px;display:flex;flex-direction:column;gap:0;">'+
 
-        // Row 1 — urgency first, then message type, no severity here
+        // Row 1 — urgency + message type + severity (clinical only)
         '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding-bottom:10px;">'+
           '<span style="font-size:var(--fs-sm);font-weight:700;color:'+urgColor+';">'+urgLabel+'</span>'+
           '<span style="color:var(--gray-300);">|</span>'+
-          '<span style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-700);">Message Type:</span>'+
-          '<span style="font-size:var(--fs-sm);font-weight:600;color:var(--gray-800);">'+esc(msgTypeLabel)+'</span>'+
-        '</div>'+
-
-        // Row 2 — category tag selectors
-        '<div style="border-top:1px solid var(--gray-100);padding-top:10px;padding-bottom:10px;">'+
-          '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-700);margin-bottom:7px;">Clinical Category</div>'+
-          '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">'+clinTagsHtml+'</div>'+
-          (hasNonClin?
-            '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-700);margin-bottom:7px;">Non-Clinical Category</div>'+
-            '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">'+ncTagsHtml+'</div>'
+          '<span style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-700);">'+
+            (hasNonClin&&isClinical?'Dual Task':hasNonClin?'Non-Clinical':'Clinical')+
+          '</span>'+
+          (isClinical?
+            '<span style="color:var(--gray-300);">|</span>'+
+            '<span style="font-size:var(--fs-sm);font-weight:600;color:var(--gray-800);">'+esc(aiClinCat)+'</span>'
           :'')+
-          '<button class="cat-save-btn" id="catSaveBtn" onclick="saveCategoryTags()">Save</button>'+
+          (aiNonClin&&!isClinical?
+            '<span style="color:var(--gray-300);">|</span>'+
+            '<span style="font-size:var(--fs-sm);font-weight:600;color:var(--gray-800);">'+esc(aiNonClin)+'</span>'
+          :'')+
+          (hasSideEffect&&isClinical?'<span style="color:var(--gray-300);">|</span>'+severityBadge:'')+
         '</div>'+
 
-        // Row 3 — timeframe compact
+        // Row 2 — side-by-side category selectors
+        '<div style="border-top:1px solid var(--gray-100);padding-top:10px;padding-bottom:10px;">'+
+          '<div style="display:grid;grid-template-columns:1fr'+(hasNonClin?' 1fr':'')+';gap:10px;margin-bottom:8px;">'+
+            '<div>'+
+              '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-700);margin-bottom:5px;">Clinical</div>'+
+              '<select class="cat-multiselect" id="clinCatSelect" size="4" data-cattype="clin">'+clinOpts+'</select>'+
+            '</div>'+
+            (hasNonClin?
+              '<div>'+
+                '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-700);margin-bottom:5px;">Non-Clinical</div>'+
+                '<select class="cat-multiselect" id="ncCatSelect" size="4" multiple data-cattype="nc">'+ncOpts+'</select>'+
+              '</div>'
+            :'')+
+          '</div>'+
+          '<button class="cat-save-btn" id="catSaveBtn" onclick="saveCategoryTags()">Save Categories</button>'+
+        '</div>'+
+
+        // Row 3 — timeframe
         '<div style="border-top:1px solid var(--gray-100);padding-top:10px;display:flex;align-items:center;gap:8px;">'+
           '<span style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-700);">Timeframe:</span>'+
           buildTimeframeSelect(d.urgency)+
@@ -1362,28 +1376,23 @@ function renderResults(d){
       '</div>'+
     '</div>';
 
-  // ── Routing card ──────────────────────────────────────────────────────────
+  // ── Routing card — only non-clinical items, no clinical summary (already in top card) ──
   if(hasNonClin){
-    var isDual=aiClinCat&&aiClinCat!=='General/multiple';
-    var cardLabel=isDual?'&#128257; Dual Task':'&#128203; Non-Clinical Task';
     html+=
       '<div class="out-card" style="border-color:var(--amber-m);">'+
-        '<div class="oc-header"><span class="oc-label" style="color:var(--amber);">'+cardLabel+'</span></div>'+
+        '<div class="oc-header">'+
+          '<span class="oc-label" style="color:var(--amber);">&#128203; Route to Support Team</span>'+
+          '<span style="font-size:var(--fs-sm);font-weight:700;color:var(--gray-800);">'+esc(routedTo)+'</span>'+
+        '</div>'+
         '<div class="oc-body">'+
-          (isDual?
-            '<div style="background:var(--teal-l,#f0fdfa);border:1px solid var(--teal-m,#99f6e4);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:var(--fs-sm);color:var(--gray-800);line-height:1.6;">'+
-              '<strong>Clinical first:</strong> Respond to the patient clinically using the response below before routing this non-clinical task.'+
+          (isClinical?
+            '<div style="font-size:var(--fs-xs);color:var(--gray-600);margin-bottom:12px;line-height:1.5;">'+
+              '&#10003; Complete the clinical response first, then route this task.'+
             '</div>'
           :'')+
-          '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding:10px 14px;background:var(--gray-50);border-radius:8px;border:1px solid var(--gray-200);">'+
-            '<span style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--gray-700);">Route to</span>'+
-            '<span style="font-size:var(--fs-base);font-weight:700;color:var(--gray-900);">'+esc(routedTo)+'</span>'+
-          '</div>'+
           (_in?
-            '<div style="margin-bottom:8px;">'+
-              '<div style="font-size:var(--fs-sm);font-weight:600;color:var(--gray-700);margin-bottom:3px;">Internal Note &mdash; paste into Bask chat</div>'+
-              '<div style="font-size:var(--fs-xs);color:var(--gray-600);line-height:1.5;margin-bottom:8px;">Copy &rarr; open Bask chat &rarr; submit as internal note &rarr; assign to <strong>'+esc(routedTo)+'</strong></div>'+
-            '</div>'+
+            '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-700);margin-bottom:5px;">Internal Note &mdash; paste into Bask chat</div>'+
+            '<div style="font-size:var(--fs-xs);color:var(--gray-600);line-height:1.5;margin-bottom:8px;">Copy &rarr; open Bask chat &rarr; submit as internal note &rarr; assign to <strong>'+esc(routedTo)+'</strong></div>'+
             '<div style="background:var(--amber-l);border:1.5px solid var(--amber-m);border-radius:8px;padding:13px 16px;font-size:var(--fs-base);color:var(--gray-800);line-height:1.75;position:relative;">'+
               esc(_in)+
               '<button class="copy-inline-btn" data-copy-target="internal" style="position:absolute;top:8px;right:8px;background:var(--white);border:1.5px solid var(--amber-m);border-radius:6px;padding:4px 10px;cursor:pointer;font-size:11px;color:var(--amber);font-weight:600;">Copy</button>'+
@@ -1395,20 +1404,18 @@ function renderResults(d){
       '</div>';
   }
 
-  // ── Generated Response — severity badge in header ─────────────────────────
-  var responseHeaderRight = severityBadge || '';
+  // ── Generated Response ────────────────────────────────────────────────────
   html+=
     '<div class="out-card" style="border-color:'+(draftIsEmpty?'var(--red-m)':'var(--teal-m)')+'">'+
       '<div class="oc-header">'+
         '<span class="oc-label" style="color:'+(draftIsEmpty?'var(--red)':'var(--teal)')+'">'+
           (draftIsEmpty?'&#9888; Response Not Generated':'Generated Response for Patient')+
         '</span>'+
-        (responseHeaderRight?'<div>'+responseHeaderRight+'</div>':'')+
       '</div>'+
       '<div class="oc-body">'+
         (draftIsEmpty?
           '<div style="background:var(--red-l);border:1.5px solid var(--red-m);border-radius:8px;padding:14px 16px;font-size:var(--fs-sm);color:var(--red);line-height:1.7;">'+
-            '<strong>The AI did not generate a response.</strong> This can happen when the knowledge base is large or the message was ambiguous. Click <strong>Run Triage again</strong>.'+
+            '<strong>The AI did not generate a response.</strong> Click <strong>Run Triage again</strong>.'+
           '</div>'
         :
           '<div style="position:relative;">'+
@@ -1438,6 +1445,7 @@ function renderResults(d){
   var el=document.getElementById('results');
   el.innerHTML=html;
 
+  // Wire copy buttons
   el.querySelectorAll('.copy-inline-btn').forEach(function(btn){
     btn.addEventListener('click',function(){
       var target=btn.getAttribute('data-copy-target');
@@ -1450,13 +1458,20 @@ function renderResults(d){
     });
   });
 
+  // Wire vote buttons
   el.querySelectorAll('[data-vote]').forEach(function(btn){
     btn.addEventListener('click',function(){ castVote(btn.getAttribute('data-vote'),btn); });
   });
 
-  // Wire cat-tag toggles
-  el.querySelectorAll('.cat-tag').forEach(function(btn){
-    btn.addEventListener('click',function(){ toggleCatTag(btn); });
+  // Wire multiselect click-to-toggle (no ctrl needed)
+  el.querySelectorAll('.cat-multiselect').forEach(function(sel){
+    sel.addEventListener('mousedown',function(e){
+      e.preventDefault();
+      var opt=e.target;
+      if(opt.tagName!=='OPTION')return;
+      opt.selected=!opt.selected;
+      sel.focus();
+    });
   });
 }
 
@@ -1603,13 +1618,14 @@ async function saveCategoryTags(){
   var btn=document.getElementById('catSaveBtn');
   if(!btn||!currentHistoryId)return;
   btn.textContent='Saving...';btn.disabled=true;
-  var clinTags=[],ncTags=[];
-  document.querySelectorAll('.cat-tag.sel-clin').forEach(function(t){clinTags.push(t.getAttribute('data-val'));});
-  document.querySelectorAll('.cat-tag.sel-nc').forEach(function(t){ncTags.push(t.getAttribute('data-val'));});
-  var combined=(clinTags.join(', ')||'')+(ncTags.length?' | Non-clinical: '+ncTags.join(', '):'');
+  var clinSel=document.getElementById('clinCatSelect');
+  var ncSel=document.getElementById('ncCatSelect');
+  var clinVals=clinSel?[...clinSel.selectedOptions].map(function(o){return o.value;}).filter(Boolean):[];
+  var ncVals=ncSel?[...ncSel.selectedOptions].map(function(o){return o.value;}).filter(Boolean):[];
+  var combined=(clinVals.join(', ')||'')+(ncVals.length?' | Non-clinical: '+ncVals.join(', '):'');
   await api('/history','POST',{action:'update_category',id:currentHistoryId,category:combined});
   btn.textContent='Saved';btn.className='cat-save-btn saved';
-  setTimeout(function(){btn.textContent='Save';btn.className='cat-save-btn';btn.disabled=false;},2000);
+  setTimeout(function(){btn.textContent='Save Categories';btn.className='cat-save-btn';btn.disabled=false;},2000);
 }
 
 
