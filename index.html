@@ -117,6 +117,10 @@ textarea::placeholder{color:var(--gray-400);}
 .editable-select.routine{border-color:var(--green-m);color:var(--green);background:var(--green-l);}
 .editable-select.same-day{border-color:var(--amber-m);color:var(--amber);background:var(--amber-l);}
 .editable-select.urgent{border-color:var(--red-m);color:var(--red);background:var(--red-l);}
+.action-btn{display:block;width:100%;margin-top:8px;padding:9px 14px;background:var(--blue);border:none;border-radius:8px;color:white;font-family:var(--sans);font-size:var(--fs-sm);font-weight:600;cursor:pointer;text-align:center;transition:all .15s;}
+.action-btn:hover{background:#1d4ed8;}
+.action-btn:disabled{background:var(--gray-300);cursor:not-allowed;}
+.action-btn.saved{background:var(--green);}
 .save-ghost-btn{padding:6px 14px;background:var(--white);border:1.5px solid var(--gray-200);border-radius:7px;color:var(--gray-600);font-family:var(--sans);font-size:var(--fs-xs);font-weight:600;cursor:pointer;transition:all .15s;}
 .save-ghost-btn:hover{border-color:var(--blue);color:var(--blue);}
 .save-ghost-btn.saved{border-color:var(--green);color:var(--green);}
@@ -162,8 +166,8 @@ textarea::placeholder{color:var(--gray-400);}
 
 /* CORRECTION — collapsed */
 .correction-submit-row{display:flex;gap:8px;margin-top:10px;align-items:flex-start;}
-.correction-submit-btn{padding:10px 18px;background:var(--orange);border:none;border-radius:8px;color:white;font-family:var(--sans);font-size:var(--fs-sm);font-weight:600;cursor:pointer;white-space:nowrap;transition:all .15s;display:flex;align-items:center;gap:6px;}
-.correction-submit-btn:hover{background:#c2410c;}
+.correction-submit-btn{padding:10px 18px;background:var(--blue);border:none;border-radius:8px;color:white;font-family:var(--sans);font-size:var(--fs-sm);font-weight:600;cursor:pointer;white-space:nowrap;transition:all .15s;display:flex;align-items:center;gap:6px;}
+.correction-submit-btn:hover{background:#1d4ed8;}
 .correction-submit-btn:disabled{background:var(--gray-300);cursor:not-allowed;}
 .learn-status{font-size:var(--fs-xs);color:var(--gray-500);line-height:1.5;flex:1;}
 .learn-status.success{color:var(--green);}
@@ -675,19 +679,18 @@ const TODAY = new Date().toLocaleDateString('en-US',{year:'numeric',month:'long'
 
 const BASE_PROMPT = `GLP-1 telehealth RN triage. Today: ${TODAY}. Output ONLY valid JSON.
 
-{"non_clinical_flag":bool,"non_clinical_items":["..."],"routing_language":"string","internal_note":"string","clinical_routing_flag":bool,"clinical_routing_level":"severe|moderate|mild|none","clinical_routing_note":"string","clinical_category":"GI side effects|Weight plateau|No early weight loss|Food noise/cravings|Hair loss|Fatigue|Heartburn/reflux|Diarrhea|Injection/administration|Dosing question|Skin/site reaction|Medication storage|Urgent-escalate|General/multiple","urgency":"routine|same-day|urgent","follow_up_questions":["..."],"draft_response":"string"}
+{"non_clinical_flag":bool,"non_clinical_items":["..."],"internal_note":"string","clinical_routing_flag":bool,"clinical_routing_level":"severe|moderate|mild|none","clinical_routing_note":"string","clinical_category":"GI side effects|Weight plateau|No early weight loss|Food noise/cravings|Hair loss|Fatigue|Heartburn/reflux|Diarrhea|Injection/administration|Dosing question|Skin/site reaction|Medication storage|Urgent-escalate|General/multiple","urgency":"routine|same-day|urgent","follow_up_questions":["..."],"draft_response":"string"}
 
 non_clinical_flag: true if ANY non-clinical content present (billing, payment, shipping, tracking, refund, account, subscription, cancellation, prescription transfer, or any administrative request).
 non_clinical_items: list each non-clinical topic found. Empty array if none.
-routing_language: 1-2 sentences to patient acknowledging non-clinical item is being routed. Empty if non_clinical_flag false.
-internal_note: 2-3 sentence Bask chat handoff note for the incoming staff member. Colleague-to-colleague synopsis of what patient needs and what to investigate. NOT routing instructions. Empty if non_clinical_flag false.
+internal_note: 2-3 sentence Bask chat handoff note for the incoming staff member. Colleague-to-colleague synopsis: what patient needs, what has been handled clinically, what they need to investigate or action. Do not write routing instructions. Empty if non_clinical_flag false.
 clinical_routing_flag: true if any side effect present.
 clinical_routing_level: per SIDE EFFECT SEVERITY rules. "none" if no side effects.
 clinical_routing_note: empty string always (deprecated).
 clinical_category: closest match.
 urgency: per URGENCY RULES.
 follow_up_questions: specific questions if info missing. Include dose question if dose not stated.
-draft_response: ALWAYS populate. Warm RN voice, patient details, prose with line breaks, 120 words max. If follow_up_questions present: warm opening then weave questions into flowing prose. Otherwise: complete actionable advice.
+draft_response: ALWAYS populate. Warm RN voice, patient details, prose with line breaks, 120 words max. If non_clinical_flag true: include one brief sentence acknowledging the non-clinical item is being handled by the support team, then address the clinical portion. If follow_up_questions present: warm opening then weave questions into flowing prose. Otherwise: complete actionable advice.
 
 Knowledge base sections follow. Apply them precisely.`;
 
@@ -991,7 +994,7 @@ async function saveHistoryRecord(parsed,msg){
       nurse_name:currentNurse,patient_message:msg,
       clinical_category:parsed.clinical_category,urgency_original:parsed.urgency,urgency_override:null,
       non_clinical_flag:parsed.non_clinical_flag,non_clinical_items:parsed.non_clinical_items||[],
-      routing_language:parsed.routing_language||'',clinical_facts:parsed.clinical_facts||[],
+      clinical_facts:[],
       follow_up_questions:parsed.follow_up_questions||[],
       draft_response:parsed.draft_response||''
     });
@@ -1259,7 +1262,7 @@ async function saveCategory(){
   var fpCheck=document.getElementById('fpCheck');
   if(fpCheck&&fpCheck.checked){
     if(currentHistoryId)await api('/history','POST',{action:'update_category',id:currentHistoryId,category:'CORRECTION: No side effect -- false positive'});
-    btn.textContent='Saved';btn.className='save-ghost-btn saved';btn.disabled=false;
+    btn.textContent='Saved';btn.className='action-btn saved';setTimeout(function(){btn.textContent='Save Categories';btn.className='action-btn';},2000);
     showToast('Correction recorded');
     return;
   }
@@ -1294,7 +1297,7 @@ async function saveTimeframe(){
   if(!sel)return;
   btn.textContent='Saving...';btn.disabled=true;
   if(currentHistoryId)await api('/history','POST',{action:'update_urgency',id:currentHistoryId,urgency_override:sel.value});
-  btn.textContent='Saved OK';btn.className='save-inline-btn saved';btn.disabled=false;
+  btn.textContent='Saved';btn.className='action-btn saved';setTimeout(function(){btn.textContent='Save Timeframe';btn.className='action-btn';},2000);
 }
 
 // VOTING
@@ -1389,32 +1392,26 @@ function renderResults(d){
 
   // -- Non-clinical routing only -- only show if non-clinical content present --
   if(d.non_clinical_flag && d.non_clinical_items && d.non_clinical_items.length){
-    var routingMsg = d.routing_language || '';
     var internalNote = d.internal_note || '';
+    var _in = internalNote;
     var hasClinical = d.clinical_category && d.clinical_category !== 'General/multiple';
-    var cardTitle = hasClinical ? '&#128257; Dual Task &#8212; Route Non-Clinical Items' : '&#8594; Route to Support Team';
-    var _rm = routingMsg, _in = internalNote;
+    var cardTitle = hasClinical ? '&#128257; Dual Task — Route Non-Clinical Items' : '→ Route to Support Team';
     html+='<div class="out-card" style="border-color:var(--amber-m);">'+
       '<div class="oc-header"><span class="oc-label" style="color:var(--amber);">'+cardTitle+'</span></div>'+
       '<div class="oc-body">'+
-        '<div style="margin-bottom:12px;">'+
-          '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:6px;">Items to route</div>'+
+        '<div style="margin-bottom:'+(internalNote?'12':'4')+'px;">'+
+          '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:5px;">Items to route to support team</div>'+
           '<div style="font-size:var(--fs-base);font-weight:500;color:var(--gray-800);">'+d.non_clinical_items.map(esc).join(' &middot; ')+'</div>'+
         '</div>'+
-        (routingMsg?
-          '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:6px;">Message to patient</div>'+
-          '<div style="background:var(--gray-50);border:1.5px solid var(--gray-200);border-radius:8px;padding:12px 14px;font-size:var(--fs-sm);color:var(--gray-800);line-height:1.7;position:relative;">'+
-            esc(routingMsg)+
-            '<button class="copy-inline-btn" data-copy-target="routing" style="position:absolute;top:8px;right:8px;background:var(--white);border:1.5px solid var(--gray-200);border-radius:6px;padding:3px 8px;cursor:pointer;font-size:11px;color:var(--gray-500);">Copy</button>'+
-          '</div>'
-        :'')+
         (internalNote?
-          '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:6px;margin-top:12px;">Internal Note for Staff</div>'+
-          '<div style="background:var(--gray-50);border:1.5px solid var(--gray-200);border-radius:8px;padding:12px 14px;font-size:var(--fs-sm);color:var(--gray-800);line-height:1.7;position:relative;">'+
+          '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:6px;">Internal Note for Staff (paste into Bask)</div>'+
+          '<div style="background:var(--amber-l);border:1.5px solid var(--amber-m);border-radius:8px;padding:12px 14px;font-size:var(--fs-sm);color:var(--gray-800);line-height:1.7;position:relative;">'+
             esc(internalNote)+
-            '<button class="copy-inline-btn" data-copy-target="internal" style="position:absolute;top:8px;right:8px;background:var(--white);border:1.5px solid var(--gray-200);border-radius:6px;padding:3px 8px;cursor:pointer;font-size:11px;color:var(--gray-500);">Copy</button>'+
+            '<button class="copy-inline-btn" data-copy-target="internal" style="position:absolute;top:8px;right:8px;background:var(--white);border:1.5px solid var(--amber-m);border-radius:6px;padding:3px 8px;cursor:pointer;font-size:11px;color:var(--amber);">Copy</button>'+
           '</div>'
-        :'')+
+        :
+          '<div style="font-size:var(--fs-xs);color:var(--gray-500);">Draft response below acknowledges this to the patient.</div>'
+        )+
       '</div>'+
     '</div>';
   }
@@ -1426,22 +1423,10 @@ function renderResults(d){
   var aiClinCat = (d.clinical_category||'').trim();
   var aiNonClin = guessNonClinCat(d.non_clinical_items);
   var hasSideEffect = d.clinical_routing_flag && (d.clinical_routing_level||'none') !== 'none';
-  // Build compact urgency pill for card header
-  var urgColors = {urgent:'var(--red)','same-day':'var(--amber)',routine:'var(--green)'};
-  var urgBg = {urgent:'var(--red-l)','same-day':'var(--amber-l)',routine:'var(--green-l)'};
-  var urgBorder = {urgent:'var(--red-m)','same-day':'var(--amber-m)',routine:'var(--green-m)'};
-  var urgKey = d.urgency==='urgent'?'urgent':d.urgency==='same-day'?'same-day':'routine';
-  var urgPill = '<span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;border:1.5px solid '+urgBorder[urgKey]+';color:'+urgColors[urgKey]+';background:'+urgBg[urgKey]+';text-transform:uppercase;letter-spacing:.04em;">'+urgKey+'</span>';
   html+='<div class="out-card">'+
-    '<div class="oc-header" style="flex-wrap:nowrap;">'+
+    '<div class="oc-header">'+
       '<span class="oc-label">Message Category</span>'+
-      '<div style="display:flex;align-items:center;gap:8px;">'+
-        (severityBadge?severityBadge:'')+
-        '<div style="display:flex;align-items:center;gap:5px;">'+
-          urgPill+
-          buildTimeframeSelect(d.urgency)+
-        '</div>'+
-      '</div>'+
+      (severityBadge?severityBadge:'')+
     '</div>'+
     '<div class="oc-body">'+
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:12px;">'+
@@ -1455,20 +1440,37 @@ function renderResults(d){
         '</div>'+
       '</div>'+
       
-      '<div style="display:flex;align-items:center;justify-content:space-between;padding-top:10px;border-top:1px solid var(--gray-100);">'+
-        '<button class="save-ghost-btn" id="categorySaveBtn" onclick="saveCategory()">&#10003; Save Categories</button>'+
-        (severityBadge?
-          '<label style="display:flex;align-items:center;gap:6px;font-size:var(--fs-xs);color:var(--gray-500);cursor:pointer;">'+
-            '<input type="checkbox" id="fpCheck" style="accent-color:var(--red);cursor:pointer;"> Not a side effect'+
-          '</label>'
-        :'')+
-      '</div>'+
+      
     '</div>'+
   '</div>';
 
   // Key Points card removed -- staff read the message directly
 
-  // -- Generated Response card -----------------------------------------------
+  // -- Corrections card — timeframe + category save -------------------------
+  html+='<div class="out-card">'+
+    '<div class="oc-header"><span class="oc-label">Correct the AI</span></div>'+
+    '<div class="oc-body">'+
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:end;">'+
+        '<div>'+
+          '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:6px;">Response Timeframe</div>'+
+          buildTimeframeSelect(d.urgency)+
+          '<button class="action-btn" id="timeframeSaveBtn" onclick="saveTimeframe()">Save Timeframe</button>'+
+        '</div>'+
+        '<div>'+
+          '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:6px;">Category Correction</div>'+
+          '<div style="font-size:var(--fs-xs);color:var(--gray-500);margin-bottom:6px;line-height:1.5;">Adjust the selections above then save to record your correction.</div>'+
+          '<button class="action-btn" id="categorySaveBtn" onclick="saveCategory()">Save Categories</button>'+
+          (severityBadge?
+            '<label style="display:flex;align-items:center;gap:6px;font-size:var(--fs-xs);color:var(--gray-500);margin-top:8px;cursor:pointer;">'+
+              '<input type="checkbox" id="fpCheck" style="accent-color:var(--blue);cursor:pointer;"> Severity badge is wrong — not a side effect'+
+            '</label>'
+          :'')+
+        '</div>'+
+      '</div>'+
+    '</div>'+
+  '</div>';
+
+    // -- Generated Response card -----------------------------------------------
   var draftText=(d.draft_response||'').trim();
   var draftIsEmpty = !draftText;
   html+='<div class="out-card" style="border-color:'+(draftIsEmpty?'var(--red-m)':'var(--teal-m)')+'">'+
@@ -1514,8 +1516,8 @@ function renderResults(d){
   '</div>';
 
   // -- What did you actually send -------------------------------------------
-  html+='<div class="out-card" style="border-color:var(--orange-m);">'+
-    '<div class="oc-header"><span class="oc-label" style="color:var(--orange);">What Did You Actually Send?</span></div>'+
+  html+='<div class="out-card" style="border-color:var(--gray-200);">'+
+    '<div class="oc-header"><span class="oc-label">What Did You Actually Send?</span></div>'+
     '<div class="oc-body">'+
       '<p style="font-size:var(--fs-xs);color:var(--gray-500);margin-bottom:10px;line-height:1.6;">Only fill this in if you changed the draft. The AI compares it and saves a learning note.</p>'+
       '<textarea id="correctionInput" style="min-height:120px;font-size:var(--fs-sm);" placeholder="Paste the exact message you sent to the patient..."></textarea>'+
