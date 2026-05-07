@@ -262,11 +262,15 @@ textarea::placeholder{color:var(--gray-400);}
 .help-faq-a{display:none;padding:0 20px 16px;font-size:var(--fs-sm);color:var(--gray-700);line-height:1.8;}
 .help-faq-a.open{display:block;}
 @media(max-width:900px){.help-quickref-grid{grid-template-columns:1fr;}.help-cols{grid-template-columns:1fr;}}
-.cat-tags{display:flex;flex-wrap:wrap;gap:7px;}
-.cat-tag{padding:5px 13px;border-radius:20px;border:1.5px solid var(--gray-200);background:var(--white);font-family:var(--sans);font-size:var(--fs-xs);font-weight:500;color:var(--gray-600);cursor:pointer;transition:all .15s;user-select:none;}
-.cat-tag:hover{border-color:var(--blue-m);color:var(--blue);background:var(--blue-l);}
-.cat-tag.selected{border-color:var(--blue);background:var(--blue);color:white;font-weight:600;}
-.cat-tag.selected-nonclin{border-color:var(--amber-m);background:var(--amber-l);color:var(--amber);font-weight:600;}
+.cat-multiselect{width:100%;border:1.5px solid var(--gray-200);border-radius:8px;font-family:var(--sans);font-size:var(--fs-sm);color:var(--gray-800);background:var(--white);outline:none;padding:2px;}
+.cat-multiselect:focus{border-color:var(--blue);}
+.cat-multiselect option{padding:6px 10px;cursor:pointer;font-size:var(--fs-sm);}
+.cat-multiselect option:checked{background:var(--blue-l);color:var(--blue);font-weight:600;}
+.sideeffect-select{width:100%;padding:8px 10px;border:1.5px solid var(--gray-200);border-radius:8px;font-family:var(--sans);font-size:var(--fs-sm);color:var(--gray-800);background:var(--white);outline:none;margin-top:6px;}
+.sideeffect-select:focus{border-color:var(--blue);}
+.fp-btn{margin-top:8px;padding:7px 14px;background:var(--white);border:1.5px solid var(--red-m);border-radius:8px;color:var(--red);font-family:var(--sans);font-size:var(--fs-xs);font-weight:600;cursor:pointer;transition:all .15s;width:100%;}
+.fp-btn:hover{background:var(--red-l);}
+.fp-btn.corrected{background:var(--green-l);border-color:var(--green-m);color:var(--green);}
 .save-toast{position:fixed;bottom:24px;right:24px;background:var(--green);color:white;padding:13px 22px;border-radius:10px;font-size:var(--fs-sm);font-weight:600;opacity:0;transition:opacity .2s;pointer-events:none;box-shadow:0 4px 12px rgba(0,0,0,.15);z-index:999;}
 .save-toast.show{opacity:1;}
 @media(max-width:900px){.triage-layout{grid-template-columns:1fr;}.class-grid{grid-template-columns:1fr;}.entry-add-row{flex-direction:column;}}
@@ -514,14 +518,7 @@ textarea::placeholder{color:var(--gray-400);}
             </div>
           </div>
 
-          <div class="help-faq">
-            <button class="help-faq-q" onclick="toggleFaq(this)">
-              <span>What are Key Points?</span><span class="help-arrow">&#9660;</span>
-            </button>
-            <div class="help-faq-a">
-              Key Points are the clinical facts the AI extracted from the patient message — medication name, dose, therapy week, symptoms, duration, what the patient has already tried. Review these quickly before sending the draft to confirm the AI read the message correctly. If something is wrong here, the draft response is probably wrong too — run triage again or edit the draft manually.
-            </div>
-          </div>
+
 
           <div class="help-faq">
             <button class="help-faq-q" onclick="toggleFaq(this)">
@@ -666,7 +663,7 @@ textarea::placeholder{color:var(--gray-400);}
               <strong>Triaging a patient reply without Prior Context</strong> — the AI gets a fragment with no history and produces a generic response.<br><br>
               <strong>Skipping "What Did You Actually Send?"</strong> — the learning loop does not run. The system cannot improve without this data.<br><br>
               <strong>Entering the wrong response in the correction field</strong> — this teaches the AI the wrong thing. If you make a mistake, delete it in the Corrections tab immediately.<br><br>
-              <strong>Not checking Key Points before sending</strong> — if the AI misread the dose or medication name, the draft response will be wrong.<br><br>
+
               <strong>Ignoring the red severity badge</strong> — a severe badge means escalate now, not send an education response. Always check routing cards before using the draft.
             </div>
           </div>
@@ -685,7 +682,7 @@ const TODAY = new Date().toLocaleDateString('en-US',{year:'numeric',month:'long'
 const BASE_PROMPT = `GLP-1 telehealth triage AI. Today is ${TODAY}. Output ONLY valid JSON -- no markdown, no prose outside JSON.
 
 JSON schema (every field required):
-{"non_clinical_flag":bool,"non_clinical_items":["..."],"routing_language":"string","internal_note":"string","clinical_routing_flag":bool,"clinical_routing_level":"severe|moderate|mild|none","clinical_routing_note":"string","clinical_category":"GI side effects|Weight plateau|No early weight loss|Food noise/cravings|Hair loss|Fatigue|Heartburn/reflux|Diarrhea|Injection/administration|Dosing question|Skin/site reaction|Medication storage|Urgent-escalate|General/multiple","urgency":"routine|same-day|urgent","clinical_facts":["3-6 items"],"follow_up_questions":["..."],"draft_response":"string"}
+{"non_clinical_flag":bool,"non_clinical_items":["..."],"routing_language":"string","internal_note":"string","clinical_routing_flag":bool,"clinical_routing_level":"severe|moderate|mild|none","clinical_routing_note":"string","clinical_category":"GI side effects|Weight plateau|No early weight loss|Food noise/cravings|Hair loss|Fatigue|Heartburn/reflux|Diarrhea|Injection/administration|Dosing question|Skin/site reaction|Medication storage|Urgent-escalate|General/multiple","urgency":"routine|same-day|urgent","follow_up_questions":["..."],"draft_response":"string"}
 
 FIELD RULES:
 non_clinical_flag: true if message contains billing/shipping/payment/account content.
@@ -771,7 +768,7 @@ const DEFAULT_KB = {
   ],
   routing:[
     {name:"Non-clinical patient message",nurse_name:"System",text:"Thank you for reaching out -- I have flagged your question and am routing it to our support team who will follow up with you directly. I will address your clinical question separately below."},
-    {name:"CLINICAL ROUTING RULES",nurse_name:"System",text:"These rules determine clinical_routing_flag, clinical_routing_level, and clinical_routing_note.\n\nSEVERE -- clinical_routing_level: severe. Requires immediate provider escalation. Do not wait for patient reply.\nTriggers: Vomiting lasting more than 3 consecutive days. Diarrhea lasting more than 3 consecutive days. Constipation more than 7 days with distension or pain. Severe upper abdominal pain (especially radiating to back -- pancreatitis). Any signs of anaphylaxis (throat tightening, difficulty breathing, spreading hives, facial swelling). Fever with abdominal pain. Severe back pain. Signs of hypoglycemia with altered consciousness or inability to self-treat. Any symptom the nurse assesses as potentially life-threatening. Inability to keep fluids down for more than 24 hours.\nclinical_routing_note format: ESCALATE TO PROVIDER -- Patient reporting [symptom]. Requires immediate provider review. Do not wait for patient reply before acting. Flag for physician or supervising clinician.\n\nMODERATE -- clinical_routing_level: moderate. Needs to be addressed but can wait for initial RN response and follow-up questions.\nTriggers: Moderate diarrhea or vomiting (frequent but not 3+ days, able to keep some fluids down). Moderate nausea significantly affecting eating. Abdominal pain that is uncomfortable but not severe. Injection site reaction that is spreading slightly. Fatigue affecting daily function. Symptoms improving but not resolved after 5+ days.\nclinical_routing_note format: FOLLOW-UP NEEDED -- Patient reports [symptom]. RN to gather more information in initial response. Based on patient reply, determine if provider escalation or patient education is appropriate.\n\nMILD -- clinical_routing_level: mild. Education-focused response appropriate. No provider escalation needed.\nTriggers: Mild nausea (not affecting intake). Mild constipation (less than 1 week). Heartburn or reflux. Hair loss. Mild fatigue. Mild injection site reactions (redness, minor swelling at site only). Food noise between injections. Weight plateau questions.\nclinical_routing_note format: EDUCATION RESPONSE -- Patient reports [symptom]. RN to provide education and self-management guidance. Monitor for worsening and follow up as needed.\n\nNONE -- clinical_routing_level: none, clinical_routing_flag: false. No side effects present.\nApplies to: Weight loss questions. Dosing questions without red flags. Food and nutrition questions. Non-clinical requests only. General check-in messages."}
+    {name:"CLINICAL ROUTING RULES",nurse_name:"System",text:"These rules determine clinical_routing_flag, clinical_routing_level, and clinical_routing_note.\n\nSEVERE -- clinical_routing_level: severe. Requires immediate provider escalation. Do not wait for patient reply.\nTriggers: Vomiting lasting more than 3 consecutive days. Diarrhea lasting more than 3 consecutive days. Constipation more than 7 days with distension or pain. Severe upper abdominal pain (especially radiating to back -- pancreatitis). Any signs of anaphylaxis (throat tightening, difficulty breathing, spreading hives, facial swelling). Fever with abdominal pain. Severe back pain. Signs of hypoglycemia with altered consciousness or inability to self-treat. Any symptom the nurse assesses as potentially life-threatening. Inability to keep fluids down for more than 24 hours.\nclinical_routing_note format: ESCALATE TO PROVIDER -- Patient reporting [symptom]. Requires immediate provider review. Do not wait for patient reply before acting. Flag for physician or supervising clinician.\n\nMODERATE -- clinical_routing_level: moderate. Needs to be addressed but can wait for initial RN response and follow-up questions.\nTriggers: Moderate diarrhea or vomiting (frequent but not 3+ days, able to keep some fluids down). Moderate nausea significantly affecting eating. Abdominal pain that is uncomfortable but not severe. Injection site reaction that is spreading slightly. Fatigue affecting daily function. Symptoms improving but not resolved after 5+ days.\nclinical_routing_note format: FOLLOW-UP NEEDED -- Patient reports [symptom]. RN to gather more information in initial response. Based on patient reply, determine if provider escalation or patient education is appropriate.\n\nMILD -- clinical_routing_level: mild. Education-focused response appropriate. No provider escalation needed.\nTriggers: Mild nausea (not affecting intake). Mild constipation (less than 1 week). Heartburn or reflux. Hair loss. Mild fatigue. Mild injection site reactions (redness, minor swelling at site only).\nclinical_routing_note format: EDUCATION RESPONSE -- Patient reports [symptom]. RN to provide education and self-management guidance. Monitor for worsening and follow up as needed.\n\nNONE -- clinical_routing_level: none, clinical_routing_flag: false. No side effects present.\nApplies to: Weight plateau. No early weight loss. Food noise (hunger or cravings between injections -- this is NOT a side effect). Dosing questions without red flags. Food and nutrition questions. Non-clinical requests only. General check-in messages."}
   ],
   notes:[
     {name:"Dose verification and calculation",nurse_name:"System",text:"ALWAYS ask for dose in mg and units if not provided in any message involving side effects, dose changes, or injection questions.\n\nCompounded medications use U-100 insulin syringes. The formula to convert:\nUnits to draw = (Dose in mg / Concentration in mg per mL) x 100\n\nCommon compounded semaglutide concentrations: 1 mg/mL, 2 mg/mL, 2.5 mg/mL, 5 mg/mL\nCommon compounded tirzepatide concentrations: 10 mg/mL, 17 mg/mL, 20 mg/mL\n\nExample: Patient prescribed 0.5mg semaglutide from a 2mg/mL vial: (0.5/2) x 100 = 25 units\nExample: Patient prescribed 5mg tirzepatide from a 10mg/mL vial: (5/10) x 100 = 50 units\n\nNEVER assume concentration. If patient does not know, advise them to check the vial label or contact their pharmacy.\n\nVERIFY: Dose in mg matches their prescribed titration schedule. Flag if patient appears to be taking more than their prescribed dose."},
@@ -780,7 +777,7 @@ const DEFAULT_KB = {
 
     {name:"URGENCY RULES",nurse_name:"System",text:"These rules determine the urgency field in the JSON output.\n\nURGENT (urgency: urgent) -- requires immediate escalation, do not wait:\nPancreatitis symptoms: severe constant upper abdominal pain radiating to back, with nausea, vomiting, fever\nPersistent vomiting more than 3 days with inability to keep fluids down\nSigns of anaphylaxis: throat tightening, difficulty breathing, spreading hives, facial swelling -- call 911\nLoss of consciousness or seizure from hypoglycemia -- call 911\nSevere hypoglycemia not responsive to carbohydrate intake\nRapid heart rate with abdominal pain or fever\nBlood in vomit or stool\nSigns of acute kidney injury: no urination, severe dehydration, confusion\nSuicidal ideation\n\nSAME-DAY (urgency: same-day) -- needs provider review or follow-up today:\nModerate to severe GI symptoms affecting ability to eat or function for 2+ days\nInjection site reaction that is spreading, warm, or accompanied by fever\nConstipation more than 7 days\nSigns of moderate dehydration (dark urine, dizziness on standing, reduced urination)\nRight upper abdominal pain after meals (possible gallbladder)\nNew or worsening symptoms after dose increase that are not improving\nHypoglycemia episode that required treatment -- assess cause\n\nROUTINE (urgency: routine) -- next available response:\nMild nausea, heartburn, hair loss\nFood noise between injections\nWeight plateau questions\nNutrition and lifestyle questions\nDosing schedule questions without red flags\nGeneral check-in messages"},
 
-    {name:"SIDE EFFECT SEVERITY CLASSIFICATION",nurse_name:"System",text:"Use this to determine clinical_routing_level for any message involving side effects.\n\nSEVERE (clinical_routing_level: severe) -- red flag, escalate to provider:\nVomiting lasting more than 3 consecutive days\nDiarrhea lasting more than 3 consecutive days\nConstipation lasting more than 7 consecutive days with pain or distension\nSevere abdominal pain (especially epigastric radiating to back -- pancreatitis)\nAny signs of allergic reaction beyond local injection site (spreading rash, hives, throat tightening, breathing difficulty)\nFever accompanying GI symptoms\nSevere back pain\nSigns of hypoglycemia with confusion, loss of consciousness, or inability to self-treat\nBlood in vomit or stool\nAny symptom the clinical picture suggests could be life-threatening\n\nMEDIUM (clinical_routing_level: moderate) -- needs follow-up, may need provider:\nModerate vomiting (frequent but less than 3 days, keeping some fluids down)\nModerate diarrhea (several times per day but less than 3 days, no dehydration)\nModerate nausea significantly affecting ability to eat\nAbdominal pain that is uncomfortable but not severe, no fever\nInjection site reaction with slight spreading\nFatigue affecting daily function significantly\nSymptoms persisting beyond expected timeframe without improvement\n\nLOW (clinical_routing_level: mild) -- education response appropriate:\nMild nausea (noticeable but not affecting food intake significantly)\nMild constipation (less than 7 days, manageable with OTC)\nHeartburn and reflux\nHair loss\nMild fatigue manageable with lifestyle adjustments\nMild injection site reactions (redness, minor swelling at site only)\nFood noise and appetite returning before next injection\n\nNOT A SIDE EFFECT (clinical_routing_level: none):\nWeight plateau\nNo early weight loss\nDosing questions\nNutrition and lifestyle questions\nNon-clinical questions only\nGeneral check-in without symptom report"}
+    {name:"SIDE EFFECT SEVERITY CLASSIFICATION",nurse_name:"System",text:"Use this to determine clinical_routing_level for any message involving side effects.\n\nSEVERE (clinical_routing_level: severe) -- red flag, escalate to provider:\nVomiting lasting more than 3 consecutive days\nDiarrhea lasting more than 3 consecutive days\nConstipation lasting more than 7 consecutive days with pain or distension\nSevere abdominal pain (especially epigastric radiating to back -- pancreatitis)\nAny signs of allergic reaction beyond local injection site (spreading rash, hives, throat tightening, breathing difficulty)\nFever accompanying GI symptoms\nSevere back pain\nSigns of hypoglycemia with confusion, loss of consciousness, or inability to self-treat\nBlood in vomit or stool\nAny symptom the clinical picture suggests could be life-threatening\n\nMEDIUM (clinical_routing_level: moderate) -- needs follow-up, may need provider:\nModerate vomiting (frequent but less than 3 days, keeping some fluids down)\nModerate diarrhea (several times per day but less than 3 days, no dehydration)\nModerate nausea significantly affecting ability to eat\nAbdominal pain that is uncomfortable but not severe, no fever\nInjection site reaction with slight spreading\nFatigue affecting daily function significantly\nSymptoms persisting beyond expected timeframe without improvement\n\nLOW (clinical_routing_level: mild) -- education response appropriate:\nMild nausea (noticeable but not affecting food intake significantly)\nMild constipation (less than 7 days, manageable with OTC)\nHeartburn and reflux\nHair loss\nMild fatigue manageable with lifestyle adjustments\nMild injection site reactions (redness, minor swelling at site only)\n\nNOT A SIDE EFFECT (clinical_routing_level: none) -- do NOT set clinical_routing_flag:\nWeight plateau\nNo early weight loss\nFood noise (hunger or cravings returning between injections -- this is pharmacokinetics, not a side effect)\nDosing questions\nNutrition and lifestyle questions\nNon-clinical questions only\nGeneral check-in without symptom report"}
   ]
 };
 
@@ -1159,16 +1156,13 @@ function guessNonClinCat(items){
   return 'Other';
 }
 
-function buildMultiCatSelect(type, cats, defaultSelected){
-  // defaultSelected: single string from AI, pre-selects that tag
+function buildCatListbox(id, cats, defaultSelected){
   var norm = (defaultSelected||'').trim().toLowerCase();
-  return '<div class="cat-tags" id="catTags_'+type+'">' +
-    cats.map(function(c){
-      var isSelected = c.toLowerCase() === norm || (norm && c.toLowerCase().includes(norm));
-      var selClass = isSelected ? (type==='clin'?' selected':' selected-nonclin') : '';
-      return '<button class="cat-tag'+selClass+'" data-cat-type="'+type+'" data-cat-val="'+esc(c)+'">'+esc(c)+'</button>';
-    }).join('') +
-  '</div>';
+  var opts = cats.map(function(c){
+    var sel = c.toLowerCase() === norm || (norm && c.toLowerCase().includes(norm) && norm.length > 3);
+    return '<option value="'+esc(c)+'"'+(sel?' selected':'')+'>'+esc(c)+'</option>';
+  }).join('');
+  return '<select class="cat-multiselect" id="'+id+'" multiple size="5" onchange="onCatChange()">'+opts+'</select>';
 }
 
 function buildCategorySelect(clinCat, nonClinCat){
@@ -1208,16 +1202,23 @@ async function saveCategory(){
   var btn=document.getElementById('categorySaveBtn');
   if(!btn)return;
   btn.textContent='Saving...';btn.disabled=true;
+  var clinList=document.getElementById('clinCatList');
+  var nonClinList=document.getElementById('nonClinCatList');
+  var seFld=document.getElementById('sideEffectSelect');
   var clinSelected=[],nonClinSelected=[];
-  document.querySelectorAll('.cat-tag.selected').forEach(function(t){
-    if(t.getAttribute('data-cat-type')==='clin') clinSelected.push(t.getAttribute('data-cat-val'));
-  });
-  document.querySelectorAll('.cat-tag.selected-nonclin').forEach(function(t){
-    nonClinSelected.push(t.getAttribute('data-cat-val'));
-  });
-  var combined = clinSelected.join(', ') + (nonClinSelected.length?' | Non-clinical: '+nonClinSelected.join(', '):'');
+  if(clinList) Array.from(clinList.selectedOptions).forEach(function(o){clinSelected.push(o.value);});
+  if(nonClinList) Array.from(nonClinList.selectedOptions).forEach(function(o){nonClinSelected.push(o.value);});
+  var seNote = seFld&&seFld.value ? ' [SE: '+seFld.value+']' : '';
+  var combined = (clinSelected.join(', ')||'General/multiple') + seNote + (nonClinSelected.length?' | Non-clinical: '+nonClinSelected.join(', '):'');
   if(currentHistoryId)await api('/history','POST',{action:'update_category',id:currentHistoryId,category:combined});
   btn.textContent='Saved !';btn.className='save-inline-btn saved';btn.disabled=false;
+}
+
+async function recordFalsePositive(btn){
+  btn.textContent='Recording...';btn.disabled=true;
+  if(currentHistoryId)await api('/history','POST',{action:'update_category',id:currentHistoryId,category:'FALSE POSITIVE: No side effect present'});
+  btn.textContent='Recorded -- no side effect';btn.className='fp-btn corrected';
+  showToast('False positive recorded');
 }
 
 function buildTimeframeSelect(urgency){
@@ -1377,38 +1378,47 @@ function renderResults(d){
     '</div>'+
   '</div>';
 
-  // -- Category card -- multi-select tags ------------------------------------
+  // -- Category card -- side-by-side multi-select listboxes ------------------
   var aiClinCat = (d.clinical_category||'').trim();
   var aiNonClin = guessNonClinCat(d.non_clinical_items);
+  var hasSideEffect = d.clinical_routing_flag && (d.clinical_routing_level||'none') !== 'none';
   html+='<div class="out-card">'+
     '<div class="oc-header"><span class="oc-label">Message Category</span></div>'+
     '<div class="oc-body">'+
-      '<div style="margin-bottom:12px;">'+
-        '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:8px;">Clinical</div>'+
-        buildMultiCatSelect('clin', CLINICAL_CATS, aiClinCat)+
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:10px;">'+
+        '<div>'+
+          '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:6px;">Clinical</div>'+
+          buildCatListbox('clinCatList', CLINICAL_CATS, aiClinCat)+
+          '<div style="font-size:var(--fs-xs);color:var(--gray-400);margin-top:4px;">Ctrl+click for multiple</div>'+
+        '</div>'+
+        '<div>'+
+          '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:6px;">Non-Clinical</div>'+
+          buildCatListbox('nonClinCatList', NON_CLINICAL_CATS.filter(function(c){return c!=='-- None --';}), aiNonClin)+
+          '<div style="font-size:var(--fs-xs);color:var(--gray-400);margin-top:4px;">Select if missed</div>'+
+        '</div>'+
       '</div>'+
-      (d.non_clinical_flag?
-        '<div style="padding-top:10px;border-top:1px solid var(--gray-100);">'+
-          '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:8px;">Non-Clinical</div>'+
-          buildMultiCatSelect('nonclin', NON_CLINICAL_CATS.filter(function(c){return c!=='-- None --';}), aiNonClin)+
+      (hasSideEffect?
+        '<div style="padding-top:10px;border-top:1px solid var(--gray-100);margin-bottom:6px;">'+
+          '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:6px;">Side Effect Reported</div>'+
+          '<select class="sideeffect-select" id="sideEffectSelect" onchange="onCatChange()">'+
+            '<option value="">-- Select specific side effect --</option>'+
+            ['Nausea','Vomiting','Diarrhea','Constipation','Heartburn/Reflux','Hair loss','Fatigue','Injection site reaction','Hypoglycemia symptoms','Abdominal pain','Allergic reaction','Other'].map(function(s){
+              return '<option value="'+esc(s)+'">'+esc(s)+'</option>';
+            }).join('')+
+          '</select>'+
         '</div>'
-      :'')+
-      '<button class="save-inline-btn" id="categorySaveBtn" onclick="saveCategory()" style="margin-top:10px;">Save correction</button>'+
+      :
+        '<div style="padding-top:10px;border-top:1px solid var(--gray-100);margin-bottom:6px;">'+
+          '<button class="fp-btn" id="fpBtn" onclick="recordFalsePositive(this)">'+
+            'No side effect present — correct this classification'+
+          '</button>'+
+        '</div>'
+      )+
+      '<button class="save-inline-btn" id="categorySaveBtn" onclick="saveCategory()" style="margin-top:4px;">Save correction</button>'+
     '</div>'+
   '</div>';
 
-  // -- Key Points card -------------------------------------------------------
-  var displayFacts = (d.clinical_facts||[]).filter(function(f){
-    return !f.toLowerCase().includes('side effect severity');
-  });
-  if(displayFacts.length){
-    html+='<div class="out-card">'+
-      '<div class="oc-header"><span class="oc-label">Key Points</span></div>'+
-      '<div class="oc-body">'+
-        '<ul class="facts-list">'+displayFacts.map(function(f){return '<li>'+esc(f)+'</li>';}).join('')+'</ul>'+
-      '</div>'+
-    '</div>';
-  }
+  // Key Points card removed -- staff read the message directly
 
   // -- Generated Response card -----------------------------------------------
   var draftText=(d.draft_response||'').trim();
