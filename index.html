@@ -264,8 +264,7 @@ textarea::placeholder{color:var(--gray-400);}
 .cat-multiselect:focus{border-color:var(--blue);}
 .cat-multiselect option{padding:6px 10px;cursor:pointer;font-size:var(--fs-sm);}
 .cat-multiselect option:checked{background:var(--blue-l);color:var(--blue);font-weight:600;}
-.sideeffect-select{width:100%;padding:8px 10px;border:1.5px solid var(--gray-200);border-radius:8px;font-family:var(--sans);font-size:var(--fs-sm);color:var(--gray-800);background:var(--white);outline:none;margin-top:6px;}
-.sideeffect-select:focus{border-color:var(--blue);}
+
 
 .save-toast{position:fixed;bottom:24px;right:24px;background:var(--green);color:white;padding:13px 22px;border-radius:10px;font-size:var(--fs-sm);font-weight:600;opacity:0;transition:opacity .2s;pointer-events:none;box-shadow:0 4px 12px rgba(0,0,0,.15);z-index:999;}
 .save-toast.show{opacity:1;}
@@ -1124,7 +1123,7 @@ currentHistoryId=null;selectedUpReasons=[];selectedDownReasons=[];
   try{
     var res=await fetch('/.netlify/functions/triage',{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({model:'claude-haiku-4-5',max_tokens:900,system:sysPrompt,messages:[{role:'user',content:userContent}]})
+      body:JSON.stringify({model:'claude-haiku-4-5',max_tokens:1500,system:sysPrompt,messages:[{role:'user',content:userContent}]})
     });
     var data=await res.json();
     if(data.error)throw new Error(typeof data.error==='string'?data.error:(data.error.message||JSON.stringify(data.error)));
@@ -1134,7 +1133,32 @@ currentHistoryId=null;selectedUpReasons=[];selectedDownReasons=[];
     renderResults(parsed);
     saveHistoryRecord(parsed,msg).then(function(id){currentHistoryId=id;});
   }catch(err){
-    document.getElementById('results').innerHTML='<div class="error-box"><strong>Error:</strong> '+esc(err.message)+'</div>';
+    var msg = err.message||'Unknown error';
+    var isJson = msg.includes('JSON') || msg.includes('Unexpected token') || msg.includes('SyntaxError');
+    var isEmpty = msg.includes('Empty response');
+    var isTimeout = msg.includes('timeout') || msg.includes('network') || msg.toLowerCase().includes('fetch');
+    var title, detail, suggestion;
+    if(isJson || isEmpty){
+      title = 'Response could not be parsed';
+      detail = 'The AI returned a response but it was incomplete or in an unexpected format. This usually happens when the knowledge base is very large and the response gets cut off.';
+      suggestion = 'Try again -- if it keeps failing, go to the Knowledge Base and check for any very long entries that could be trimmed.';
+    } else if(isTimeout){
+      title = 'Connection issue';
+      detail = 'The request could not reach the server, or took too long to respond.';
+      suggestion = 'Check your internet connection and try again.';
+    } else {
+      title = 'Triage could not complete';
+      detail = msg;
+      suggestion = 'Try submitting again. If the error persists, the message may contain content the AI cannot process -- try simplifying or rephrasing it.';
+    }
+    document.getElementById('results').innerHTML =
+      '<div style="background:var(--amber-l);border:1.5px solid var(--amber-m);border-radius:12px;padding:20px 22px;">'+
+        '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--amber);margin-bottom:8px;">&#9888; '+esc(title)+'</div>'+
+        '<div style="font-size:var(--fs-base);color:var(--gray-800);line-height:1.7;margin-bottom:10px;">'+esc(detail)+'</div>'+
+        '<div style="font-size:var(--fs-sm);color:var(--gray-600);line-height:1.6;padding:10px 14px;background:rgba(255,255,255,.6);border-radius:8px;">'+
+          '<strong>What to do:</strong> '+esc(suggestion)+
+        '</div>'+
+      '</div>';
   }finally{setLoading(false);}
 }
 
@@ -1169,22 +1193,21 @@ async function saveCategory(){
   var btn=document.getElementById('categorySaveBtn');
   if(!btn)return;
   btn.textContent='Saving...';btn.disabled=true;
-  // Check false positive checkbox
+  // Check false positive checkbox (no side effect despite badge firing)
   var fpCheck=document.getElementById('fpCheck');
   if(fpCheck&&fpCheck.checked){
-    if(currentHistoryId)await api('/history','POST',{action:'update_category',id:currentHistoryId,category:'FALSE POSITIVE: No side effect present'});
+    if(currentHistoryId)await api('/history','POST',{action:'update_category',id:currentHistoryId,category:'CORRECTION: No side effect -- false positive'});
     btn.textContent='Saved';btn.className='save-ghost-btn saved';btn.disabled=false;
-    showToast('False positive recorded');
+    showToast('Correction recorded');
     return;
   }
   var clinList=document.getElementById('clinCatList');
   var nonClinList=document.getElementById('nonClinCatList');
-  var seFld=document.getElementById('sideEffectSelect');
   var clinSelected=[],nonClinSelected=[];
   if(clinList) Array.from(clinList.selectedOptions).forEach(function(o){clinSelected.push(o.value);});
   if(nonClinList) Array.from(nonClinList.selectedOptions).forEach(function(o){nonClinSelected.push(o.value);});
-  var seNote = seFld&&seFld.value ? ' [SE: '+seFld.value+']' : '';
-  var combined = (clinSelected.join(', ')||'General/multiple') + seNote + (nonClinSelected.length?' | Non-clinical: '+nonClinSelected.join(', '):'');
+  // Record what AI suggested vs what staff actually selected (deselections = learning signal)
+  var combined = (clinSelected.join(', ')||'General/multiple') + (nonClinSelected.length?' | Non-clinical: '+nonClinSelected.join(', '):'');
   if(currentHistoryId)await api('/history','POST',{action:'update_category',id:currentHistoryId,category:combined});
   btn.textContent='Saved';btn.className='save-ghost-btn saved';btn.disabled=false;
 }
@@ -1334,23 +1357,30 @@ function renderResults(d){
     '</div>';
   }
 
-  // -- Urgency strip -- compact inline, not a full card ----------------------
+  // -- Urgency strip -- compact, always after routing cards ------------------
   var severityBadge = buildSeverityBadge(d.clinical_routing_level);
-
-  var urgClass = d.urgency==='urgent'?'urgent':d.urgency==='same-day'?'same-day':'routine';
-  var urgLabel = d.urgency==='urgent'?'URGENT':'same-day'===d.urgency?'Same Day':'Routine';
-  html+='<div style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:var(--white);border:1.5px solid var(--gray-200);border-radius:10px;">'+
-    '<span style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--gray-500);">Timeframe</span>'+
-    buildTimeframeSelect(d.urgency)+
-    (severityBadge?severityBadge:'')+
-  '</div>';
 
   // -- Category card -- side-by-side multi-select listboxes ------------------
   var aiClinCat = (d.clinical_category||'').trim();
   var aiNonClin = guessNonClinCat(d.non_clinical_items);
   var hasSideEffect = d.clinical_routing_flag && (d.clinical_routing_level||'none') !== 'none';
+  // Build compact urgency pill for card header
+  var urgColors = {urgent:'var(--red)','same-day':'var(--amber)',routine:'var(--green)'};
+  var urgBg = {urgent:'var(--red-l)','same-day':'var(--amber-l)',routine:'var(--green-l)'};
+  var urgBorder = {urgent:'var(--red-m)','same-day':'var(--amber-m)',routine:'var(--green-m)'};
+  var urgKey = d.urgency==='urgent'?'urgent':d.urgency==='same-day'?'same-day':'routine';
+  var urgPill = '<span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;border:1.5px solid '+urgBorder[urgKey]+';color:'+urgColors[urgKey]+';background:'+urgBg[urgKey]+';text-transform:uppercase;letter-spacing:.04em;">'+urgKey+'</span>';
   html+='<div class="out-card">'+
-    '<div class="oc-header"><span class="oc-label">Message Category</span></div>'+
+    '<div class="oc-header" style="flex-wrap:nowrap;">'+
+      '<span class="oc-label">Message Category</span>'+
+      '<div style="display:flex;align-items:center;gap:8px;">'+
+        (severityBadge?severityBadge:'')+
+        '<div style="display:flex;align-items:center;gap:5px;">'+
+          urgPill+
+          buildTimeframeSelect(d.urgency)+
+        '</div>'+
+      '</div>'+
+    '</div>'+
     '<div class="oc-body">'+
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:12px;">'+
         '<div>'+
@@ -1362,19 +1392,9 @@ function renderResults(d){
           buildCatListbox('nonClinCatList', NON_CLINICAL_CATS.filter(function(c){return c!=='-- None --';}), aiNonClin)+
         '</div>'+
       '</div>'+
-      (hasSideEffect?
-        '<div style="padding-top:10px;border-top:1px solid var(--gray-100);margin-bottom:8px;">'+
-          '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:6px;">Side Effect Reported</div>'+
-          '<select class="sideeffect-select" id="sideEffectSelect" onchange="onCatChange()">'+
-            '<option value="">-- Specify side effect --</option>'+
-            ['Nausea','Vomiting','Diarrhea','Constipation','Heartburn/Reflux','Hair loss','Fatigue','Injection site reaction','Hypoglycemia symptoms','Abdominal pain','Allergic reaction','Other'].map(function(s){
-              return '<option value="'+esc(s)+'">'+esc(s)+'</option>';
-            }).join('')+
-          '</select>'+
-        '</div>'
-      :'')+
+      
       '<div style="display:flex;align-items:center;justify-content:space-between;padding-top:10px;border-top:1px solid var(--gray-100);">'+
-        '<button class="save-ghost-btn" id="categorySaveBtn" onclick="saveCategory()">Save correction</button>'+
+        '<button class="save-ghost-btn" id="categorySaveBtn" onclick="saveCategory()">&#10003; Save Categories</button>'+
         (severityBadge?
           '<label style="display:flex;align-items:center;gap:6px;font-size:var(--fs-xs);color:var(--gray-500);cursor:pointer;">'+
             '<input type="checkbox" id="fpCheck" style="accent-color:var(--red);cursor:pointer;"> Not a side effect'+
