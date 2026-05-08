@@ -119,37 +119,47 @@ input.error{border-color:var(--red);}
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-// Supabase config — these are injected at deploy time via environment
-// For client-side auth we use the anon key (safe for public)
-// These are public values — safe to include in client-side code
-// Replace with your actual values from Supabase → Settings → API Keys
+// Replace these with your actual values from Supabase → Settings → API Keys
 const SUPABASE_URL = 'https://aturbsnqpdtvhrnujrqb.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF0dXJic25xcGR0dmhybnVqcnFiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc4NDc5MTgsImV4cCI6MjA5MzQyMzkxOH0.l7LdmI8PfFiIXa1nIwwauiWh6KnzpwhlpK5uieATsic';
 
-// Check for invite token or existing session on load
-document.addEventListener('DOMContentLoaded', function() {
-  // Check if already signed in
-  var session = getSession();
-  if (session && session.access_token) {
-    // Validate and redirect
-    validateAndRedirect(session.access_token);
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+document.addEventListener('DOMContentLoaded', async function() {
+  // Check for existing session
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session) {
+    localStorage.setItem('relai_session', JSON.stringify({
+      access_token: session.access_token,
+      refresh_token: session.refresh_token,
+      timestamp: Date.now()
+    }));
+    window.location.href = '/';
     return;
   }
 
-  // Check URL params for invite or magic link callback
+  // Check URL for magic link tokens (hash-based)
+  const hash = window.location.hash;
+  if (hash && hash.includes('access_token')) {
+    // Supabase JS client handles this automatically via getSession
+    const { data: { session: newSession } } = await supabase.auth.getSession();
+    if (newSession) {
+      localStorage.setItem('relai_session', JSON.stringify({
+        access_token: newSession.access_token,
+        refresh_token: newSession.refresh_token,
+        timestamp: Date.now()
+      }));
+      showMessage('Signed in — redirecting...', 'success');
+      setTimeout(function() { window.location.href = '/'; }, 800);
+      return;
+    }
+  }
+
+  // Check for invite param
   var params = new URLSearchParams(window.location.search);
-  var hash = new URLSearchParams(window.location.hash.replace('#', '?'));
   var inviteEmail = params.get('invite');
-  var accessToken = hash.get('access_token');
-  var type = hash.get('type');
-
-  if (accessToken && type === 'magiclink') {
-    // Magic link clicked — exchange for session
-    handleMagicLinkCallback(accessToken, hash.get('refresh_token'));
-    return;
-  }
-
   if (inviteEmail) {
     document.getElementById('emailInput').value = decodeURIComponent(inviteEmail);
     document.getElementById('inviteNotice').classList.add('show');
@@ -159,42 +169,6 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('btnText').textContent = 'Create account & send link';
   }
 });
-
-function getSession() {
-  try { return JSON.parse(localStorage.getItem('relai_session') || 'null'); } catch(e) { return null; }
-}
-
-async function validateAndRedirect(token) {
-  try {
-    var r = await fetch(SUPABASE_URL + '/auth/v1/user', {
-      headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + token }
-    });
-    var user = await r.json();
-    if (user.id) {
-      window.location.href = '/';
-    }
-  } catch(e) {
-    localStorage.removeItem('relai_session');
-  }
-}
-
-async function handleMagicLinkCallback(accessToken, refreshToken) {
-  showMessage('Signing you in...', 'success');
-  // Store session
-  localStorage.setItem('relai_session', JSON.stringify({
-    access_token: accessToken,
-    refresh_token: refreshToken,
-    timestamp: Date.now()
-  }));
-  // Update last_seen
-  try {
-    await fetch('/.netlify/functions/auth/signout', {
-      method: 'POST',
-      headers: { 'Authorization': 'Bearer ' + accessToken }
-    });
-  } catch(e) {}
-  setTimeout(function() { window.location.href = '/'; }, 800);
-}
 
 async function handleSubmit() {
   var email = document.getElementById('emailInput').value.trim();
@@ -206,48 +180,30 @@ async function handleSubmit() {
     showMessage('Please enter a valid email address.', 'error');
     return;
   }
-  if (isInvite && !name) {
-    document.getElementById('nameInput').classList.add('error');
-    showMessage('Please enter your full name.', 'error');
-    return;
-  }
 
   setLoading(true);
 
   try {
-    // Send magic link via Supabase
-    var body = {
+    const { error } = await supabase.auth.signInWithOtp({
       email: email,
       options: {
         emailRedirectTo: window.location.origin + '/login.html',
         data: name ? { full_name: name } : {}
       }
-    };
-
-    var r = await fetch(SUPABASE_URL + '/auth/v1/otp', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': SUPABASE_ANON_KEY
-      },
-      body: JSON.stringify(body)
     });
 
-    if (r.ok) {
+    if (error) {
+      showMessage('Error: ' + error.message, 'error');
+    } else {
       showMessage(
         'Check your email — we sent a sign-in link to <strong>' + email + '</strong>. ' +
-        'The link expires in 1 hour. You can close this tab.',
+        'The link expires in 1 hour.',
         'success'
       );
       document.getElementById('submitBtn').disabled = true;
-    } else {
-      var errText = await r.text();
-      var errMsg = '';
-      try{ var errJson=JSON.parse(errText); errMsg=errJson.message||errJson.error_description||errJson.error||errText; }catch(e){ errMsg=errText; }
-      showMessage('Error ' + r.status + ': ' + (errMsg||'No message returned. Check Supabase URL and anon key.'), 'error');
     }
   } catch(e) {
-    showMessage('Connection error: ' + e.message + '. Check that SUPABASE_URL is correct.', 'error');
+    showMessage('Unexpected error: ' + e.message, 'error');
   }
 
   setLoading(false);
