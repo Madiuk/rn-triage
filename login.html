@@ -7,52 +7,21 @@
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-body{
-  font-family:'DM Sans',sans-serif;
-  background:#f1f3f5;
-  min-height:100vh;
-  display:flex;flex-direction:column;
-  align-items:center;justify-content:center;
-  padding:24px;
-}
-.card{
-  background:#fff;border-radius:20px;
-  box-shadow:0 8px 40px rgba(0,0,0,.1);
-  padding:48px 44px;width:100%;max-width:420px;
-}
+body{font-family:'DM Sans',sans-serif;background:#f1f3f5;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;}
+.card{background:#fff;border-radius:20px;box-shadow:0 8px 40px rgba(0,0,0,.1);padding:48px 44px;width:100%;max-width:420px;}
 .brand{display:flex;align-items:center;gap:12px;margin-bottom:36px;}
-.brand-icon{
-  width:44px;height:44px;border-radius:11px;
-  background:#2563eb;display:flex;align-items:center;justify-content:center;
-  font-size:20px;font-weight:800;color:white;font-family:'DM Sans',sans-serif;
-}
+.brand-icon{width:44px;height:44px;border-radius:11px;background:#2563eb;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;color:white;}
 .brand-name{font-size:26px;font-weight:700;color:#212529;letter-spacing:-.5px;}
 .brand-tagline{font-size:13px;color:#adb5bd;margin-top:1px;}
 h1{font-size:20px;font-weight:700;color:#212529;margin-bottom:6px;}
 p.sub{font-size:14px;color:#6c757d;margin-bottom:28px;line-height:1.5;}
 label{display:block;font-size:13px;font-weight:600;color:#495057;margin-bottom:6px;}
-input{
-  width:100%;padding:12px 14px;
-  border:1.5px solid #e9ecef;border-radius:10px;
-  font-family:'DM Sans',sans-serif;font-size:15px;
-  color:#212529;outline:none;
-  transition:border-color .15s;
-}
+input{width:100%;padding:12px 14px;border:1.5px solid #e9ecef;border-radius:10px;font-family:'DM Sans',sans-serif;font-size:15px;color:#212529;outline:none;transition:border-color .15s;}
 input:focus{border-color:#2563eb;}
 .field{margin-bottom:16px;}
-button#go{
-  width:100%;margin-top:8px;padding:13px;
-  background:#2563eb;border:none;border-radius:10px;
-  color:white;font-family:'DM Sans',sans-serif;
-  font-size:16px;font-weight:600;cursor:pointer;
-  transition:background .15s;
-}
-button#go:hover{background:#1d4ed8;}
-button#go:disabled{background:#ced4da;cursor:not-allowed;}
-.msg{
-  margin-top:18px;padding:14px 16px;border-radius:10px;
-  font-size:14px;line-height:1.6;display:none;
-}
+button{width:100%;margin-top:8px;padding:13px;background:#2563eb;border:none;border-radius:10px;color:white;font-family:'DM Sans',sans-serif;font-size:16px;font-weight:600;cursor:pointer;}
+button:hover{background:#1d4ed8;}
+.msg{margin-top:18px;padding:14px 16px;border-radius:10px;font-size:14px;line-height:1.6;display:none;}
 .msg.ok{background:#f0fdf4;border:1.5px solid #bbf7d0;color:#16a34a;}
 .msg.err{background:#fef2f2;border:1.5px solid #fecaca;color:#dc2626;}
 .msg.show{display:block;}
@@ -68,96 +37,74 @@ button#go:disabled{background:#ced4da;cursor:not-allowed;}
       <div class="brand-tagline">Intelligent task routing</div>
     </div>
   </div>
-
   <h1>Sign in to your workspace</h1>
-  <p class="sub">Enter your email and we'll send you a secure sign-in link. No password needed.</p>
-
+  <p class="sub">Enter your email and we'll send you a secure sign-in link.</p>
   <div class="field">
     <label for="em">Work email</label>
     <input type="email" id="em" placeholder="you@company.com" autocomplete="email">
   </div>
-
-  <button id="go">Send sign-in link</button>
+  <button onclick="sendLink()">Send sign-in link</button>
   <div class="msg" id="msg"></div>
-
-  <div class="footer">
-    Having trouble? Contact your workspace administrator.
-  </div>
+  <div class="footer">Having trouble? Contact your workspace administrator.</div>
 </div>
 
 <script>
-// ── CONFIG — replace these two values ────────────────────────────────────────
-var SUPA_URL  = 'https://aturbsnqpdtvhrnujrqb.supabase.co';   // e.g. https://xyz.supabase.co
-var SUPA_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF0dXJic25xcGR0dmhybnVqcnFiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc4NDc5MTgsImV4cCI6MjA5MzQyMzkxOH0.l7LdmI8PfFiIXa1nIwwauiWh6KnzpwhlpK5uieATsic';
-// ─────────────────────────────────────────────────────────────────────────────
+var SUPA_URL = 'https://aturbsnqpdtvhrnujrqb.supabase.co';
+var SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF0dXJic25xcGR0dmhybnVqcnFiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc4NDc5MTgsImV4cCI6MjA5MzQyMzkxOH0.l7LdmI8PfFiIXa1nIwwauiWh6KnzpwhlpK5uieATsic';
 
-function show(text, type) {
+function show(html, type) {
   var el = document.getElementById('msg');
-  el.innerHTML = text;
+  el.innerHTML = html;
   el.className = 'msg show ' + type;
 }
 
-document.getElementById('go').addEventListener('click', function() {
+function sendLink() {
   var email = document.getElementById('em').value.trim();
-
   if (!email || !email.includes('@')) {
     show('Please enter a valid email address.', 'err');
     return;
   }
 
-  var btn = document.getElementById('go');
-  btn.disabled = true;
-  btn.textContent = 'Sending...';
+  show('Sending...', 'ok');
 
-  var payload = JSON.stringify({
-    email: email,
-    options: {
-      emailRedirectTo: window.location.origin + '/login.html'
-    }
-  });
-
-  fetch(SUPA_URL + '/auth/v1/otp', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'apikey': SUPA_KEY,
-      'Authorization': 'Bearer ' + SUPA_KEY
-    },
-    body: payload
-  })
-  .then(function(r) { return r.json().then(function(d) { return {ok: r.ok, status: r.status, data: d}; }); })
-  .then(function(res) {
-    if (res.ok) {
-      show('Check your email — we sent a link to <strong>' + email + '</strong>. It expires in 1 hour.', 'ok');
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', SUPA_URL + '/auth/v1/otp', true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.setRequestHeader('apikey', SUPA_KEY);
+  xhr.setRequestHeader('Authorization', 'Bearer ' + SUPA_KEY);
+  xhr.onload = function() {
+    var resp = {};
+    try { resp = JSON.parse(xhr.responseText); } catch(e) {}
+    if (xhr.status >= 200 && xhr.status < 300) {
+      show('Check your email for a sign-in link sent to <strong>' + email + '</strong>.', 'ok');
     } else {
-      var errMsg = (res.data && (res.data.msg || res.data.message || res.data.error_description || res.data.error)) || 'Unknown error';
-      show('Error ' + res.status + ': ' + errMsg, 'err');
-      btn.disabled = false;
-      btn.textContent = 'Send sign-in link';
+      var m = resp.msg || resp.message || resp.error || xhr.responseText || 'Unknown error';
+      show('Error ' + xhr.status + ': ' + m, 'err');
     }
-  })
-  .catch(function(e) {
-    show('Network error: ' + e.message + '<br>Check that SUPA_URL is correct and has no trailing slash.', 'err');
-    btn.disabled = false;
-    btn.textContent = 'Send sign-in link';
-  });
-});
+  };
+  xhr.onerror = function() {
+    show('Network error — check SUPA_URL is correct.', 'err');
+  };
+  xhr.send(JSON.stringify({
+    email: email,
+    options: { emailRedirectTo: window.location.origin + '/login.html' }
+  }));
+}
 
-// Handle magic link return — token arrives in URL hash
+// Handle magic link callback
 (function() {
-  var hash = window.location.hash;
-  if (!hash || !hash.includes('access_token')) return;
-  var params = new URLSearchParams(hash.replace('#', ''));
-  var token = params.get('access_token');
-  var refresh = params.get('refresh_token');
-  if (!token) return;
+  var h = window.location.hash;
+  if (!h || !h.includes('access_token')) return;
+  var p = new URLSearchParams(h.replace('#',''));
+  var t = p.get('access_token');
+  if (!t) return;
   localStorage.setItem('relai_session', JSON.stringify({
-    access_token: token,
-    refresh_token: refresh,
+    access_token: t,
+    refresh_token: p.get('refresh_token'),
     timestamp: Date.now()
   }));
   show('Signed in — redirecting...', 'ok');
-  setTimeout(function() { window.location.href = '/'; }, 600);
+  setTimeout(function(){ window.location.href = '/'; }, 600);
 })();
 </script>
 </body>
