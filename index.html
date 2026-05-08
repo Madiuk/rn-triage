@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Relai — GLP-1 Clinical Triage</title>
+<title>Relai — Triage and Tasking</title>
 <style>
 
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap');
@@ -247,7 +247,7 @@ textarea::placeholder{color:var(--gray-400);}
 .cat-save-btn{padding:7px 20px;background:var(--blue);border:1.5px solid var(--blue);border-radius:7px;color:white;font-family:var(--sans);font-size:var(--fs-sm);font-weight:600;cursor:pointer;white-space:nowrap;transition:all .15s;display:inline-block;}
 .cat-save-btn:hover{background:#1d4ed8;}
 .cat-save-btn.saved{background:var(--green);border-color:var(--green);}
-.save-toast{position:fixed;bottom:24px;right:24px;background:var(--green);color:white;padding:13px 22px;border-radius:10px;font-size:var(--fs-sm);font-weight:600;opacity:0;transition:opacity .2s;pointer-events:none;box-shadow:0 4px 12px rgba(0,0,0,.15);z-index:999;}
+.save-toast{position:fixed;bottom:24px;right:24px;background:var(--green);color:white;padding:13px 22px;border-radius:10px;font-size:var(--fs-sm);font-weight:600;opacity:0;transition:opacity .2s,background .2s;pointer-events:none;box-shadow:0 4px 12px rgba(0,0,0,.15);z-index:999;}
 .save-toast.show{opacity:1;}
 @media(max-width:900px){.triage-layout{grid-template-columns:1fr;}.entry-add-row{flex-direction:column;}}
 
@@ -280,6 +280,7 @@ textarea::placeholder{color:var(--gray-400);}
   </div>
   <div style="padding:16px 24px;border-top:1px solid var(--gray-100);display:flex;flex-direction:column;gap:8px;">
     <button onclick="openHelpFromProfile()" style="width:100%;padding:10px;background:var(--gray-100);border:none;border-radius:8px;font-family:var(--sans);font-size:var(--fs-sm);font-weight:600;color:var(--gray-700);cursor:pointer;text-align:left;">&#10067; Help &amp; Guide</button>
+    <button onclick="goToClarifications()" style="width:100%;padding:10px;background:var(--red-l);border:1.5px solid var(--red-m);border-radius:8px;font-family:var(--sans);font-size:var(--fs-sm);font-weight:600;color:var(--red);cursor:pointer;text-align:left;display:flex;align-items:center;justify-content:space-between;"><span>&#9888; Pending Review Items</span><span id="profileBadgeCount" style="background:var(--red);color:white;border-radius:10px;padding:1px 7px;font-size:11px;"></span></button>
     <button onclick="signOut()" style="width:100%;padding:10px;background:var(--red-l,#fef2f2);border:1.5px solid var(--red-m,#fecaca);border-radius:8px;font-family:var(--sans);font-size:var(--fs-sm);font-weight:600;color:var(--red);cursor:pointer;text-align:left;">&#8594; Sign Out</button>
   </div>
 </div>
@@ -290,7 +291,7 @@ textarea::placeholder{color:var(--gray-400);}
     <div>
       <div style="display:flex;align-items:baseline;gap:8px;">
         <span class="brand-name">Relai</span>
-        <span style="font-size:11px;font-weight:600;color:var(--gray-400);letter-spacing:.02em;">GLP-1 Clinical Triage</span>
+        <span style="font-size:11px;font-weight:600;color:var(--gray-400);letter-spacing:.02em;">Triage and Tasking</span>
       </div>
       <div class="brand-sub">Big Easy Weight Loss</div>
     </div>
@@ -302,9 +303,10 @@ textarea::placeholder{color:var(--gray-400);}
     <button class="tab-btn" id="historyTabBtn" onclick="switchTab('history',this)" style="font-size:10px;color:var(--gray-300);padding:4px 8px;" title="Queue Infrastructure (dev)">&#8226;&#8226;&#8226;</button>
   </div>
   <div class="topbar-right">
-    <div class="nurse-chip" onclick="openProfile()" style="cursor:pointer;" title="Your profile">
+    <div class="nurse-chip" onclick="openProfile()" style="cursor:pointer;position:relative;" title="Your profile">
       <div id="chipAvatar" style="width:22px;height:22px;border-radius:50%;background:var(--blue);color:white;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;">?</div>
       <span id="staffChipName">Loading...</span>
+      <div id="clarificationBadge" style="display:none;position:absolute;top:-5px;right:-5px;width:16px;height:16px;border-radius:50%;background:var(--red);color:white;font-size:9px;font-weight:700;align-items:center;justify-content:center;border:2px solid white;">0</div>
     </div>
   </div>
 </div>
@@ -532,7 +534,19 @@ textarea::placeholder{color:var(--gray-400);}
 <!-- HISTORY TAB -->
 <div class="tab-panel" id="tab-history">
   <div style="max-width:1100px;margin:0 auto;padding:28px 24px;">
-    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+    <!-- AI Clarifications Section -->
+    <div style="margin-bottom:28px;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+        <h2 style="font-size:var(--fs-lg);font-weight:700;">AI Needs Your Input</h2>
+        <div id="clarificationCount" style="background:var(--red-l);border:1.5px solid var(--red-m);border-radius:20px;padding:2px 10px;font-size:var(--fs-xs);font-weight:700;color:var(--red);"></div>
+      </div>
+      <p style="font-size:var(--fs-sm);color:var(--gray-500);margin-bottom:14px;">Items the AI flagged for review — category corrections, routing questions, and confidence gaps.</p>
+      <div id="clarificationList" style="display:flex;flex-direction:column;gap:8px;">
+        <div style="text-align:center;padding:24px;color:var(--gray-400);font-size:var(--fs-sm);">No pending items. The AI is learning well.</div>
+      </div>
+    </div>
+
+    <div style="border-top:1px solid var(--gray-200);padding-top:24px;display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
       <div>
         <h2 style="font-size:var(--fs-xl);font-weight:700;margin-bottom:4px;">Triage Queue</h2>
         <p style="font-size:var(--fs-sm);color:var(--gray-500);">All triage records. Infrastructure view.</p>
@@ -767,933 +781,6 @@ function getKBPrompt(msg){
 // API
 // ── AUTH ──────────────────────────────────────────────────────────────────────
 async function initAuth(){
-  // Handle magic link token arriving at index.html
-  var hash = window.location.hash;
-  if(hash && hash.includes('access_token')){
-    var p = new URLSearchParams(hash.replace('#',''));
-    var token = p.get('access_token');
-    var refresh = p.get('refresh_token');
-    if(token){
-      localStorage.setItem('relai_session', JSON.stringify({
-        access_token: token,
-        refresh_token: refresh||'',
-        timestamp: Date.now()
-      }));
-      history.replaceState(null,'',window.location.pathname);
-    }
-  }
-  var session = getSession();
-  if(!session || !session.access_token){
-    window.location.href = '/login.html';
-    return;
-  }
-  try{
-    var r = await fetch('/.netlify/functions/auth/profile',{
-      headers:{'Authorization':'Bearer '+session.access_token}
-    });
-    if(r.ok){
-      var data = await r.json();
-      if(data && data.user && data.user.id){
-        currentUser = data.user;
-        currentProfile = data.profile;
-        var name = (currentProfile&&currentProfile.full_name)||currentUser.email.split('@')[0];
-        window.currentNurse = name;
-        var initials = name.split(' ').map(function(w){return w[0]||'';}).join('').substring(0,2).toUpperCase()||'?';
-        var chipEl = document.getElementById('staffChipName');
-        var avatarEl = document.getElementById('chipAvatar');
-        if(chipEl) chipEl.textContent = name.split(' ')[0];
-        if(avatarEl) avatarEl.textContent = initials;
-        return;
-      }
-    }
-    // Auth function not deployed yet — decode JWT locally
-    throw new Error('use_local');
-  }catch(e){
-    // Try to decode token locally before giving up
-    try{
-      var payload = JSON.parse(atob(session.access_token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
-      if(payload.sub && payload.exp > Date.now()/1000){
-        // Token still valid — use local data
-        var email = payload.email || '';
-        var meta = payload.user_metadata || {};
-        // Also check pending profile saved during signup
-        var pending = {};
-        try{ pending = JSON.parse(localStorage.getItem('relai_pending_profile')||'{}'); }catch(e){}
-        var name = meta.full_name || pending.full_name || meta.name || email.split('@')[0] || 'Staff';
-        var dept = meta.department || pending.department || '';
-        if(dept) window.currentDepartment = dept;
-        window.currentNurse = name;
-        currentUser = { id: payload.sub, email: email };
-        var initials = name.split(' ').map(function(w){return w[0]||'';}).join('').substring(0,2).toUpperCase()||'?';
-        var chipEl = document.getElementById('staffChipName');
-        var avatarEl = document.getElementById('chipAvatar');
-        if(chipEl) chipEl.textContent = name.split(' ')[0];
-        if(avatarEl) avatarEl.textContent = initials;
-        return;
-      }
-    }catch(e2){}
-    // Token expired or invalid — redirect to login
-    localStorage.removeItem('relai_session');
-    window.location.href = '/login.html';
-  }
-}
-
-
-// KB UI
-function setSyncBar(state,msg){
-  var bar=document.getElementById('syncBar');if(!bar)return;
-  bar.className='kb-sync-bar'+(state?' '+state:'');
-  var sm=document.getElementById('syncMsg');if(sm)sm.textContent=msg;
-}
-function renderKB(){
-  // Only render if KB tab elements exist in DOM
-  if(!document.getElementById('protocols-list'))return;
-  ['sideeffects','templates','protocols','urls','routing','notes'].forEach(function(section){
-    var list=document.getElementById(section+'-list');
-    if(!list)return;
-    list.innerHTML='';
-    var items=kb[section]||[];
-    var cnt=document.getElementById('cnt-'+section);
-    if(cnt)cnt.textContent=items.length||'';
-    if(!items.length){list.innerHTML='<div class="empty-state">No entries yet. Add one above.</div>';return;}
-    items.forEach(function(entry,i){list.appendChild(makeEntryEl(section,i,entry));});
-  });
-}
-function makeEntryEl(section,i,entry){
-  var div=document.createElement('div');
-  div.className='kb-entry';
-  var nm=(entry.name||'');
-  var isRule=nm.includes('RULES')||nm.includes('CLASSIFICATION')||nm.includes('FRAMEWORK');
-  if(isRule)div.classList.add('kb-entry-collapsed');
-
-  var header=document.createElement('div');header.className='kb-entry-header';
-
-  var nameInp=document.createElement('input');
-  nameInp.className='kb-entry-name';nameInp.type='text';nameInp.value=nm;
-  nameInp.setAttribute('data-section',section);nameInp.setAttribute('data-index',i);
-  nameInp.placeholder='Entry name...';
-
-  var toggleBtn=document.createElement('button');
-  toggleBtn.className='kb-entry-toggle';
-  toggleBtn.textContent=isRule?'expand':'collapse';
-  toggleBtn.addEventListener('click',function(){toggleKBEntry(toggleBtn,div);});
-
-  var author=document.createElement('span');
-  author.className='kb-entry-author';
-  author.textContent=entry.nurse_name||'Unknown';
-
-  header.appendChild(nameInp);header.appendChild(toggleBtn);header.appendChild(author);
-
-  var ta=document.createElement('textarea');
-  ta.className='kb-entry-content';
-  ta.setAttribute('data-section',section);ta.setAttribute('data-index',i);
-  ta.value=entry.text||'';
-
-  var footer=document.createElement('div');footer.className='kb-entry-footer';
-
-  var saveBtn=document.createElement('button');
-  saveBtn.className='btn-xs save';saveBtn.textContent='Save';
-  saveBtn.addEventListener('click',function(){saveEntryInline(section,i,saveBtn);});
-
-  var delBtn=document.createElement('button');
-  delBtn.className='btn-xs danger';delBtn.textContent='Delete';
-  delBtn.addEventListener('click',function(){removeEntry(section,i);});
-
-  footer.appendChild(saveBtn);footer.appendChild(delBtn);
-  div.appendChild(header);div.appendChild(ta);div.appendChild(footer);
-  return div;
-}
-async function saveEntryInline(section,i,btn){
-  syncKBFromDOM();
-  if(window.currentNurse&&kb[section]&&kb[section][i])kb[section][i].nurse_name=window.currentNurse;
-  btn.textContent='Saving...';btn.disabled=true;
-  try{
-    await saveKBSilent();
-    btn.textContent='Saved';btn.className='btn-xs saved';
-    setTimeout(function(){btn.textContent='Save';btn.className='btn-xs save';btn.disabled=false;},2000);
-    setSyncBar('synced','Synced . '+new Date().toLocaleTimeString());
-    renderKB();
-  }catch(e){btn.textContent='Save';btn.disabled=false;}
-}
-function removeEntry(section,i){if(!confirm('Delete this entry?'))return;kb[section].splice(i,1);renderKB();}
-function exportKB(){
-  var blob=new Blob([JSON.stringify({kb:kb},null,2)],{type:'application/json'});
-  var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='glp1-kb-backup.json';a.click();
-}
-function importKB(e){
-  var file=e.target.files[0];if(!file)return;
-  var reader=new FileReader();
-  reader.onload=function(ev){
-    try{var data=JSON.parse(ev.target.result);if(data.kb)kb=data.kb;renderKB();setSyncBar('','Imported -- save to sync');}
-    catch(err){alert('Invalid backup file.');}
-  };
-  reader.readAsText(file);
-}
-
-// TABS
-function togglePrior(){
-  var panel = document.getElementById('priorContextPanel');
-  var btn = document.getElementById('priorToggle');
-  var open = panel.style.display !== 'none';
-  panel.style.display = open ? 'none' : 'block';
-  btn.textContent = open ? 'Add Prior Context' : 'Remove Context';
-  btn.style.borderColor = open ? 'var(--gray-200)' : 'var(--blue-m)';
-  btn.style.color = open ? 'var(--gray-500)' : 'var(--blue)';
-  btn.style.background = open ? 'none' : 'var(--blue-l)';
-  if(open) document.getElementById('priorInput').value = '';
-  document.getElementById('msgLabel').textContent = open ? 'Current Message' : 'Latest Reply';
-}
-
-function switchKBTab(section, btn){
-  document.querySelectorAll('.kb-tab').forEach(function(b){b.classList.remove('active');});
-  document.querySelectorAll('.kb-tab-panel').forEach(function(p){p.classList.remove('active');});
-  btn.classList.add('active');
-  var panel = document.getElementById('kb-tab-'+section);
-  if(panel) panel.classList.add('active');
-  document.getElementById('kbSearch').value = '';
-}
-
-function filterKBEntries(){
-  var q = document.getElementById('kbSearch').value.toLowerCase().trim();
-  document.querySelectorAll('.kb-entry').forEach(function(entry){
-    var name = (entry.querySelector('.kb-entry-name')||{}).value||'';
-    var text = (entry.querySelector('.kb-entry-content')||{}).value||'';
-    var match = !q || name.toLowerCase().includes(q) || text.toLowerCase().includes(q);
-    entry.style.display = match ? '' : 'none';
-  });
-}
-
-function toggleKBEntry(btn, entryEl){
-  entryEl.classList.toggle('kb-entry-collapsed');
-  btn.textContent = entryEl.classList.contains('kb-entry-collapsed') ? 'v expand' : '^ collapse';
-}
-
-function toggleFaq(btn){
-  var isOpen = btn.classList.contains('open');
-  // Close all open FAQs in the same section
-  var section = btn.closest('.help-section');
-  if(section){
-    section.querySelectorAll('.help-faq-q.open').forEach(function(b){
-      b.classList.remove('open');
-      var a = b.nextElementSibling;
-      if(a) a.classList.remove('open');
-    });
-  }
-  // Toggle clicked one (unless it was already open)
-  if(!isOpen){
-    btn.classList.add('open');
-    var ans = btn.nextElementSibling;
-    if(ans) ans.classList.add('open');
-  }
-}
-
-function switchTab(name,btn){
-  document.querySelectorAll('.tab-panel').forEach(function(p){p.classList.remove('active');});
-  document.querySelectorAll('.tab-btn').forEach(function(b){b.classList.remove('active');});
-  document.getElementById('tab-'+name).classList.add('active');
-  btn.classList.add('active');
-  if(name==='kb')loadKBFromServer();
-}
-
-// TRIAGE
-function setLoading(on){
-  document.getElementById('btnText').textContent=on?'Analyzing...':'Run Triage';
-  document.getElementById('btnSpinner').className=on?'spinner active':'spinner';
-  document.getElementById('triageBtn').disabled=on;
-}
-
-async function runTriage(){
-  var msg=document.getElementById('msgInput').value.trim();
-  if(!msg)return;
-  setLoading(true);
-currentHistoryId=null;selectedUpReasons=[];selectedDownReasons=[];
-  document.getElementById('results').innerHTML='<div class="placeholder"><div class="spinner active" style="width:26px;height:26px;border-color:var(--gray-300);border-top-color:var(--blue);"></div><div class="placeholder-text" style="margin-top:14px;">Analyzing message...</div></div>';
-  var kbContent=getKBPrompt(msg);
-  var sysPrompt=kbContent?BASE_PROMPT+'\n\n'+kbContent:BASE_PROMPT;
-
-
-  // Build user content -- include prior conversation if provided
-  var prior = (document.getElementById('priorInput')||{}).value||'';
-  prior = prior.trim();
-  var userContent = prior
-    ? 'PRIOR CONVERSATION CONTEXT (earlier thread -- for background only, do not respond to this directly):\n\n' + prior + '\n\n---\n\nLATEST PATIENT MESSAGE (triage and respond to this):\n\n' + msg
-    : msg;
-
-  try{
-    var res=await fetch('/.netlify/functions/triage',{
-      method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({model:'claude-haiku-4-5',max_tokens:1024,system:sysPrompt,messages:[{role:'user',content:userContent}]})
-    });
-    var data=await res.json();
-    if(data.error)throw new Error(typeof data.error==='string'?data.error:(data.error.message||JSON.stringify(data.error)));
-    var raw=(data.content||[]).map(function(b){return b.text||'';}).join('');
-    if(!raw)throw new Error('Empty response from API.');
-    var parsed=JSON.parse(raw.replace(/```json|```/g,'').trim());
-    renderResults(parsed);
-    saveHistoryRecord(parsed,msg).then(function(id){currentHistoryId=id;});
-  }catch(err){
-    var msg = err.message||'Unknown error';
-    var isJson = msg.includes('JSON') || msg.includes('Unexpected token') || msg.includes('SyntaxError');
-    var isEmpty = msg.includes('Empty response');
-    var isTimeout = msg.includes('timeout') || msg.includes('network') || msg.toLowerCase().includes('fetch');
-    var title, detail, suggestion;
-    if(isJson || isEmpty){
-      title = 'Response could not be parsed';
-      detail = 'The AI returned a response but it was incomplete or in an unexpected format. This usually happens when the knowledge base is very large and the response gets cut off.';
-      suggestion = 'Try again -- if it keeps failing, go to the Knowledge Base and check for any very long entries that could be trimmed.';
-    } else if(isTimeout){
-      title = 'Connection issue';
-      detail = 'The request could not reach the server, or took too long to respond.';
-      suggestion = 'Check your internet connection and try again.';
-    } else {
-      title = 'Triage could not complete';
-      detail = msg;
-      suggestion = 'Try submitting again. If the error persists, the message may contain content the AI cannot process -- try simplifying or rephrasing it.';
-    }
-    document.getElementById('results').innerHTML =
-      '<div style="background:var(--amber-l);border:1.5px solid var(--amber-m);border-radius:12px;padding:20px 22px;">'+
-        '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--amber);margin-bottom:8px;">&#9888; '+esc(title)+'</div>'+
-        '<div style="font-size:var(--fs-base);color:var(--gray-800);line-height:1.7;margin-bottom:10px;">'+esc(detail)+'</div>'+
-        '<div style="font-size:var(--fs-sm);color:var(--gray-600);line-height:1.6;padding:10px 14px;background:rgba(255,255,255,.6);border-radius:8px;">'+
-          '<strong>What to do:</strong> '+esc(suggestion)+
-        '</div>'+
-      '</div>';
-  }finally{setLoading(false);}
-}
-
-
-
-
-
-
-
-
-
-function buildTimeframeSelect(urgency){
-  var mapped=urgency==='urgent'?'urgent':urgency==='same-day'?'same-day':'routine';
-  return '<select class="editable-select '+mapped+'" id="timeframeSelect" style="width:auto;max-width:160px;" onchange="onTimeframeChange(this)">'+
-    TIMEFRAMES.map(function(o){return '<option value="'+o.v+'"'+(o.v===mapped?' selected':'')+'>'+o.l+'</option>';}).join('')+
-  '</select>';
-}
-
-function onTimeframeChange(sel){
-  var v=sel.value;
-  sel.className='editable-select '+(v==='urgent'?'urgent':v==='routine'?'routine':'same-day');
-  var btn=document.getElementById('timeframeSaveBtn');
-  // checkmark button — no text change needed
-}
-
-async function saveTimeframe(){
-  var sel=document.getElementById('timeframeSelect'),btn=document.getElementById('timeframeSaveBtn');
-  if(!sel||!btn)return;
-  var orig=btn.style.background;
-  btn.style.background='var(--gray-300)';btn.disabled=true;
-  if(currentHistoryId)await api('/history','POST',{action:'update_urgency',id:currentHistoryId,urgency_override:sel.value});
-  btn.style.background='var(--green)';
-  setTimeout(function(){btn.style.background='var(--green)';btn.disabled=false;},1200);
-}
-
-// VOTING
-
-
-
-
-
-
-// CORRECTION
-async function submitCorrection(){
-  var actual=document.getElementById('correctionInput').value.trim();
-  if(!actual){alert('Please paste the response you actually sent.');return;}
-  var btn=document.getElementById('correctionSubmitBtn');
-  var status=document.getElementById('correctionStatus');
-  btn.disabled=true;btn.querySelector('span').textContent='Analyzing...';
-  status.textContent='';status.className='learn-status';
-  try{
-    if(currentHistoryId)await api('/history','POST',{action:'save_actual',id:currentHistoryId,actual_response:actual,correction_note:''});
-    var aiDraft=document.getElementById('aiDraftText')?document.getElementById('aiDraftText').innerText:'';
-    // Collect category corrections as additional context for the learning note
-    var catPills=document.querySelectorAll('.cat-pill.sel-clin');
-    var catNote='';
-    if(catPills.length){
-      var catVals=[].map.call(catPills,function(p){return p.getAttribute('data-val');}).join(', ');
-      if(catVals) catNote='\n\nCategory selected by staff: '+catVals+'.';
-    }
-    var tfEl=document.getElementById('timeframeSelect');
-    if(tfEl) catNote+=' Timeframe: '+tfEl.value+'.';
-    var analyzeRes=await fetch('/.netlify/functions/kb/analyze',{
-      method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        model:'claude-haiku-4-5',max_tokens:200,
-        system:'Compare an AI draft clinical response with what the nurse actually sent. Output 2-3 sentences: what changed, what this reveals about the AI gap, one improvement suggestion. Plain text only.',
-        messages:[{role:'user',content:'AI draft:\n'+aiDraft+'\n\nActual sent:\n'+actual+catNote}]
-      })
-    });
-    var analyzeData=await analyzeRes.json();
-    var note=(analyzeData.content||[]).map(function(b){return b.text||'';}).join('').trim();
-    var duration = triageStartTime ? Math.round((Date.now()-triageStartTime)/1000) : null;
-    if(currentHistoryId)await api('/history','POST',{action:'save_actual',id:currentHistoryId,actual_response:actual,correction_note:note,session_duration_seconds:duration});
-    status.textContent=note?'OK Saved. Learning note: "'+note.substring(0,90)+(note.length>90?'...':'')+'"':'OK Response saved.';
-    status.className='learn-status success';
-    document.getElementById('correctionInput').value='';
-  }catch(e){status.textContent='Error: '+e.message;status.className='learn-status error';}
-  finally{btn.disabled=false;btn.querySelector('span').textContent='Submit & Learn';}
-}
-
-// RENDER
-// Severity badge reads exclusively from clinical_routing_level -- set by AI using KB rules
-// No hardcoded category lists or fallback inference. Single source of truth.
-function buildSeverityBadge(routingLevel){
-  var level = (routingLevel||'none').toLowerCase();
-  var map = {
-    'severe': {cls:'sev-severe', label:'Side Effect: Severe'},
-    'moderate': {cls:'sev-medium', label:'Side Effect: Moderate'},
-    'mild': {cls:'sev-low', label:'Side Effect: Mild'}
-  };
-  var sev = map[level];
-  if(!sev) return '';
-  return '<div class="severity-badge '+sev.cls+'"><div class="sev-dot"></div>'+sev.label+'</div>';
-}
-
-function renderResults(d){
-  var html='';
-  var draftText=(d.draft_response||'').trim();
-  var draftIsEmpty=!draftText;
-  var severityBadge=buildSeverityBadge(d.clinical_routing_level);
-  var hasSideEffect=d.clinical_routing_flag&&(d.clinical_routing_level||'none')!=='none';
-  var aiClinCat=(d.clinical_category||'').trim();
-  var aiNonClin=(d.non_clinical_items&&d.non_clinical_items.length)?d.non_clinical_items.join(', '):'';
-  var _in=d.internal_note||'';
-  var routedTo=d.routed_to||'Support Team';
-  var hasNonClin=!!(d.non_clinical_flag&&d.non_clinical_items&&d.non_clinical_items.length);
-  var isClinical=!!(aiClinCat&&aiClinCat!=='General/multiple');
-  var taskType=hasNonClin&&isClinical?'Dual Task':hasNonClin?'Non-Clinical':'Clinical';
-
-  // Build pills
-  var ncCats=['Billing/Payment','Shipment/Tracking','Account/Subscription','Refund Request','General Inquiry','Complaint/Concern'];
-  var clinPills=CLINICAL_CATS.map(function(c){
-    var sel=c===aiClinCat;
-    return '<button class="cat-pill'+(sel?' sel-clin':'')+'" data-val="'+esc(c)+'" data-type="clin">'+esc(c)+'</button>';
-  }).join(' ');
-  var ncPills=ncCats.map(function(c){
-    var sel=aiNonClin.includes(c);
-    return '<button class="cat-pill'+(sel?' sel-nc':'')+'" data-val="'+esc(c)+'" data-type="nc">'+esc(c)+'</button>';
-  }).join(' ');
-
-  // ── Two side-by-side top cards ────────────────────────────────────────────
-  html+=
-    '<div style="display:grid;grid-template-columns:220px 1fr;gap:12px;align-items:start;">'+
-
-      // LEFT — Status + timeframe editable
-      '<div class="out-card">'+
-        '<div class="oc-body" style="padding:14px 16px;display:flex;flex-direction:column;gap:0;">'+
-
-          // Task type only — no category (categories handled on right card)
-          '<div style="padding-bottom:12px;">'+
-            '<div style="font-size:var(--fs-xs);color:var(--gray-500);font-weight:600;">Task type: <span style="color:var(--gray-800);font-weight:700;">'+taskType+'</span></div>'+
-          '</div>'+
-
-          // Severity + escalation validation — only when side effect detected
-          (hasSideEffect&&isClinical?
-            '<div style="padding:10px 0;border-top:1px solid var(--gray-100);">'+
-              severityBadge+
-              '<div style="margin-top:10px;">'+
-                '<div style="font-size:var(--fs-xs);color:var(--gray-500);font-weight:600;margin-bottom:6px;">Escalation appropriate?</div>'+
-                '<div style="display:flex;gap:6px;">'+
-                  '<button id="escYesBtn" onclick="recordEscalation(true)" style="flex:1;padding:5px 8px;border:1.5px solid var(--green-m);border-radius:7px;background:var(--white);color:var(--green);font-family:var(--sans);font-size:var(--fs-xs);font-weight:600;cursor:pointer;transition:all .15s;">&#10003; Yes</button>'+
-                  '<button id="escNoBtn" onclick="recordEscalation(false)" style="flex:1;padding:5px 8px;border:1.5px solid var(--red-m);border-radius:7px;background:var(--white);color:var(--red);font-family:var(--sans);font-size:var(--fs-xs);font-weight:600;cursor:pointer;transition:all .15s;">&#10007; No</button>'+
-                '</div>'+
-              '</div>'+
-            '</div>'
-          :'')+
-
-          // Timeframe — with divider, dropdown + green checkmark button
-          '<div style="padding-top:12px;border-top:1px solid var(--gray-100);">'+
-            '<div style="font-size:var(--fs-xs);color:var(--gray-500);font-weight:600;margin-bottom:6px;">Response Timeframe</div>'+
-            '<div style="display:flex;align-items:center;gap:6px;">'+
-              buildTimeframeSelect(d.urgency)+
-              '<button id="timeframeSaveBtn" onclick="saveTimeframe()" title="Save timeframe" style="flex-shrink:0;width:30px;height:30px;border-radius:7px;border:none;background:var(--green);color:white;cursor:pointer;font-size:16px;line-height:1;display:flex;align-items:center;justify-content:center;transition:background .2s;">&#10003;</button>'+
-            '</div>'+
-          '</div>'+
-
-        '</div>'+
-      '</div>'+
-
-      // RIGHT — Category correction pills
-      '<div class="out-card">'+
-        '<div class="oc-body" style="padding:14px 16px;display:flex;flex-direction:column;gap:12px;">'+
-          '<div>'+
-            '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-600);margin-bottom:7px;">Clinical Category</div>'+
-            '<div style="display:flex;flex-wrap:wrap;gap:6px;">'+clinPills+'</div>'+
-          '</div>'+
-          (hasNonClin?
-            '<div style="padding-top:10px;border-top:1px solid var(--gray-100);">'+
-              '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-600);margin-bottom:7px;">Non-Clinical Category</div>'+
-              '<div style="display:flex;flex-wrap:wrap;gap:6px;">'+ncPills+'</div>'+
-            '</div>'
-          :'')+
-          '<div style="padding-top:10px;border-top:1px solid var(--gray-100);display:flex;justify-content:flex-end;">'+
-            '<button class="cat-save-btn" id="catSaveBtn" onclick="saveCategoryTags()">Save</button>'+
-          '</div>'+
-        '</div>'+
-      '</div>'+
-
-    '</div>';
-
-  // ── Routing card — no "clinical first" notice, just the task ─────────────
-  if(hasNonClin){
-    html+=
-      '<div class="out-card" style="border-color:var(--amber-m);">'+
-        '<div class="oc-header">'+
-          '<span class="oc-label" style="color:var(--amber);">&#128203; Route to Support Team</span>'+
-          '<span style="font-size:var(--fs-sm);font-weight:700;color:var(--gray-800);">'+esc(routedTo)+'</span>'+
-        '</div>'+
-        '<div class="oc-body">'+
-          (_in?
-            '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-700);margin-bottom:5px;">Internal Note &mdash; paste into Bask chat</div>'+
-            '<div style="font-size:var(--fs-xs);color:var(--gray-600);line-height:1.5;margin-bottom:8px;">Copy &rarr; open Bask chat &rarr; submit as internal note &rarr; assign to <strong>'+esc(routedTo)+'</strong></div>'+
-            '<div style="background:var(--amber-l);border:1.5px solid var(--amber-m);border-radius:8px;padding:13px 16px;font-size:var(--fs-base);color:var(--gray-800);line-height:1.75;position:relative;">'+
-              esc(_in)+
-              '<button class="copy-inline-btn" data-copy-target="internal" style="position:absolute;top:8px;right:8px;background:var(--white);border:1.5px solid var(--amber-m);border-radius:6px;padding:4px 10px;cursor:pointer;font-size:11px;color:var(--amber);font-weight:600;">Copy</button>'+
-            '</div>'
-          :
-            '<div style="font-size:var(--fs-sm);color:var(--gray-600);">No internal note generated. Run triage again if unexpected.</div>'
-          )+
-        '</div>'+
-      '</div>';
-  }
-
-  // ── Generated Response ────────────────────────────────────────────────────
-  html+=
-    '<div class="out-card" style="border-color:'+(draftIsEmpty?'var(--red-m)':'var(--teal-m)')+'">'+
-      '<div class="oc-header">'+
-        '<span class="oc-label" style="color:'+(draftIsEmpty?'var(--red)':'var(--teal)')+'">'+
-          (draftIsEmpty?'&#9888; Response Not Generated':'Generated Response for Patient')+
-        '</span>'+
-      '</div>'+
-      '<div class="oc-body">'+
-        (draftIsEmpty?
-          '<div style="background:var(--red-l);border:1.5px solid var(--red-m);border-radius:8px;padding:14px 16px;font-size:var(--fs-sm);color:var(--red);line-height:1.7;"><strong>The AI did not generate a response.</strong> Click <strong>Run Triage again</strong>.</div>'
-        :
-          '<div style="position:relative;margin-bottom:20px;">'+
-            '<div class="response-text" id="aiDraftText">'+esc(draftText).split('\n').join('<br>')+'</div>'+
-            '<button class="copy-inline-btn" data-copy-target="draft" style="position:absolute;top:8px;right:8px;background:var(--white);border:1.5px solid var(--gray-200);border-radius:6px;padding:4px 9px;cursor:pointer;font-size:12px;color:var(--gray-500);">Copy</button>'+
-          '</div>'
-        )+
-        '<div style="height:1px;background:var(--gray-200);margin:20px 0 12px;"></div><div class="feedback-row"><button class="vote-btn up" id="upvoteBtn">&#128077; Good response</button><button class="vote-btn down" id="downvoteBtn">&#128078; Needs work</button></div>'+
-        '<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--gray-100);">'+
-          '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-600);margin-bottom:6px;">What was sent to the patient</div>'+
-          '<p style="font-size:var(--fs-sm);color:var(--gray-700);margin-bottom:8px;line-height:1.5;">Paste your actual response if you changed the draft. The AI learns by comparing what you sent to what it generated.</p>'+
-          '<textarea id="correctionInput" style="min-height:90px;font-size:var(--fs-sm);" placeholder="Paste the message you sent to the patient..."></textarea>'+
-          '<div class="correction-submit-row" style="margin-top:8px;">'+
-            '<button class="correction-submit-btn" id="correctionSubmitBtn" onclick="submitCorrection()"><span>Submit &amp; Learn</span><div class="spinner" id="correctionSpinner"></div></button>'+
-            '<div class="learn-status" id="correctionStatus"></div>'+
-          '</div>'+
-        '</div>'+
-      '</div>'+
-    '</div>';
-
-  var el=document.getElementById('results');
-  el.innerHTML=html;
-
-  el.querySelectorAll('.copy-inline-btn').forEach(function(btn){
-    btn.addEventListener('click',function(){
-      var target=btn.getAttribute('data-copy-target');
-      var text=target==='internal'?_in:draftText;
-      if(!text)return;
-      navigator.clipboard.writeText(text).then(function(){
-        var orig=btn.textContent;btn.textContent='Copied!';btn.style.color='var(--green)';
-        setTimeout(function(){btn.textContent=orig;btn.style.color='';},2000);
-      });
-    });
-  });
-
-  var upBtn=document.getElementById('upvoteBtn');
-  var dnBtn=document.getElementById('downvoteBtn');
-  if(upBtn) upBtn.addEventListener('click',function(){ castVote('up',upBtn); });
-  if(dnBtn) dnBtn.addEventListener('click',function(){ castVote('down',dnBtn); });
-
-  el.querySelectorAll('.cat-pill').forEach(function(pill){
-    pill.addEventListener('click',function(){
-      var type=pill.getAttribute('data-type');
-      if(type==='clin') pill.classList.toggle('sel-clin');
-      else pill.classList.toggle('sel-nc');
-    });
-  });
-}
-
-
-var correctionsLoaded = false;
-
-function toggleCorrectionsPanel(){
-  var panel=document.getElementById('corrections-panel');
-  var btn=document.getElementById('loadCorrectionsBtn');
-  var open=panel.style.display!=='none';
-  panel.style.display=open?'none':'block';
-  btn.textContent=open?'v Load':'^ Hide';
-  if(!open&&!correctionsLoaded)loadCorrections();
-}
-
-async function loadCorrections(){
-  correctionsLoaded=true;
-  var list=document.getElementById('corrections-list');
-  list.innerHTML='<div class="empty-state">Loading corrections...</div>';
-  try{
-    var rows=await api('/history');
-    var withCorr=Array.isArray(rows)?rows.filter(function(r){return r.actual_response_sent||r.correction_note;}):[];
-    if(!withCorr.length){list.innerHTML='<div class="empty-state">No corrections saved yet.</div>';return;}
-    list.innerHTML='';
-    withCorr.forEach(function(r){
-      var date=new Date(r.created_at).toLocaleDateString();
-
-      // Build card with DOM so delete button closure works cleanly
-      var card=document.createElement('div');
-      card.style.cssText='border:1.5px solid var(--gray-200);border-radius:10px;margin-bottom:12px;overflow:hidden;';
-
-      // Header row
-      var hdr=document.createElement('div');
-      hdr.style.cssText='padding:9px 13px;background:var(--gray-50);border-bottom:1px solid var(--gray-200);display:flex;justify-content:space-between;align-items:center;gap:8px;';
-
-      var meta=document.createElement('div');
-      meta.style.cssText='display:flex;align-items:center;gap:10px;flex:1;min-width:0;';
-
-      var nameSpan=document.createElement('span');
-      nameSpan.style.cssText='font-size:var(--fs-xs);font-weight:600;color:var(--gray-700);';
-      nameSpan.textContent=r.nurse_name+' · '+date;
-
-      var catSpan=document.createElement('span');
-      catSpan.style.cssText='font-size:var(--fs-xs);color:var(--gray-500);';
-      catSpan.textContent=r.clinical_category||'';
-
-      meta.appendChild(nameSpan);
-      meta.appendChild(catSpan);
-
-      var delBtn=document.createElement('button');
-      delBtn.textContent='Delete';
-      delBtn.style.cssText='padding:3px 10px;font-size:11px;font-weight:600;border:1.5px solid var(--red-m);border-radius:6px;background:var(--white);color:var(--red);cursor:pointer;flex-shrink:0;font-family:var(--sans);';
-      delBtn.addEventListener('click',function(){deleteCorrection(r.id,card,delBtn);});
-
-      hdr.appendChild(meta);
-      hdr.appendChild(delBtn);
-      card.appendChild(hdr);
-
-      // Body — side-by-side drafts
-      var body=document.createElement('div');
-      body.style.cssText='padding:12px 14px;display:grid;grid-template-columns:1fr 1fr;gap:12px;';
-
-      var draftDiv=document.createElement('div');
-      var draftLabel=document.createElement('div');
-      draftLabel.style.cssText='font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:6px;';
-      draftLabel.textContent='AI Draft';
-      var draftText=document.createElement('div');
-      draftText.style.cssText='font-size:var(--fs-xs);color:var(--gray-600);line-height:1.6;white-space:pre-wrap;';
-      var dr=r.draft_response||'';
-      draftText.textContent=dr.length>280?dr.substring(0,280)+'...':dr;
-      draftDiv.appendChild(draftLabel);
-      draftDiv.appendChild(draftText);
-
-      var sentDiv=document.createElement('div');
-      var sentLabel=document.createElement('div');
-      sentLabel.style.cssText='font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--teal);margin-bottom:6px;';
-      sentLabel.textContent='Actually Sent';
-      var sentText=document.createElement('div');
-      sentText.style.cssText='font-size:var(--fs-xs);color:var(--gray-700);line-height:1.6;white-space:pre-wrap;';
-      var sr=r.actual_response_sent||'';
-      sentText.textContent=sr.length>280?sr.substring(0,280)+'...':sr;
-      sentDiv.appendChild(sentLabel);
-      sentDiv.appendChild(sentText);
-
-      body.appendChild(draftDiv);
-      body.appendChild(sentDiv);
-      card.appendChild(body);
-
-      // Learning note if present
-      if(r.correction_note){
-        var noteRow=document.createElement('div');
-        noteRow.style.cssText='padding:8px 14px 12px;border-top:1px solid var(--gray-100);';
-        var noteLabel=document.createElement('div');
-        noteLabel.style.cssText='font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--orange);margin-bottom:4px;';
-        noteLabel.textContent='Learning note';
-        var noteText=document.createElement('div');
-        noteText.style.cssText='font-size:var(--fs-xs);color:var(--gray-700);line-height:1.6;';
-        noteText.textContent=r.correction_note;
-        noteRow.appendChild(noteLabel);
-        noteRow.appendChild(noteText);
-        card.appendChild(noteRow);
-      }
-
-      list.appendChild(card);
-    });
-  }catch(e){list.innerHTML='<div class="empty-state" style="color:var(--red);">Error: '+esc(e.message)+'</div>';}
-}
-
-async function deleteCorrection(id,cardEl,btn){
-  if(!confirm('Delete this correction? This removes the learned note and cannot be undone.'))return;
-  btn.textContent='Deleting...';
-  btn.disabled=true;
-  try{
-    await api('/history','POST',{action:'delete_correction',id:id});
-    cardEl.style.opacity='0';
-    cardEl.style.transition='opacity .3s';
-    setTimeout(function(){
-      if(cardEl.parentNode)cardEl.parentNode.removeChild(cardEl);
-      var list=document.getElementById('corrections-list');
-      if(list&&!list.querySelector('div[style*="border"]')){
-        list.innerHTML='<div class="empty-state">No corrections saved yet.</div>';
-      }
-    },300);
-    showToast('Correction deleted');
-  }catch(e){
-    btn.textContent='Delete';
-    btn.disabled=false;
-    showToast('Error deleting correction');
-  }
-}
-
-function toggleCatTag(btn){
-  var type=btn.getAttribute('data-type');
-  var selClass=type==='clin'?'sel-clin':'sel-nc';
-  // For clinical: single select (radio style)
-  if(type==='clin'){
-    btn.closest('.out-card').querySelectorAll('.cat-tag[data-type="clin"]').forEach(function(t){ t.classList.remove('sel-clin'); });
-  }
-  btn.classList.toggle(selClass);
-}
-
-
-async function saveCategoryTags(){
-  var btn=document.getElementById('catSaveBtn');
-  if(!btn||!currentHistoryId)return;
-  btn.textContent='Saving...';btn.disabled=true;
-  var clinVals=[],ncVals=[];
-  document.querySelectorAll('.cat-pill.sel-clin').forEach(function(p){clinVals.push(p.getAttribute('data-val'));});
-  document.querySelectorAll('.cat-pill.sel-nc').forEach(function(p){ncVals.push(p.getAttribute('data-val'));});
-  // Also save timeframe in same call
-  var tfSel=document.getElementById('timeframeSelect');
-  var saves=[api('/history','POST',{action:'update_category',id:currentHistoryId,category:(clinVals.join(', ')||'')+(ncVals.length?' | Non-clinical: '+ncVals.join(', '):'')})];
-  if(tfSel) saves.push(api('/history','POST',{action:'update_urgency',id:currentHistoryId,urgency_override:tfSel.value}));
-  await Promise.all(saves);
-  btn.textContent='Saved';btn.className='cat-save-btn saved';
-  setTimeout(function(){btn.textContent='Save';btn.className='cat-save-btn';btn.disabled=false;},2000);
-}
-
-
-async function recordEscalation(correct){
-  if(!currentHistoryId){ showToast('Run a triage first'); return; }
-  var yBtn=document.getElementById('escYesBtn');
-  var nBtn=document.getElementById('escNoBtn');
-  // Visual feedback
-  if(correct){
-    if(yBtn){ yBtn.style.background='var(--green)'; yBtn.style.color='white'; yBtn.disabled=true; }
-    if(nBtn){ nBtn.disabled=true; nBtn.style.opacity='0.4'; }
-  } else {
-    if(nBtn){ nBtn.style.background='var(--red)'; nBtn.style.color='white'; nBtn.disabled=true; }
-    if(yBtn){ yBtn.disabled=true; yBtn.style.opacity='0.4'; }
-  }
-  try{
-    await api('/history','POST',{action:'update_escalation',id:currentHistoryId,correct:correct});
-    showToast(correct?'Escalation confirmed':'Escalation flagged as incorrect');
-  }catch(e){ showToast('Error saving'); }
-}
-
-
-async function castVote(type, btn){
-  if(!currentHistoryId){ showToast('Run a triage first'); return; }
-  if(btn.classList.contains('active')) return;
-  try{
-    await api('/history','POST',{action: type==='up'?'upvote':'downvote', id:currentHistoryId, reason: type==='up'?'Good response':'Needs improvement'});
-    var up=document.getElementById('upvoteBtn'), dn=document.getElementById('downvoteBtn');
-    if(up) up.classList.remove('active');
-    if(dn) dn.classList.remove('active');
-    btn.classList.add('active');
-    showToast(type==='up'?'Positive feedback saved':'Flagged for review');
-  } catch(e){ showToast('Error saving feedback'); }
-}
-
-async function loadHistory(){
-  var filter = document.getElementById('historyFilter');
-  var filterVal = filter ? filter.value : 'all';
-  var list = document.getElementById('historyList');
-  var stats = document.getElementById('historyStats');
-  list.innerHTML = '<div style="text-align:center;padding:40px;color:var(--gray-400);">Loading...</div>';
-  try{
-    var rows = await api('/history/all');
-    if(!Array.isArray(rows)||!rows.length){
-      list.innerHTML = '<div style="text-align:center;padding:40px;color:var(--gray-400);">No records yet.</div>';
-      return;
-    }
-    // Filter
-    var filtered = rows.filter(function(r){
-      if(filterVal==='urgent') return r.urgency_score>=9;
-      if(filterVal==='escalated') return r.clinical_routing_level&&r.clinical_routing_level!=='none';
-      if(filterVal==='corrected') return r.actual_response_sent;
-      if(filterVal==='unvalidated') return r.clinical_routing_level&&r.clinical_routing_level!=='none'&&!r.escalation_validated;
-      return true;
-    });
-    // Stats
-    var total=rows.length, urgent=rows.filter(function(r){return r.urgency_score>=9;}).length;
-    var escalated=rows.filter(function(r){return r.clinical_routing_level&&r.clinical_routing_level!=='none';}).length;
-    var corrected=rows.filter(function(r){return r.actual_response_sent;}).length;
-    var wrongEsc=rows.filter(function(r){return r.escalation_validated&&!r.escalation_correct;}).length;
-    var avgScore=rows.reduce(function(a,r){return a+(r.urgency_score||0);},0)/Math.max(rows.length,1);
-    stats.innerHTML=[
-      {label:'Total Triages',val:total,color:'var(--blue)'},
-      {label:'Avg Priority Score',val:avgScore.toFixed(1)+' / 10',color:'var(--gray-700)'},
-      {label:'Escalated',val:escalated,color:'var(--amber)'},
-      {label:'Flagged Incorrect',val:wrongEsc,color:'var(--red)'},
-    ].map(function(s){
-      return '<div style="background:var(--white);border:1.5px solid var(--gray-200);border-radius:12px;padding:16px 18px;">'+
-        '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:6px;">'+s.label+'</div>'+
-        '<div style="font-size:var(--fs-xl);font-weight:700;color:'+s.color+';">'+s.val+'</div>'+
-      '</div>';
-    }).join('');
-    // Table
-    list.innerHTML='<div style="background:var(--white);border:1.5px solid var(--gray-200);border-radius:12px;overflow:hidden;">'+
-      '<table style="width:100%;border-collapse:collapse;font-size:var(--fs-xs);">'+
-        '<thead><tr style="background:var(--gray-50);border-bottom:1px solid var(--gray-200);">'+
-          '<th style="padding:10px 14px;text-align:left;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);">Date</th>'+
-          '<th style="padding:10px 14px;text-align:left;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);">Staff</th>'+
-          '<th style="padding:10px 14px;text-align:left;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);">Category</th>'+
-          '<th style="padding:10px 14px;text-align:center;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);">Score</th>'+
-          '<th style="padding:10px 14px;text-align:left;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);">Urgency</th>'+
-          '<th style="padding:10px 14px;text-align:center;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);">Corrected</th>'+
-          '<th style="padding:10px 14px;text-align:center;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);">Esc. Valid</th>'+
-        '</tr></thead>'+
-        '<tbody>'+
-        filtered.slice(0,100).map(function(r,i){
-          var dt=new Date(r.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
-          var score=r.urgency_score||'-';
-          var scoreColor=score>=9?'var(--red)':score>=6?'var(--amber)':'var(--green)';
-          var urg=r.urgency_override||r.urgency_original||'-';
-          var corrected=r.actual_response_sent?'&#10003;':'-';
-          var escStatus=!r.escalation_validated?'-':r.escalation_correct?'<span style="color:var(--green)">&#10003;</span>':'<span style="color:var(--red)">&#10007;</span>';
-          var bg=i%2===0?'var(--white)':'var(--gray-50)';
-          return '<tr style="background:'+bg+';border-bottom:1px solid var(--gray-100);">'+
-            '<td style="padding:9px 14px;color:var(--gray-600);">'+dt+'</td>'+
-            '<td style="padding:9px 14px;color:var(--gray-700);font-weight:500;">'+esc(r.nurse_name||'')+'</td>'+
-            '<td style="padding:9px 14px;color:var(--gray-800);">'+esc(r.clinical_category||'')+'</td>'+
-            '<td style="padding:9px 14px;text-align:center;font-weight:700;color:'+scoreColor+';">'+score+'</td>'+
-            '<td style="padding:9px 14px;color:var(--gray-700);">'+esc(urg)+'</td>'+
-            '<td style="padding:9px 14px;text-align:center;color:var(--green);">'+corrected+'</td>'+
-            '<td style="padding:9px 14px;text-align:center;">'+escStatus+'</td>'+
-          '</tr>';
-        }).join('')+
-        '</tbody>'+
-      '</table>'+
-    '</div>';
-  }catch(e){
-    list.innerHTML='<div style="color:var(--red);padding:20px;">Error: '+esc(e.message)+'</div>';
-  }
-}
-
-
-function showToast(msg){
-  var t=document.getElementById('saveToast');t.textContent=msg;t.classList.add('show');
-  setTimeout(function(){t.classList.remove('show');},2500);
-}
-
-function esc(str){
-  return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-}
-
-initAuth();
-// KB loads on demand when tab is opened -- not on page init
-// This prevents null-reference errors from KB DOM elements not being present
-
-
-
-function getSession(){
-  try{ return JSON.parse(localStorage.getItem('relai_session')||'null'); }catch(e){ return null; }
-}
-function getToken(){
-  var s = getSession();
-  return s ? s.access_token : null;
-}
-function getCompanyId(){
-  if(!currentProfile) return null;
-  var members = currentProfile.company_members;
-  return members&&members[0]?members[0].company_id:null;
-}
-function getUserId(){
-  return currentUser ? currentUser.id : null;
-}
-
-
-
-// Cache for KB section strings -- rebuilt only when KB changes
-var kbCache = {};
-var kbCacheKey = '';
-
-function getKBSection(section, label){
-  if(!kb[section]||!kb[section].length) return '';
-  if(!kbCache[section]){
-    kbCache[section] = '=== '+label+' ===\n'+kb[section].map(function(e){
-      return '['+e.name+']\n'+e.text;
-    }).join('\n\n');
-  }
-  return kbCache[section];
-}
-
-function invalidateKBCache(){ kbCache = {}; }
-
-// Local message classifier -- runs client-side, zero cost, zero latency
-// Returns array of relevant content types to include in KB prompt
-function classifyMessage(msg){
-  var m = msg.toLowerCase();
-  var types = [];
-
-  // Always include: rules + routing (small, always needed)
-  types.push('rules');
-  types.push('routing');
-
-  // Non-clinical signals
-  var nonClinical = /bill|pay|charg|invoice|refund|ship|track|deliver|package|order|account|subscri|cancel|prescription transfer|pharmacy|credit card|receipt/.test(m);
-  if(nonClinical) types.push('routing_detail');
-
-  // Side effect signals
-  var sideEffect = /nausea|vomit|sick|diarrhea|constip|heartburn|reflux|hair|fatigue|tired|inject|site|react|itch|swell|rash|pain|hurt|ache|hypoglyc|shak|sweat|dizz|weak|fever|bleed/.test(m);
-  if(sideEffect){ types.push('sideeffects'); types.push('protocols'); }
-
-  // Weight/plateau/food signals
-  var weightFocus = /weight|plateau|stall|loss|gain|scale|food noise|crav|hungry|hunger|calorie|eat|diet|appetite/.test(m);
-  if(weightFocus) types.push('templates');
-
-  // Dosing/injection signals
-  var dosing = /dose|dosing|inject|units|mg|ml|syringe|vial|concentrat|titrat|missed|skip|forgot|storage|refriger|freez/.test(m);
-  if(dosing){ types.push('protocols'); }
-
-  // URLs only if likely giving advice (weight, plateau, food)
-  if(weightFocus) types.push('urls');
-
-  // If nothing clinical detected, still include sideeffects rules for classification
-  if(!sideEffect && !weightFocus && !dosing) types.push('sideeffects');
-
-  return [...new Set(types)]; // deduplicate
-}
-
-function getKBPrompt(msg){
-  var types = msg ? classifyMessage(msg) : ['rules','routing','sideeffects','templates','protocols','urls'];
-  var p = [];
-
-  if(types.includes('rules'))
-    p.push(getKBSection('notes','CLINICAL RULES (read first)'));
-  if(types.includes('routing') || types.includes('routing_detail'))
-    p.push(getKBSection('routing','ROUTING RULES'));
-  if(types.includes('sideeffects'))
-    p.push(getKBSection('sideeffects','SIDE EFFECT GUIDANCE'));
-  if(types.includes('templates'))
-    p.push(getKBSection('templates','RESPONSE TEMPLATES'));
-  if(types.includes('protocols'))
-    p.push(getKBSection('protocols','PROTOCOLS'));
-  if(types.includes('urls'))
-    p.push(getKBSection('urls','URLS'));
-
-  return p.filter(Boolean).join('\n\n');
-}
-
-
-// API
-// ── AUTH ──────────────────────────────────────────────────────────────────────
-async function initAuth(){
   var session = getSession();
   if(!session || !session.access_token){
     window.location.href = '/login.html';
@@ -1727,6 +814,7 @@ async function initAuth(){
     if(chipEl) chipEl.textContent = 'Offline';
   }
 }
+
 
 function openProfile(){
   if(!currentUser) return;
@@ -1779,7 +867,10 @@ async function signOut(){
 
 
 async function api(endpoint,method,body){
-  var opts={method:method||'GET',headers:{'Content-Type':'application/json'}};
+  var token=getToken();
+  var hdrs={'Content-Type':'application/json'};
+  if(token) hdrs['Authorization']='Bearer '+token;
+  var opts={method:method||'GET',headers:hdrs};
   if(body)opts.body=JSON.stringify(body);
   var r=await fetch('/.netlify/functions/kb'+endpoint,opts);
   return r.json().catch(function(){return{};});
@@ -1942,7 +1033,7 @@ function makeEntryEl(section,i,entry){
 
   var author=document.createElement('span');
   author.className='kb-entry-author';
-  author.textContent=entry.nurse_name||'Unknown';
+  author.textContent=entry.nurse_name==='System'?'Relai':(entry.nurse_name||'Unknown');
 
   header.appendChild(nameInp);header.appendChild(toggleBtn);header.appendChild(author);
 
@@ -2055,6 +1146,7 @@ function switchTab(name,btn){
   document.getElementById('tab-'+name).classList.add('active');
   btn.classList.add('active');
   if(name==='kb')loadKBFromServer();
+  if(name==='history')loadClarifications();
 }
 
 // TRIAGE
@@ -2068,7 +1160,7 @@ async function runTriage(){
   var msg=document.getElementById('msgInput').value.trim();
   if(!msg)return;
   setLoading(true);
-currentHistoryId=null;selectedUpReasons=[];selectedDownReasons=[];
+currentHistoryId=null;
   document.getElementById('results').innerHTML='<div class="placeholder"><div class="spinner active" style="width:26px;height:26px;border-color:var(--gray-300);border-top-color:var(--blue);"></div><div class="placeholder-text" style="margin-top:14px;">Analyzing message...</div></div>';
   var kbContent=getKBPrompt(msg);
   var sysPrompt=kbContent?BASE_PROMPT+'\n\n'+kbContent:BASE_PROMPT;
@@ -2259,7 +1351,7 @@ function renderResults(d){
             '<div style="padding:10px 0;border-top:1px solid var(--gray-100);">'+
               severityBadge+
               '<div style="margin-top:10px;">'+
-                '<div style="font-size:var(--fs-xs);color:var(--gray-500);font-weight:600;margin-bottom:6px;">Escalation appropriate?</div>'+
+                '<div style="font-size:var(--fs-xs);color:var(--gray-500);font-weight:600;margin-bottom:6px;">Severity correct?</div>'+
                 '<div style="display:flex;gap:6px;">'+
                   '<button id="escYesBtn" onclick="recordEscalation(true)" style="flex:1;padding:5px 8px;border:1.5px solid var(--green-m);border-radius:7px;background:var(--white);color:var(--green);font-family:var(--sans);font-size:var(--fs-xs);font-weight:600;cursor:pointer;transition:all .15s;">&#10003; Yes</button>'+
                   '<button id="escNoBtn" onclick="recordEscalation(false)" style="flex:1;padding:5px 8px;border:1.5px solid var(--red-m);border-radius:7px;background:var(--white);color:var(--red);font-family:var(--sans);font-size:var(--fs-xs);font-weight:600;cursor:pointer;transition:all .15s;">&#10007; No</button>'+
@@ -2540,7 +1632,7 @@ async function saveCategoryTags(){
 
 
 async function recordEscalation(correct){
-  if(!currentHistoryId){ showToast('Run a triage first'); return; }
+  if(!currentHistoryId){ showToast('Run a triage first','warn'); return; }
   var yBtn=document.getElementById('escYesBtn');
   var nBtn=document.getElementById('escNoBtn');
   // Visual feedback
@@ -2559,7 +1651,7 @@ async function recordEscalation(correct){
 
 
 async function castVote(type, btn){
-  if(!currentHistoryId){ showToast('Run a triage first'); return; }
+  if(!currentHistoryId){ showToast('Run a triage first','warn'); return; }
   if(btn.classList.contains('active')) return;
   try{
     await api('/history','POST',{action: type==='up'?'upvote':'downvote', id:currentHistoryId, reason: type==='up'?'Good response':'Needs improvement'});
@@ -2648,9 +1740,89 @@ async function loadHistory(){
 }
 
 
-function showToast(msg){
-  var t=document.getElementById('saveToast');t.textContent=msg;t.classList.add('show');
-  setTimeout(function(){t.classList.remove('show');},2500);
+
+// ── AI CLARIFICATION SYSTEM ──────────────────────────────────────────────────
+var pendingClarifications = [];
+
+async function loadClarifications(){
+  var list = document.getElementById('clarificationList');
+  var countEl = document.getElementById('clarificationCount');
+  try{
+    // For now use correction records as clarification sources
+    // Future: dedicated clarification endpoint
+    var rows = await api('/history');
+    pendingClarifications = [];
+    if(Array.isArray(rows)){
+      rows.forEach(function(r){
+        if(r.follow_up_questions && r.follow_up_questions.length){
+          r.follow_up_questions.forEach(function(q,i){
+            pendingClarifications.push({
+              id: r.id+'_q'+i,
+              type: 'Category or Routing Question',
+              question: q,
+              source_id: r.id,
+              resolved: false
+            });
+          });
+        }
+      });
+    }
+    updateClarificationBadge();
+    renderClarifications();
+  }catch(e){
+    if(list) list.innerHTML='<div style="color:var(--gray-400);font-size:var(--fs-sm);text-align:center;padding:20px;">Could not load items.</div>';
+  }
+}
+
+function updateClarificationBadge(){
+  var badge = document.getElementById('clarificationBadge');
+  var profBadge = document.getElementById('profileBadgeCount');
+  var countEl = document.getElementById('clarificationCount');
+  var count = pendingClarifications.filter(function(c){return !c.resolved;}).length;
+  if(badge){ badge.style.display = count>0?'flex':'none'; badge.textContent = count>9?'9+':String(count); }
+  if(profBadge) profBadge.textContent = count>0?String(count):'';
+  if(countEl){ countEl.textContent = count>0?count+' pending':''; countEl.style.display = count>0?'':'none'; }
+}
+
+function renderClarifications(){
+  var list = document.getElementById('clarificationList');
+  if(!list) return;
+  var pending = pendingClarifications.filter(function(c){return !c.resolved;});
+  if(!pending.length){
+    list.innerHTML='<div style="text-align:center;padding:24px;color:var(--gray-400);font-size:var(--fs-sm);">No pending items. The AI is learning well.</div>';
+    return;
+  }
+  list.innerHTML = pending.map(function(c){
+    return '<div style="border:1.5px solid var(--amber-m);border-radius:10px;padding:14px 16px;background:var(--amber-l);">'+
+      '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--amber);margin-bottom:6px;">'+esc(c.type||'AI Question')+'</div>'+
+      '<div style="font-size:var(--fs-sm);color:var(--gray-800);line-height:1.6;margin-bottom:10px;">'+esc(c.question||'')+'</div>'+
+      '<div style="display:flex;gap:8px;">'+
+        '<button onclick="dismissClarification(\"'+c.id+'\")" style="padding:5px 14px;border:1.5px solid var(--gray-300);border-radius:7px;background:var(--white);color:var(--gray-600);font-family:var(--sans);font-size:var(--fs-xs);font-weight:600;cursor:pointer;">Dismiss</button>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+}
+
+function dismissClarification(id){
+  pendingClarifications = pendingClarifications.map(function(c){
+    return c.id===id?Object.assign({},c,{resolved:true}):c;
+  });
+  updateClarificationBadge();
+  renderClarifications();
+}
+
+function goToClarifications(){
+  closeProfile();
+  var histBtn = document.getElementById('historyTabBtn');
+  if(histBtn) switchTab('history', histBtn);
+}
+
+function showToast(msg,type){
+  var t=document.getElementById('saveToast');
+  t.textContent=msg;
+  t.style.background=type==='error'?'var(--red)':type==='warn'?'var(--amber)':'var(--green)';
+  t.classList.add('show');
+  setTimeout(function(){t.classList.remove('show');},2800);
 }
 
 function esc(str){
