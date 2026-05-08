@@ -461,6 +461,21 @@ function getKBPrompt(msg){
 // API
 // ── AUTH ──────────────────────────────────────────────────────────────────────
 async function initAuth(){
+  // Handle magic link token arriving at index.html
+  var hash = window.location.hash;
+  if(hash && hash.includes('access_token')){
+    var p = new URLSearchParams(hash.replace('#',''));
+    var token = p.get('access_token');
+    var refresh = p.get('refresh_token');
+    if(token){
+      localStorage.setItem('relai_session', JSON.stringify({
+        access_token: token,
+        refresh_token: refresh||'',
+        timestamp: Date.now()
+      }));
+      history.replaceState(null,'',window.location.pathname);
+    }
+  }
   var session = getSession();
   if(!session || !session.access_token){
     window.location.href = '/login.html';
