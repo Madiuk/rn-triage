@@ -268,7 +268,7 @@ textarea::placeholder{color:var(--gray-400);}
       <div>
         <div id="profileName" style="font-size:var(--fs-md);font-weight:700;color:var(--gray-900);"></div>
         <div id="profileEmail" style="font-size:var(--fs-xs);color:var(--gray-500);margin-top:2px;"></div>
-        <div id="profileRole" style="font-size:var(--fs-xs);font-weight:600;color:var(--blue);margin-top:3px;text-transform:capitalize;"></div>
+        <div id="profileRole" style="display:inline-block;margin-top:5px;font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px;background:var(--blue-l);color:var(--blue);border:1px solid var(--blue-m);"></div>
       </div>
     </div>
   </div>
@@ -306,6 +306,7 @@ textarea::placeholder{color:var(--gray-400);}
     <div class="nurse-chip" onclick="openProfile()" style="cursor:pointer;position:relative;" title="Your profile">
       <div id="chipAvatar" style="width:22px;height:22px;border-radius:50%;background:var(--blue);color:white;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;">?</div>
       <span id="staffChipName">Loading...</span>
+      <span id="staffDeptBadge" style="display:none;font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px;background:var(--blue-m);color:var(--blue);">RN</span>
       <div id="clarificationBadge" style="display:none;position:absolute;top:-5px;right:-5px;width:16px;height:16px;border-radius:50%;background:var(--red);color:white;font-size:9px;font-weight:700;align-items:center;justify-content:center;border:2px solid white;">0</div>
     </div>
   </div>
@@ -822,8 +823,27 @@ async function initAuth(){
     var avatarEl = document.getElementById('chipAvatar');
     if(chipEl) chipEl.textContent = name.split(' ')[0]; // first name only
     if(avatarEl) avatarEl.textContent = initials;
-    // Also use name as currentNurse for backward compat
+    // Store name and department globally
+    var dept = (currentProfile&&currentProfile.role)||'';
     window.currentNurse = name;
+    window.currentDepartment = dept;
+    // Show dept badge on chip
+    var deptBadge = document.getElementById('staffDeptBadge');
+    if(deptBadge){
+      if(dept==='Clinical'){
+        deptBadge.textContent='RN';
+        deptBadge.style.display='';
+        deptBadge.style.background='var(--blue-m)';
+        deptBadge.style.color='var(--blue)';
+        if(avatarEl) avatarEl.style.background='var(--blue)';
+      } else if(dept==='Non-Clinical'){
+        deptBadge.textContent='CS';
+        deptBadge.style.display='';
+        deptBadge.style.background='var(--amber-l)';
+        deptBadge.style.color='var(--amber)';
+        if(avatarEl) avatarEl.style.background='var(--amber)';
+      }
+    }
   }catch(e){
     // Network error — don't redirect, allow offline use
     window.currentNurse = 'Staff';
@@ -839,12 +859,14 @@ function openProfile(){
   var initials = name.split(' ').map(function(n){return n[0];}).join('').substring(0,2).toUpperCase();
   var email = currentUser.email||'';
   var role = (currentProfile&&currentProfile.role)||'staff';
+  // Format role for display: 'Clinical' or 'Non-Clinical' with department context
+  var roleLabel = role==='Clinical'?'Clinical Staff (RN)':role==='Non-Clinical'?'Non-Clinical Staff':role.charAt(0).toUpperCase()+role.slice(1);
   var members = currentProfile&&currentProfile.company_members;
   var company = members&&members[0]&&members[0].companies?members[0].companies.name:'Big Easy Weight Loss';
   document.getElementById('profileAvatar').textContent = initials;
   document.getElementById('profileName').textContent = name;
   document.getElementById('profileEmail').textContent = email;
-  document.getElementById('profileRole').textContent = role;
+  document.getElementById('profileRole').textContent = roleLabel;
   document.getElementById('profileCompany').textContent = company;
   document.getElementById('profileStats').textContent = 'Triages this session: ' + (window._sessionTriages||0);
   // Slide in
