@@ -185,7 +185,8 @@ textarea::placeholder{color:var(--gray-400);}
 .cat-save-btn:hover{background:#1d4ed8;}
 .cat-save-btn.saved{background:var(--green);border-color:var(--green);}
 .save-toast{position:fixed;bottom:24px;right:24px;background:var(--green);color:white;padding:13px 22px;border-radius:10px;font-size:var(--fs-sm);font-weight:600;opacity:0;transition:opacity .2s,background .2s;pointer-events:none;box-shadow:0 4px 12px rgba(0,0,0,.15);z-index:999;}
-.save-toast@media(max-width:900px){.triage-layout{grid-template-columns:1fr;}.entry-add-row{flex-direction:column;}}
+.save-toast.show{opacity:1;}
+@media(max-width:900px){.triage-layout{grid-template-columns:1fr;}}.entry-add-row{flex-direction:column;}}
 
 
 .kb-entry{border:1.5px solid var(--gray-200);border-radius:10px;margin-bottom:12px;overflow:hidden;}
