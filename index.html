@@ -679,8 +679,8 @@ let currentUser = null;      // Supabase user object
 let currentProfile = null;   // Profile + company data
 let currentHistoryId = null;
 let triageStartTime = null;
-const SUPABASE_URL = 'https://aturbsnqpdtvhrnujrqb.supabase.co'; // Set via window.__RELAI_SUPABASE_URL__ at load
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF0dXJic25xcGR0dmhybnVqcnFiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc4NDc5MTgsImV4cCI6MjA5MzQyMzkxOH0.l7LdmI8PfFiIXa1nIwwauiWh6KnzpwhlpK5uieATsic'; // Set via window.__RELAI_SUPABASE_ANON_KEY__ at load
+const SUPABASE_URL = ''; // Set via window.__RELAI_SUPABASE_URL__ at load
+const SUPABASE_ANON_KEY = ''; // Set via window.__RELAI_SUPABASE_ANON_KEY__ at load
 
 function getSession(){
   try{ return JSON.parse(localStorage.getItem('relai_session')||'null'); }catch(e){ return null; }
@@ -1072,7 +1072,7 @@ function makeEntryEl(section,i,entry){
 
   var author=document.createElement('span');
   author.className='kb-entry-author';
-  author.textContent=entry.nurse_name==='System'?'Relai':(entry.nurse_name||'Unknown');
+  author.textContent=entry.nurse_name||'Unknown';
 
   header.appendChild(nameInp);header.appendChild(toggleBtn);header.appendChild(author);
 
