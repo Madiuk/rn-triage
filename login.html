@@ -83,11 +83,25 @@ input[type=email]:focus{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235
 
   <div id="formView">
     <h1>Sign in to your workspace</h1>
-    <p class="sub">Enter your work email and we'll send you a secure one-time sign-in link. No password needed.</p>
+    <p class="sub">Enter your details and we'll send you a secure one-time sign-in link.</p>
 
     <div class="field">
       <label for="em">Work email</label>
       <input type="email" id="em" placeholder="you@company.com" autocomplete="email">
+    </div>
+
+    <div class="field">
+      <label for="nm">First name</label>
+      <input type="text" id="nm" placeholder="Your first name" autocomplete="given-name">
+    </div>
+
+    <div class="field">
+      <label for="dept">Department</label>
+      <select id="dept" style="width:100%;padding:12px 14px;border:1.5px solid #dee2e6;border-radius:10px;font-family:'DM Sans',sans-serif;font-size:15px;color:#212529;outline:none;background:#fff;transition:border-color .15s,box-shadow .15s;appearance:none;cursor:pointer;">
+        <option value="">Select your department...</option>
+        <option value="Clinical">Clinical (RN / Provider)</option>
+        <option value="Non-Clinical">Non-Clinical (Customer Service)</option>
+      </select>
     </div>
 
     <button class="btn" onclick="sendLink()">
@@ -180,11 +194,16 @@ function resetForm() {
 function sendLink() {
   var email = document.getElementById('em').value.trim();
 
+  var name  = document.getElementById('nm') ? document.getElementById('nm').value.trim() : '';
+  var dept  = document.getElementById('dept') ? document.getElementById('dept').value : '';
+
   if (!email || !email.includes('@') || !email.includes('.')) {
     showMsg('Please enter a valid email address.', 'err');
     document.getElementById('em').focus();
     return;
   }
+  if (!name) { showMsg('Please enter your first name.', 'err'); document.getElementById('nm') && document.getElementById('nm').focus(); return; }
+  if (!dept) { showMsg('Please select your department.', 'err'); return; }
 
   setLoading(true);
 
@@ -198,6 +217,7 @@ function sendLink() {
     setLoading(false);
     if (xhr.status >= 200 && xhr.status < 300) {
       // Success — show the sent confirmation view
+      localStorage.setItem('relai_pending_profile', JSON.stringify({full_name: name, department: dept}));
       document.getElementById('formView').style.display = 'none';
       document.getElementById('sentMsg').innerHTML =
         'We sent a sign-in link to <strong>' + email + '</strong>. ' +
@@ -222,7 +242,8 @@ function sendLink() {
   xhr.send(JSON.stringify({
     email: email,
     options: {
-      emailRedirectTo: window.location.origin + '/login.html'
+      emailRedirectTo: window.location.origin + '/login.html',
+      data: { full_name: name, department: dept }
     }
   }));
 }
