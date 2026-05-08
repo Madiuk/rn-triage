@@ -24,20 +24,7 @@
 body{background:var(--gray-100);color:var(--gray-900);font-family:var(--sans);font-size:var(--fs-base);min-height:100vh;}
 
 /* MODAL */
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;display:flex;align-items:center;justify-content:center;}
-.modal-overlay.hidden{display:none;}
-.modal-box{background:var(--white);border-radius:16px;padding:32px;max-width:460px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.2);}
-.modal-box h2{font-size:var(--fs-lg);font-weight:700;margin-bottom:6px;}
-.modal-box p{font-size:var(--fs-sm);color:var(--gray-600);margin-bottom:20px;line-height:1.6;}
-.nurse-btns{display:flex;flex-direction:column;gap:8px;margin-bottom:16px;}
-.nurse-btn{padding:13px 16px;border-radius:10px;border:1.5px solid var(--gray-200);background:var(--gray-50);font-family:var(--sans);font-size:var(--fs-base);font-weight:500;color:var(--gray-800);cursor:pointer;text-align:left;transition:all .15s;}
-.nurse-btn:hover{border-color:var(--blue);background:var(--blue-l);color:var(--blue);}
-.nurse-btn.selected{border-color:var(--blue);background:var(--blue);color:white;}
 .modal-divider{border:none;border-top:1px solid var(--gray-200);margin:14px 0;}
-.modal-input-row{display:flex;gap:8px;}
-.modal-input{flex:1;padding:11px 14px;border:1.5px solid var(--gray-200);border-radius:8px;font-family:var(--sans);font-size:var(--fs-sm);outline:none;}
-.modal-input:focus{border-color:var(--blue);}
-.modal-confirm-btn{padding:11px 18px;background:var(--blue);border:none;border-radius:8px;color:white;font-family:var(--sans);font-size:var(--fs-sm);font-weight:600;cursor:pointer;white-space:nowrap;}
 
 /* TOPBAR */
 .topbar{background:var(--white);border-bottom:1px solid var(--gray-200);padding:0 24px;height:64px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:0 1px 3px rgba(0,0,0,.06);}
@@ -483,228 +470,25 @@ async function initAuth(){
     var r = await fetch('/.netlify/functions/auth/profile',{
       headers:{'Authorization':'Bearer '+session.access_token}
     });
-    // If auth function not deployed yet, fail gracefully and use session data
-    if(!r.ok && r.status !== 200){
-      throw new Error('Auth function not available');
-    }
+    if(!r.ok){ throw new Error('auth_failed'); }
     var data = await r.json();
-    if(!data.user || !data.user.id){
-      localStorage.removeItem('relai_session');
-      window.location.href = '/login.html';
-      return;
-    }
+    if(!data || !data.user || !data.user.id){ throw new Error('no_user'); }
     currentUser = data.user;
     currentProfile = data.profile;
-    // Set chip
-    var name = (currentProfile&&currentProfile.full_name) || currentUser.email.split('@')[0];
-    var initials = name.split(' ').map(function(n){return n[0];}).join('').substring(0,2).toUpperCase();
+    var name = (currentProfile&&currentProfile.full_name)||currentUser.email.split('@')[0];
+    window.currentNurse = name;
+    var initials = name.split(' ').map(function(w){return w[0]||'';}).join('').substring(0,2).toUpperCase()||'?';
     var chipEl = document.getElementById('staffChipName');
     var avatarEl = document.getElementById('chipAvatar');
-    if(chipEl) chipEl.textContent = name.split(' ')[0]; // first name only
+    if(chipEl) chipEl.textContent = name.split(' ')[0];
     if(avatarEl) avatarEl.textContent = initials;
-    // Also use name as currentNurse for backward compat
-    window.currentNurse = name;
   }catch(e){
-    // Auth function not deployed or network error — decode token locally for basic identity
-    var session = getSession();
-    if(session && session.access_token){
-      try{
-        // Decode JWT payload (base64 middle section) for basic user info
-        var payload = JSON.parse(atob(session.access_token.split('.')[1]));
-        var email = payload.email || 'Staff';
-        var name = email.split('@')[0];
-        var initials = name.substring(0,2).toUpperCase();
-        window.currentNurse = name;
-        currentUser = { id: payload.sub, email: email };
-        var chipEl = document.getElementById('staffChipName');
-        var avatarEl = document.getElementById('chipAvatar');
-        if(chipEl) chipEl.textContent = name;
-        if(avatarEl) avatarEl.textContent = initials;
-      }catch(e2){
-        window.currentNurse = 'Staff';
-        var chipEl = document.getElementById('staffChipName');
-        if(chipEl) chipEl.textContent = 'Staff';
-      }
-    } else {
-      window.location.href = '/login.html';
-    }
+    // Session invalid or expired — clear and redirect to login
+    localStorage.removeItem('relai_session');
+    window.location.href = '/login.html';
   }
 }
 
-function openProfile(){
-  if(!currentUser) return;
-  var name = (currentProfile&&currentProfile.full_name)||currentUser.email.split('@')[0];
-  var initials = name.split(' ').map(function(n){return n[0];}).join('').substring(0,2).toUpperCase();
-  var email = currentUser.email||'';
-  var role = (currentProfile&&currentProfile.role)||'staff';
-  var members = currentProfile&&currentProfile.company_members;
-  var company = members&&members[0]&&members[0].companies?members[0].companies.name:'Big Easy Weight Loss';
-  document.getElementById('profileAvatar').textContent = initials;
-  document.getElementById('profileName').textContent = name;
-  document.getElementById('profileEmail').textContent = email;
-  document.getElementById('profileRole').textContent = role;
-  document.getElementById('profileCompany').textContent = company;
-  document.getElementById('profileStats').textContent = 'Triages this session: ' + (window._sessionTriages||0);
-  // Slide in
-  document.getElementById('profilePanel').style.right = '0';
-  document.getElementById('profileOverlay').style.display = 'block';
-}
-
-function closeProfile(){
-  document.getElementById('profilePanel').style.right = '-360px';
-  document.getElementById('profileOverlay').style.display = 'none';
-}
-
-function openHelpFromProfile(){
-  closeProfile();
-  // Find and click help tab
-  var tabs = document.querySelectorAll('.tab-btn');
-  tabs.forEach(function(t){
-    if(t.textContent.includes('Help')){
-      t.click();
-    }
-  });
-}
-
-async function signOut(){
-  var token = getToken();
-  if(token){
-    try{
-      await fetch('/.netlify/functions/auth/signout',{
-        method:'POST',
-        headers:{'Authorization':'Bearer '+token}
-      });
-    }catch(e){}
-  }
-  localStorage.removeItem('relai_session');
-  window.location.href = '/login.html';
-}
-
-
-async function api(endpoint,method,body){
-  var token=getToken();
-  var hdrs={'Content-Type':'application/json'};
-  if(token)hdrs['Authorization']='Bearer '+token;
-  var opts={method:method||'GET',headers:hdrs};
-  if(body)opts.body=JSON.stringify(body);
-  var r=await fetch('/.netlify/functions/kb'+endpoint,opts);
-  return r.json().catch(function(){return{};});
-}
-
-async function loadKBFromServer(){
-  try{
-    setSyncBar('','Loading...');
-    var rows=await api('/kb');
-    if(Array.isArray(rows)&&rows.length>0){
-      var nkb={sideeffects:[],templates:[],protocols:[],urls:[],routing:[],notes:[]};
-      rows.forEach(function(row){
-        // Migrate old 'protocols' side-effect entries to sideeffects section
-        var s = row.section;
-        if(!nkb[s]) s = (s==='snippets'?'notes':'notes');
-        if(nkb[s]) nkb[s].push({name:row.name,text:row.content,nurse_name:row.nurse_name||'Unknown'});
-      });
-      kb=nkb; invalidateKBCache();
-      setSyncBar('synced','Synced . '+new Date().toLocaleTimeString());
-    }else{
-      // Empty DB -- seed with defaults and save so rules are in Supabase
-      setSyncBar('','First run -- seeding knowledge base...');
-      await saveKBSilent();
-      setSyncBar('synced','Knowledge base seeded . '+new Date().toLocaleTimeString());
-    }
-    renderKB();
-  }catch(e){setSyncBar('error','Could not load -- using local defaults');renderKB();}
-}
-
-function syncKBFromDOM(){
-  document.querySelectorAll('.kb-entry-content').forEach(function(ta){
-    var s=ta.getAttribute('data-section'),i=parseInt(ta.getAttribute('data-index'));
-    if(kb[s]&&kb[s][i]!==undefined)kb[s][i].text=ta.value;
-  });
-  document.querySelectorAll('.kb-entry-name').forEach(function(inp){
-    var s=inp.getAttribute('data-section'),i=parseInt(inp.getAttribute('data-index'));
-    if(kb[s]&&kb[s][i]!==undefined)kb[s][i].name=inp.value;
-  });
-}
-
-function buildEntries(){
-  var entries=[],pos=0;
-  ['sideeffects','templates','protocols','urls','routing','notes'].forEach(function(section){
-    (kb[section]||[]).forEach(function(entry){
-      entries.push({section:section,name:entry.name,content:entry.text,position:pos++,nurse_name:entry.nurse_name||currentNurse||'Unknown',updated_at:new Date().toISOString()});
-    });
-  });
-  return entries;
-}
-
-async function saveKBSilent(){
-  syncKBFromDOM();
-  await api('/kb','POST',{entries:buildEntries()});
-}
-
-async function submitEntry(){
-  var title=document.getElementById('entryTitle').value.trim();
-  var content=document.getElementById('entryContent').value.trim();
-  var section=document.getElementById('entrySection').value;
-  if(!title||!content){alert('Please enter both a title and content.');return;}
-  if(!window.currentNurse){showNurseModal();return;}
-  var btn=document.getElementById('entrySubmitBtn'),txt=document.getElementById('entrySubmitTxt'),spin=document.getElementById('entrySpinner');
-  btn.disabled=true;txt.textContent='Saving...';spin.className='spinner active';
-  try{
-    if(!kb[section])kb[section]=[];
-    kb[section].push({name:title,text:content,nurse_name:window.currentNurse||(currentProfile&&currentProfile.full_name)||"Staff"}); invalidateKBCache();
-    await saveKBSilent();
-    document.getElementById('entryTitle').value='';
-    document.getElementById('entryContent').value='';
-    renderKB();showToast('Saved and synced');
-  }catch(e){alert('Error: '+e.message);}
-  finally{btn.disabled=false;txt.textContent='Save & Sync to Team';spin.className='spinner';}
-}
-
-async function saveKB(){
-  syncKBFromDOM();
-  var btn=document.getElementById('kbSaveBtn'),txt=document.getElementById('kbSaveTxt'),spin=document.getElementById('kbSpinner');
-  btn.disabled=true;txt.textContent='Syncing...';spin.className='kb-spinner active';
-  try{
-    await api('/kb','POST',{entries:buildEntries()}); invalidateKBCache();
-    setSyncBar('synced','Synced . '+new Date().toLocaleTimeString());
-    showToast('Knowledge base synced');
-  }catch(e){setSyncBar('error','Sync failed');}
-  finally{btn.disabled=false;txt.textContent='Save & Sync to Team';spin.className='kb-spinner';}
-}
-
-
-function computeUrgencyScore(urgency, routingLevel, hasSideEffect){
-  // Base score from urgency
-  var base = urgency==='urgent' ? 9 : urgency==='same-day' ? 6 : 3;
-  // Severity modifier
-  var sev = routingLevel==='severe' ? 2 : routingLevel==='moderate' ? 1 : 0;
-  // Cap at 10
-  return Math.min(10, base + (hasSideEffect ? sev : 0));
-}
-
-async function saveHistoryRecord(parsed,msg){
-  var userName = (currentProfile&&currentProfile.full_name)||(currentUser&&currentUser.email)||window.currentNurse||'Staff';
-  var userId = getUserId();
-  var companyId = getCompanyId();
-  if(!userName) return null;
-  try{
-    var hasSE = parsed.clinical_routing_flag && (parsed.clinical_routing_level||'none')!=='none';
-    var score = computeUrgencyScore(parsed.urgency, parsed.clinical_routing_level||'none', hasSE);
-    var r=await api('/history','POST',{
-      nurse_name:userName,user_id:userId,company_id:companyId,patient_message:msg,
-      clinical_category:parsed.clinical_category,urgency_original:parsed.urgency,urgency_override:null,
-      urgency_score:score,
-      clinical_routing_level:parsed.clinical_routing_level||'none',
-      routed_to:parsed.routed_to||null,
-      non_clinical_flag:parsed.non_clinical_flag,non_clinical_items:parsed.non_clinical_items||[],
-      follow_up_questions:parsed.follow_up_questions||[],
-      draft_response:parsed.draft_response||''
-    });
-    triageStartTime = Date.now();
-    window._sessionTriages = (window._sessionTriages||0) + 1;
-    return Array.isArray(r)&&r[0]?r[0].id:null;
-  }catch(e){return null;}
-}
 
 // KB UI
 function setSyncBar(state,msg){
@@ -772,7 +556,7 @@ function makeEntryEl(section,i,entry){
 }
 async function saveEntryInline(section,i,btn){
   syncKBFromDOM();
-  if(currentNurse&&kb[section]&&kb[section][i])kb[section][i].nurse_name=currentNurse;
+  if(window.currentNurse&&kb[section]&&kb[section][i])kb[section][i].nurse_name=window.currentNurse;
   btn.textContent='Saving...';btn.disabled=true;
   try{
     await saveKBSilent();
@@ -872,7 +656,6 @@ function setLoading(on){
 async function runTriage(){
   var msg=document.getElementById('msgInput').value.trim();
   if(!msg)return;
-  if(!window.currentNurse){showNurseModal();return;}
   setLoading(true);
 currentHistoryId=null;selectedUpReasons=[];selectedDownReasons=[];
   document.getElementById('results').innerHTML='<div class="placeholder"><div class="spinner active" style="width:26px;height:26px;border-color:var(--gray-300);border-top-color:var(--blue);"></div><div class="placeholder-text" style="margin-top:14px;">Analyzing message...</div></div>';
@@ -1470,14 +1253,7 @@ initAuth();
 </head>
 <body>
 
-<div class="modal-overlay" id="nurseModal">
-  <div class="modal-box">
-    <h2>Who's on shift?</h2>
-    <p>Select your name to attach your identity to triage records and knowledge base entries.</p>
-    
-    
-  </div>
-</div>
+
 
 <div class="topbar">
   <div class="topbar-brand">
@@ -1494,7 +1270,7 @@ initAuth();
     <button class="tab-btn" id="historyTabBtn" onclick="switchTab('history',this)" style="font-size:10px;color:var(--gray-300);padding:4px 8px;" title="Queue Infrastructure (dev)">&#8226;&#8226;&#8226;</button>
   </div>
   <div class="topbar-right">
-    <div class="nurse-chip" onclick="showNurseModal()">
+    <div class="nurse-chip" onclick="openProfile()" style="cursor:pointer;" title="Your profile">
       <div class="nurse-dot"></div>
       <span id="nurseChipName">Select nurse</span>
     </div>
@@ -2222,7 +1998,7 @@ function buildEntries(){
   var entries=[],pos=0;
   ['sideeffects','templates','protocols','urls','routing','notes'].forEach(function(section){
     (kb[section]||[]).forEach(function(entry){
-      entries.push({section:section,name:entry.name,content:entry.text,position:pos++,nurse_name:entry.nurse_name||currentNurse||'Unknown',updated_at:new Date().toISOString()});
+      entries.push({section:section,name:entry.name,content:entry.text,position:pos++,nurse_name:entry.nurse_name||window.currentNurse||'Unknown',updated_at:new Date().toISOString()});
     });
   });
   return entries;
@@ -2238,7 +2014,6 @@ async function submitEntry(){
   var content=document.getElementById('entryContent').value.trim();
   var section=document.getElementById('entrySection').value;
   if(!title||!content){alert('Please enter both a title and content.');return;}
-  if(!window.currentNurse){showNurseModal();return;}
   var btn=document.getElementById('entrySubmitBtn'),txt=document.getElementById('entrySubmitTxt'),spin=document.getElementById('entrySpinner');
   btn.disabled=true;txt.textContent='Saving...';spin.className='spinner active';
   try{
@@ -2464,7 +2239,6 @@ function setLoading(on){
 async function runTriage(){
   var msg=document.getElementById('msgInput').value.trim();
   if(!msg)return;
-  if(!window.currentNurse){showNurseModal();return;}
   setLoading(true);
 currentHistoryId=null;selectedUpReasons=[];selectedDownReasons=[];
   document.getElementById('results').innerHTML='<div class="placeholder"><div class="spinner active" style="width:26px;height:26px;border-color:var(--gray-300);border-top-color:var(--blue);"></div><div class="placeholder-text" style="margin-top:14px;">Analyzing message...</div></div>';
