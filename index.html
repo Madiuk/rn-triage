@@ -483,6 +483,10 @@ async function initAuth(){
     var r = await fetch('/.netlify/functions/auth/profile',{
       headers:{'Authorization':'Bearer '+session.access_token}
     });
+    // If auth function not deployed yet, fail gracefully and use session data
+    if(!r.ok && r.status !== 200){
+      throw new Error('Auth function not available');
+    }
     var data = await r.json();
     if(!data.user || !data.user.id){
       localStorage.removeItem('relai_session');
@@ -501,10 +505,29 @@ async function initAuth(){
     // Also use name as currentNurse for backward compat
     window.currentNurse = name;
   }catch(e){
-    // Network error — don't redirect, allow offline use
-    window.currentNurse = 'Staff';
-    var chipEl = document.getElementById('staffChipName');
-    if(chipEl) chipEl.textContent = 'Offline';
+    // Auth function not deployed or network error — decode token locally for basic identity
+    var session = getSession();
+    if(session && session.access_token){
+      try{
+        // Decode JWT payload (base64 middle section) for basic user info
+        var payload = JSON.parse(atob(session.access_token.split('.')[1]));
+        var email = payload.email || 'Staff';
+        var name = email.split('@')[0];
+        var initials = name.substring(0,2).toUpperCase();
+        window.currentNurse = name;
+        currentUser = { id: payload.sub, email: email };
+        var chipEl = document.getElementById('staffChipName');
+        var avatarEl = document.getElementById('chipAvatar');
+        if(chipEl) chipEl.textContent = name;
+        if(avatarEl) avatarEl.textContent = initials;
+      }catch(e2){
+        window.currentNurse = 'Staff';
+        var chipEl = document.getElementById('staffChipName');
+        if(chipEl) chipEl.textContent = 'Staff';
+      }
+    } else {
+      window.location.href = '/login.html';
+    }
   }
 }
 
