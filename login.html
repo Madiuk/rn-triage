@@ -108,6 +108,15 @@ input[type=email]:focus{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235
     </p>
   </div>
 
+  <div id="signedInView" style="display:none;text-align:center;">
+    <div style="font-size:48px;margin-bottom:16px;">&#10003;</div>
+    <h1 style="margin-bottom:10px;color:#15803d;">You're signed in</h1>
+    <p class="sub">Your identity has been verified. Click below to enter your workspace.</p>
+    <button class="btn" onclick="window.location.href='/'" style="margin-top:8px;">
+      Enter Workspace &rarr;
+    </button>
+  </div>
+
   <div class="footer">
     Protected by Relai &mdash; Big Easy Weight Loss
   </div>
@@ -127,15 +136,23 @@ var SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
   var token = p.get('access_token');
   var refresh = p.get('refresh_token');
   if (!token) return;
+
   // Store session
   localStorage.setItem('relai_session', JSON.stringify({
     access_token: token,
     refresh_token: refresh,
     timestamp: Date.now()
   }));
-  // Clean URL and redirect
+
+  // Clean the URL hash so tokens aren't visible
   history.replaceState(null, '', window.location.pathname);
-  window.location.replace('/');
+
+  // Show signed-in state with a button — avoids popup blocker on auto-redirect
+  document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('formView').style.display = 'none';
+    document.getElementById('sentView').style.display = 'none';
+    document.getElementById('signedInView').style.display = 'block';
+  });
 })();
 
 function setLoading(on) {
