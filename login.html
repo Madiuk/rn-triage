@@ -7,79 +7,59 @@
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-:root{
-  --blue:#2563eb;--blue-l:#eff6ff;--blue-m:#bfdbfe;
-  --gray-100:#f1f3f5;--gray-200:#e9ecef;--gray-400:#ced4da;
-  --gray-500:#adb5bd;--gray-600:#6c757d;--gray-700:#495057;
-  --gray-800:#343a40;--gray-900:#212529;
-  --green:#16a34a;--red:#dc2626;--white:#fff;
-  --sans:'DM Sans',sans-serif;
-}
 body{
-  font-family:var(--sans);background:var(--gray-100);
-  min-height:100vh;display:flex;flex-direction:column;
-  align-items:center;justify-content:center;padding:24px;
+  font-family:'DM Sans',sans-serif;
+  background:#f1f3f5;
+  min-height:100vh;
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  padding:24px;
 }
 .card{
-  background:var(--white);border-radius:20px;
+  background:#fff;border-radius:20px;
   box-shadow:0 8px 40px rgba(0,0,0,.1);
   padding:48px 44px;width:100%;max-width:420px;
 }
 .brand{display:flex;align-items:center;gap:12px;margin-bottom:36px;}
 .brand-icon{
   width:44px;height:44px;border-radius:11px;
-  background:var(--blue);display:flex;align-items:center;justify-content:center;
-  font-size:22px;color:white;font-weight:700;letter-spacing:-1px;
+  background:#2563eb;display:flex;align-items:center;justify-content:center;
+  font-size:20px;font-weight:800;color:white;font-family:'DM Sans',sans-serif;
 }
-.brand-name{font-size:26px;font-weight:700;color:var(--gray-900);letter-spacing:-.5px;}
-.brand-tagline{font-size:13px;color:var(--gray-500);margin-top:1px;}
-h1{font-size:20px;font-weight:700;color:var(--gray-900);margin-bottom:6px;}
-.subtitle{font-size:14px;color:var(--gray-500);margin-bottom:28px;line-height:1.5;}
-label{display:block;font-size:13px;font-weight:600;color:var(--gray-700);margin-bottom:6px;}
-input[type=email],input[type=text]{
-  width:100%;padding:12px 14px;border:1.5px solid var(--gray-200);
-  border-radius:10px;font-family:var(--sans);font-size:15px;
-  color:var(--gray-900);outline:none;transition:border-color .15s;
-  background:var(--white);
+.brand-name{font-size:26px;font-weight:700;color:#212529;letter-spacing:-.5px;}
+.brand-tagline{font-size:13px;color:#adb5bd;margin-top:1px;}
+h1{font-size:20px;font-weight:700;color:#212529;margin-bottom:6px;}
+p.sub{font-size:14px;color:#6c757d;margin-bottom:28px;line-height:1.5;}
+label{display:block;font-size:13px;font-weight:600;color:#495057;margin-bottom:6px;}
+input{
+  width:100%;padding:12px 14px;
+  border:1.5px solid #e9ecef;border-radius:10px;
+  font-family:'DM Sans',sans-serif;font-size:15px;
+  color:#212529;outline:none;
+  transition:border-color .15s;
 }
-input:focus{border-color:var(--blue);}
-input.error{border-color:var(--red);}
-.btn{
-  width:100%;margin-top:16px;padding:13px;
-  background:var(--blue);border:none;border-radius:10px;
-  color:white;font-family:var(--sans);font-size:16px;
-  font-weight:600;cursor:pointer;transition:all .15s;
+input:focus{border-color:#2563eb;}
+.field{margin-bottom:16px;}
+button#go{
+  width:100%;margin-top:8px;padding:13px;
+  background:#2563eb;border:none;border-radius:10px;
+  color:white;font-family:'DM Sans',sans-serif;
+  font-size:16px;font-weight:600;cursor:pointer;
+  transition:background .15s;
 }
-.btn:hover{background:#1d4ed8;}
-.btn:disabled{background:var(--gray-400);cursor:not-allowed;}
-.message{
-  margin-top:20px;padding:14px 16px;border-radius:10px;
+button#go:hover{background:#1d4ed8;}
+button#go:disabled{background:#ced4da;cursor:not-allowed;}
+.msg{
+  margin-top:18px;padding:14px 16px;border-radius:10px;
   font-size:14px;line-height:1.6;display:none;
 }
-.message.success{background:#f0fdf4;border:1.5px solid #bbf7d0;color:var(--green);}
-.message.error{background:#fef2f2;border:1.5px solid #fecaca;color:var(--red);}
-.message.show{display:block;}
-.divider{height:1px;background:var(--gray-200);margin:28px 0;}
-.footer{font-size:12px;color:var(--gray-500);text-align:center;margin-top:28px;line-height:1.6;}
-.spinner{
-  width:18px;height:18px;border:2.5px solid rgba(255,255,255,.4);
-  border-top-color:white;border-radius:50%;
-  animation:spin .7s linear infinite;display:none;
-  margin:0 auto;
-}
-.spinner.active{display:block;}
-@keyframes spin{to{transform:rotate(360deg);}}
-.field{margin-bottom:16px;}
-.invite-notice{
-  background:var(--blue-l);border:1.5px solid var(--blue-m);
-  border-radius:10px;padding:12px 14px;font-size:13px;
-  color:var(--blue);margin-bottom:20px;line-height:1.5;display:none;
-}
-.invite-notice.show{display:block;}
+.msg.ok{background:#f0fdf4;border:1.5px solid #bbf7d0;color:#16a34a;}
+.msg.err{background:#fef2f2;border:1.5px solid #fecaca;color:#dc2626;}
+.msg.show{display:block;}
+.footer{font-size:12px;color:#adb5bd;text-align:center;margin-top:24px;line-height:1.6;}
 </style>
 </head>
 <body>
-
 <div class="card">
   <div class="brand">
     <div class="brand-icon">R</div>
@@ -89,149 +69,96 @@ input.error{border-color:var(--red);}
     </div>
   </div>
 
-  <div class="invite-notice" id="inviteNotice">
-    You've been invited to join a workspace. Enter your email below to get started.
-  </div>
-
-  <h1 id="formTitle">Sign in to your workspace</h1>
-  <p class="subtitle" id="formSubtitle">Enter your email and we'll send you a secure sign-in link. No password needed.</p>
+  <h1>Sign in to your workspace</h1>
+  <p class="sub">Enter your email and we'll send you a secure sign-in link. No password needed.</p>
 
   <div class="field">
-    <label for="emailInput">Work email</label>
-    <input type="email" id="emailInput" placeholder="you@company.com" autocomplete="email">
+    <label for="em">Work email</label>
+    <input type="email" id="em" placeholder="you@company.com" autocomplete="email">
   </div>
 
-  <div class="field" id="nameField" style="display:none;">
-    <label for="nameInput">Full name</label>
-    <input type="text" id="nameInput" placeholder="Your full name">
-  </div>
-
-  <button class="btn" id="submitBtn" onclick="handleSubmit()">
-    <span id="btnText">Send sign-in link</span>
-    <div class="spinner" id="spinner"></div>
-  </button>
-
-  <div class="message" id="message"></div>
+  <button id="go">Send sign-in link</button>
+  <div class="msg" id="msg"></div>
 
   <div class="footer">
-    By signing in, you agree to Relai's terms of service.<br>
     Having trouble? Contact your workspace administrator.
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-// Replace these with your actual values from Supabase → Settings → API Keys
-const SUPABASE_URL = 'https://aturbsnqpdtvhrnujrqb.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF0dXJic25xcGR0dmhybnVqcnFiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc4NDc5MTgsImV4cCI6MjA5MzQyMzkxOH0.l7LdmI8PfFiIXa1nIwwauiWh6KnzpwhlpK5uieATsic';
+// ── CONFIG — replace these two values ────────────────────────────────────────
+var SUPA_URL  = 'https://aturbsnqpdtvhrnujrqb.supabase.co';   // e.g. https://xyz.supabase.co
+var SUPA_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF0dXJic25xcGR0dmhybnVqcnFiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc4NDc5MTgsImV4cCI6MjA5MzQyMzkxOH0.l7LdmI8PfFiIXa1nIwwauiWh6KnzpwhlpK5uieATsic';
+// ─────────────────────────────────────────────────────────────────────────────
 
-let supabase;
+function show(text, type) {
+  var el = document.getElementById('msg');
+  el.innerHTML = text;
+  el.className = 'msg show ' + type;
+}
 
-document.addEventListener('DOMContentLoaded', async function() {
-  // Initialize client after DOM and CDN are ready
-  if (!window.supabase) {
-    showMessage('Failed to load authentication library. Please refresh the page.', 'error');
-    return;
-  }
-  supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-  // Check for existing session
-  const { data: { session } } = await supabase.auth.getSession();
-  if (session) {
-    localStorage.setItem('relai_session', JSON.stringify({
-      access_token: session.access_token,
-      refresh_token: session.refresh_token,
-      timestamp: Date.now()
-    }));
-    window.location.href = '/';
-    return;
-  }
-
-  // Check URL for magic link tokens (hash-based)
-  const hash = window.location.hash;
-  if (hash && hash.includes('access_token')) {
-    // Supabase JS client handles this automatically via getSession
-    const { data: { session: newSession } } = await supabase.auth.getSession();
-    if (newSession) {
-      localStorage.setItem('relai_session', JSON.stringify({
-        access_token: newSession.access_token,
-        refresh_token: newSession.refresh_token,
-        timestamp: Date.now()
-      }));
-      showMessage('Signed in — redirecting...', 'success');
-      setTimeout(function() { window.location.href = '/'; }, 800);
-      return;
-    }
-  }
-
-  // Check for invite param
-  var params = new URLSearchParams(window.location.search);
-  var inviteEmail = params.get('invite');
-  if (inviteEmail) {
-    document.getElementById('emailInput').value = decodeURIComponent(inviteEmail);
-    document.getElementById('inviteNotice').classList.add('show');
-    document.getElementById('nameField').style.display = 'block';
-    document.getElementById('formTitle').textContent = 'Set up your account';
-    document.getElementById('formSubtitle').textContent = "You're almost in. Enter your name and we'll send a sign-in link.";
-    document.getElementById('btnText').textContent = 'Create account & send link';
-  }
-});
-
-async function handleSubmit() {
-  if (!supabase) { showMessage('Authentication not ready. Please refresh.', 'error'); return; }
-  var email = document.getElementById('emailInput').value.trim();
-  var name = document.getElementById('nameInput').value.trim();
-  var isInvite = document.getElementById('nameField').style.display !== 'none';
+document.getElementById('go').addEventListener('click', function() {
+  var email = document.getElementById('em').value.trim();
 
   if (!email || !email.includes('@')) {
-    document.getElementById('emailInput').classList.add('error');
-    showMessage('Please enter a valid email address.', 'error');
+    show('Please enter a valid email address.', 'err');
     return;
   }
 
-  setLoading(true);
+  var btn = document.getElementById('go');
+  btn.disabled = true;
+  btn.textContent = 'Sending...';
 
-  try {
-    const { error } = await supabase.auth.signInWithOtp({
-      email: email,
-      options: {
-        emailRedirectTo: window.location.origin + '/login.html',
-        data: name ? { full_name: name } : {}
-      }
-    });
-
-    if (error) {
-      showMessage('Error: ' + error.message, 'error');
-    } else {
-      showMessage(
-        'Check your email — we sent a sign-in link to <strong>' + email + '</strong>. ' +
-        'The link expires in 1 hour.',
-        'success'
-      );
-      document.getElementById('submitBtn').disabled = true;
+  var payload = JSON.stringify({
+    email: email,
+    options: {
+      emailRedirectTo: window.location.origin + '/login.html'
     }
-  } catch(e) {
-    showMessage('Unexpected error: ' + e.message, 'error');
-  }
+  });
 
-  setLoading(false);
-}
+  fetch(SUPA_URL + '/auth/v1/otp', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': SUPA_KEY,
+      'Authorization': 'Bearer ' + SUPA_KEY
+    },
+    body: payload
+  })
+  .then(function(r) { return r.json().then(function(d) { return {ok: r.ok, status: r.status, data: d}; }); })
+  .then(function(res) {
+    if (res.ok) {
+      show('Check your email — we sent a link to <strong>' + email + '</strong>. It expires in 1 hour.', 'ok');
+    } else {
+      var errMsg = (res.data && (res.data.msg || res.data.message || res.data.error_description || res.data.error)) || 'Unknown error';
+      show('Error ' + res.status + ': ' + errMsg, 'err');
+      btn.disabled = false;
+      btn.textContent = 'Send sign-in link';
+    }
+  })
+  .catch(function(e) {
+    show('Network error: ' + e.message + '<br>Check that SUPA_URL is correct and has no trailing slash.', 'err');
+    btn.disabled = false;
+    btn.textContent = 'Send sign-in link';
+  });
+});
 
-function setLoading(on) {
-  var btn = document.getElementById('submitBtn');
-  var txt = document.getElementById('btnText');
-  var spin = document.getElementById('spinner');
-  btn.disabled = on;
-  txt.style.display = on ? 'none' : 'block';
-  spin.className = on ? 'spinner active' : 'spinner';
-}
-
-function showMessage(text, type) {
-  var el = document.getElementById('message');
-  el.innerHTML = text;
-  el.className = 'message show ' + type;
-}
+// Handle magic link return — token arrives in URL hash
+(function() {
+  var hash = window.location.hash;
+  if (!hash || !hash.includes('access_token')) return;
+  var params = new URLSearchParams(hash.replace('#', ''));
+  var token = params.get('access_token');
+  var refresh = params.get('refresh_token');
+  if (!token) return;
+  localStorage.setItem('relai_session', JSON.stringify({
+    access_token: token,
+    refresh_token: refresh,
+    timestamp: Date.now()
+  }));
+  show('Signed in — redirecting...', 'ok');
+  setTimeout(function() { window.location.href = '/'; }, 600);
+})();
 </script>
-
 </body>
 </html>
