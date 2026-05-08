@@ -3,8 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>GLP-1 Clinical Triage</title>
+<title>Relai — GLP-1 Clinical Triage</title>
 <style>
+
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap');
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 :root{
@@ -249,8 +250,313 @@ textarea::placeholder{color:var(--gray-400);}
 .save-toast{position:fixed;bottom:24px;right:24px;background:var(--green);color:white;padding:13px 22px;border-radius:10px;font-size:var(--fs-sm);font-weight:600;opacity:0;transition:opacity .2s;pointer-events:none;box-shadow:0 4px 12px rgba(0,0,0,.15);z-index:999;}
 .save-toast.show{opacity:1;}
 @media(max-width:900px){.triage-layout{grid-template-columns:1fr;}.entry-add-row{flex-direction:column;}}
+
 </style>
+</head>
+<body>
+
+<!-- Profile Panel -->
+<div id="profileOverlay" style="display:none;position:fixed;inset:0;z-index:200;" onclick="closeProfile()"></div>
+<div id="profilePanel" style="position:fixed;top:0;right:-360px;width:340px;height:100vh;background:var(--white);box-shadow:-4px 0 24px rgba(0,0,0,.12);z-index:201;transition:right .25s ease;display:flex;flex-direction:column;">
+  <div style="padding:24px 24px 16px;border-bottom:1px solid var(--gray-100);">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+      <div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--gray-500);">Your Profile</div>
+      <button onclick="closeProfile()" style="background:none;border:none;cursor:pointer;color:var(--gray-400);font-size:20px;line-height:1;">&times;</button>
+    </div>
+    <div style="display:flex;align-items:center;gap:14px;">
+      <div id="profileAvatar" style="width:52px;height:52px;border-radius:50%;background:var(--blue);color:white;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;flex-shrink:0;"></div>
+      <div>
+        <div id="profileName" style="font-size:var(--fs-md);font-weight:700;color:var(--gray-900);"></div>
+        <div id="profileEmail" style="font-size:var(--fs-xs);color:var(--gray-500);margin-top:2px;"></div>
+        <div id="profileRole" style="font-size:var(--fs-xs);font-weight:600;color:var(--blue);margin-top:3px;text-transform:capitalize;"></div>
+      </div>
+    </div>
+  </div>
+  <div style="flex:1;overflow-y:auto;padding:16px 24px;display:flex;flex-direction:column;gap:4px;">
+    <div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--gray-400);padding:8px 0 4px;">Workspace</div>
+    <div id="profileCompany" style="font-size:var(--fs-sm);color:var(--gray-700);padding:8px 0;border-bottom:1px solid var(--gray-100);"></div>
+    <div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--gray-400);padding:12px 0 4px;">Activity</div>
+    <div id="profileStats" style="font-size:var(--fs-sm);color:var(--gray-700);padding:4px 0;"></div>
+  </div>
+  <div style="padding:16px 24px;border-top:1px solid var(--gray-100);display:flex;flex-direction:column;gap:8px;">
+    <button onclick="openHelpFromProfile()" style="width:100%;padding:10px;background:var(--gray-100);border:none;border-radius:8px;font-family:var(--sans);font-size:var(--fs-sm);font-weight:600;color:var(--gray-700);cursor:pointer;text-align:left;">&#10067; Help &amp; Guide</button>
+    <button onclick="signOut()" style="width:100%;padding:10px;background:var(--red-l,#fef2f2);border:1.5px solid var(--red-m,#fecaca);border-radius:8px;font-family:var(--sans);font-size:var(--fs-sm);font-weight:600;color:var(--red);cursor:pointer;text-align:left;">&#8594; Sign Out</button>
+  </div>
+</div>
+
+<div class="topbar">
+  <div class="topbar-brand">
+    <div class="brand-icon" style="font-size:17px;font-weight:800;letter-spacing:-1px;font-family:var(--sans);">R</div>
+    <div>
+      <div style="display:flex;align-items:baseline;gap:8px;">
+        <span class="brand-name">Relai</span>
+        <span style="font-size:11px;font-weight:600;color:var(--gray-400);letter-spacing:.02em;">GLP-1 Clinical Triage</span>
+      </div>
+      <div class="brand-sub">Big Easy Weight Loss</div>
+    </div>
+  </div>
+  <div class="tab-nav">
+    <button class="tab-btn active" onclick="switchTab('triage',this)">Triage</button>
+    <button class="tab-btn" onclick="switchTab('kb',this)">Clinical Knowledge Base</button>
+    <button class="tab-btn" onclick="switchTab('help',this)">Help &amp; Guide</button>
+    <button class="tab-btn" id="historyTabBtn" onclick="switchTab('history',this)" style="font-size:10px;color:var(--gray-300);padding:4px 8px;" title="Queue Infrastructure (dev)">&#8226;&#8226;&#8226;</button>
+  </div>
+  <div class="topbar-right">
+    <div class="nurse-chip" onclick="openProfile()" style="cursor:pointer;" title="Your profile">
+      <div id="chipAvatar" style="width:22px;height:22px;border-radius:50%;background:var(--blue);color:white;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;">?</div>
+      <span id="staffChipName">Loading...</span>
+    </div>
+  </div>
+</div>
+
+<!-- TRIAGE TAB -->
+<div class="tab-panel active" id="tab-triage">
+  <div class="triage-layout">
+    <div class="input-col">
+      <div class="card" style="position:sticky;top:80px;">
+        <div class="card-header">
+          <span class="card-title">Patient Message</span>
+          <button id="priorToggle" onclick="togglePrior()" style="background:none;border:1.5px solid var(--gray-200);border-radius:7px;padding:4px 10px;font-family:var(--sans);font-size:var(--fs-xs);font-weight:600;color:var(--gray-500);cursor:pointer;transition:all .15s;">Add Prior Context</button>
+        </div>
+        <div class="card-body">
+          <div id="priorContextPanel" style="display:none;margin-bottom:10px;">
+            <div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:6px;">Previous Patient Messages</div>
+            <textarea id="priorInput" style="min-height:110px;font-size:var(--fs-sm);border-color:var(--blue-m);background:var(--blue-l);" placeholder="Paste earlier conversation here for context..."></textarea>
+            <div style="font-size:var(--fs-xs);color:var(--blue);margin-top:4px;">&#9432; AI treats the message below as the latest reply in this thread.</div>
+          </div>
+          <div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:6px;" id="msgLabel">Patient Message</div>
+          <textarea id="msgInput" placeholder="Paste the patient's message here..."></textarea>
+          <button class="btn-run" id="triageBtn" onclick="runTriage()">
+            <span id="btnText">Run Triage</span>
+            <div class="spinner" id="btnSpinner"></div>
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="results-col">
+      <div class="output-stack" id="results">
+        <div class="placeholder">
+          <div class="placeholder-icon">&#128203;</div>
+          <div class="placeholder-text">Paste a patient message and click Run Triage</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- KB TAB -->
+<div class="tab-panel" id="tab-kb">
+  <div class="kb-layout">
+    <div class="kb-header">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+        <div>
+          <h2>Clinical Knowledge Base</h2>
+          <p>Protocols, side effect guidance, routing rules, and response templates. The AI reads this on every triage.</p>
+        </div>
+        <div class="kb-sync-bar" id="syncBar" style="margin:0;flex-shrink:0;"><span id="syncMsg">Loading...</span></div>
+      </div>
+    </div>
+    <div class="entry-add-box">
+      <div class="entry-add-header"><span>+ Add Entry</span></div>
+      <div class="entry-add-body">
+        <div class="entry-add-row">
+          <input class="entry-title-input" type="text" id="entryTitle" placeholder="Entry title (e.g. Nausea management protocol)">
+          <select class="entry-section-select" id="entrySection">
+            <option value="sideeffects">Side Effects</option>
+            <option value="templates">Response Templates</option>
+            <option value="protocols">Protocols</option>
+            <option value="notes">Rules &amp; Notes</option>
+            <option value="routing">Routing</option>
+            <option value="urls">URLs &amp; Resources</option>
+          </select>
+        </div>
+        <textarea class="entry-content-area" id="entryContent" placeholder="Enter protocol, guidance, or template content..."></textarea>
+        <div style="display:flex;justify-content:flex-end;">
+          <button class="entry-submit-btn" id="entrySubmitBtn" onclick="submitEntry()">
+            <span id="entrySubmitTxt">Save &amp; Sync to Team</span>
+            <div class="spinner" id="entrySpinner"></div>
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="kb-tabs">
+      <button class="kb-tab active" onclick="switchKBTab('sideeffects',this)">Side Effects <span class="kb-tab-count" id="cnt-sideeffects"></span></button>
+      <button class="kb-tab" onclick="switchKBTab('templates',this)">Templates <span class="kb-tab-count" id="cnt-templates"></span></button>
+      <button class="kb-tab" onclick="switchKBTab('protocols',this)">Protocols <span class="kb-tab-count" id="cnt-protocols"></span></button>
+      <button class="kb-tab" onclick="switchKBTab('notes',this)">Rules &amp; Notes <span class="kb-tab-count" id="cnt-notes"></span></button>
+      <button class="kb-tab" onclick="switchKBTab('routing',this)">Routing <span class="kb-tab-count" id="cnt-routing"></span></button>
+      <button class="kb-tab" onclick="switchKBTab('urls',this)">URLs <span class="kb-tab-count" id="cnt-urls"></span></button>
+      <button class="kb-tab" onclick="switchKBTab('corrections',this)">Corrections <span class="kb-tab-count" id="cnt-corrections"></span></button>
+    </div>
+    <div class="kb-search-row">
+      <input type="text" class="kb-search" id="kbSearch" placeholder="Search entries..." oninput="filterKBEntries()">
+    </div>
+    <div id="kb-tab-sideeffects" class="kb-tab-panel active"><div id="sideeffects-list"></div></div>
+    <div id="kb-tab-templates" class="kb-tab-panel"><div id="templates-list"></div></div>
+    <div id="kb-tab-protocols" class="kb-tab-panel"><div id="protocols-list"></div></div>
+    <div id="kb-tab-notes" class="kb-tab-panel"><div id="notes-list"></div></div>
+    <div id="kb-tab-routing" class="kb-tab-panel"><div id="routing-list"></div></div>
+    <div id="kb-tab-urls" class="kb-tab-panel"><div id="urls-list"></div></div>
+    <div id="kb-tab-corrections" class="kb-tab-panel">
+      <div style="padding:10px 0 14px;">
+        <button class="btn-xs" id="loadCorrectionsBtn" onclick="toggleCorrectionsPanel()" style="font-size:var(--fs-sm);padding:8px 16px;">Load Response Corrections</button>
+      </div>
+      <div id="corrections-panel" style="display:none;">
+        <div id="corrections-list"><div class="empty-state">Loading...</div></div>
+      </div>
+    </div>
+    <div class="kb-actions">
+      <button class="kb-save-btn" id="kbSaveBtn" onclick="saveKB()">
+        <span id="kbSaveTxt">Save &amp; Sync to Team</span>
+        <div class="kb-spinner" id="kbSpinner"></div>
+      </button>
+      <button class="kb-export-btn" onclick="exportKB()">Export Backup</button>
+      <label class="kb-export-btn" style="cursor:pointer;">Import Backup<input type="file" accept=".json" style="display:none;" onchange="importKB(event)"></label>
+    </div>
+  </div>
+</div>
+
+<!-- HELP TAB -->
+<div class="tab-panel" id="tab-help">
+  <div class="help-layout">
+    <div class="help-quickref">
+      <div class="help-quickref-title">Quick Reference &mdash; How This Works</div>
+      <div class="help-quickref-grid">
+        <div class="help-qr-item">
+          <div class="help-qr-num">1</div>
+          <div>
+            <div class="help-qr-label">Paste the patient message</div>
+            <div class="help-qr-desc">Drop the patient's current message into the left box. If it's a reply to something you already sent, click <strong>Add Prior Context</strong> and paste the earlier thread there first.</div>
+          </div>
+        </div>
+        <div class="help-qr-item">
+          <div class="help-qr-num">2</div>
+          <div>
+            <div class="help-qr-label">Click Run Triage</div>
+            <div class="help-qr-desc">The AI reads the message against your Knowledge Base and returns a classification, routing decision, and a draft response. Usually takes 5&ndash;10 seconds.</div>
+          </div>
+        </div>
+        <div class="help-qr-item">
+          <div class="help-qr-num">3</div>
+          <div>
+            <div class="help-qr-label">Check the results top to bottom</div>
+            <div class="help-qr-desc"><strong>Classification card</strong> &mdash; urgency and category. <strong>Routing card</strong> &mdash; only appears when something needs to go to another team; copy the internal note into Bask. <strong>Generated Response</strong> &mdash; copy and send to patient.</div>
+          </div>
+        </div>
+        <div class="help-qr-item">
+          <div class="help-qr-num">4</div>
+          <div>
+            <div class="help-qr-label">Teach the AI if you edited</div>
+            <div class="help-qr-desc">If you changed the draft before sending, paste what you actually sent into <strong>What was sent to the patient</strong> and click Submit &amp; Learn. Only do this when you made changes.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="help-cols">
+      <div class="help-col">
+        <div class="help-section">
+          <div class="help-section-title">Reading the Results</div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>What is the Classification card?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a">The top card shows what the AI decided: urgency (Routine / Same Day / URGENT), task type, clinical category, and severity badge if a side effect was detected. Check this first. If anything looks wrong, correct the category using the pills and save.</div>
+          </div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>What does the severity badge mean?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a"><strong style="color:var(--red);">Side Effect: Severe</strong> means escalate to a provider immediately. <strong style="color:var(--amber);">Side Effect: Moderate</strong> means gather more information and reassess. <strong style="color:var(--green);">Side Effect: Mild</strong> means an education response is appropriate.</div>
+          </div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>What is the routing card?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a">Appears only when non-clinical items are detected. Shows what needs to go to the support team and contains an <strong>Internal Note for Staff</strong> — paste this into the Bask chat thread when routing.</div>
+          </div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>What does Response Timeframe mean?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a"><strong>Routine</strong> means respond in normal queue order. <strong>Same Day</strong> means the patient needs a reply today. <strong>URGENT</strong> means escalate now. If wrong, adjust the dropdown and click Save.</div>
+          </div>
+        </div>
+        <div class="help-section">
+          <div class="help-section-title">Using Prior Context</div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>When do I use Add Prior Context?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a">Any time the patient message is a reply to something you already sent. Without the earlier thread, the AI is triaging a fragment. Click <strong>Add Prior Context</strong>, paste everything that came before, then paste only their latest reply in the main message box.</div>
+          </div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>Do I need it every time?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a">No. For a patient's first message — one that isn't a reply to anything — leave Prior Context empty.</div>
+          </div>
+        </div>
+      </div>
+      <div class="help-col">
+        <div class="help-section">
+          <div class="help-section-title">Teaching the AI</div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>How does "What was sent to the patient" work?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a">After sending your response, if you changed the draft, paste what you actually sent and click <strong>Submit &amp; Learn</strong>. The AI compares the two versions and saves a learning note. If you sent the draft verbatim, skip this entirely.</div>
+          </div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>How do I correct a wrong category?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a">Click the correct category pill in the Classification card (Clinical or Non-Clinical), then click <strong>Save</strong>. Each correction is stored and builds a dataset that improves the AI's classification accuracy over time.</div>
+          </div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>What if I entered the wrong correction?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a">Go to <strong>Clinical Knowledge Base &rarr; Corrections tab</strong> and click <strong>Load Response Corrections</strong>. Find the incorrect entry and click <strong>Delete</strong>.</div>
+          </div>
+        </div>
+        <div class="help-section">
+          <div class="help-section-title">Knowledge Base</div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>What is the Knowledge Base?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a">Everything the AI reads before responding to a patient message — protocols, side effect guidance, routing rules, urgency thresholds, and response templates. Any change takes effect immediately on the next triage.</div>
+          </div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>Which KB section should I use?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a"><strong>Side Effects</strong> &mdash; education and management guidance.<br><strong>Templates</strong> &mdash; response frameworks for common messages.<br><strong>Protocols</strong> &mdash; if/then decision logic.<br><strong>Rules &amp; Notes</strong> &mdash; urgency thresholds, severity rules. Edit carefully.<br><strong>Routing</strong> &mdash; when and how to escalate or route.<br><strong>URLs</strong> &mdash; links you reference in patient responses.</div>
+          </div>
+        </div>
+        <div class="help-section">
+          <div class="help-section-title">Common Mistakes</div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>Things that reduce accuracy</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a">
+              <strong>Triaging a reply without Prior Context</strong> &mdash; the AI gets a fragment and produces a generic response.<br><br>
+              <strong>Ignoring the red severity badge</strong> &mdash; Severe means escalate to a provider now.<br><br>
+              <strong>Ignoring the routing card</strong> &mdash; if a non-clinical item is flagged, the internal note needs to go into Bask.<br><br>
+              <strong>Entering the wrong thing in "What was sent to the patient"</strong> &mdash; this teaches the AI incorrect behavior. Delete it in the Corrections tab immediately.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- HISTORY TAB -->
+<div class="tab-panel" id="tab-history">
+  <div style="max-width:1100px;margin:0 auto;padding:28px 24px;">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+      <div>
+        <h2 style="font-size:var(--fs-xl);font-weight:700;margin-bottom:4px;">Triage Queue</h2>
+        <p style="font-size:var(--fs-sm);color:var(--gray-500);">All triage records. Infrastructure view.</p>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <select id="historyFilter" onchange="loadHistory()" style="padding:7px 10px;border:1.5px solid var(--gray-200);border-radius:8px;font-family:var(--sans);font-size:var(--fs-xs);background:var(--white);">
+          <option value="all">All records</option>
+          <option value="urgent">Urgent only</option>
+          <option value="escalated">Escalated</option>
+          <option value="corrected">Corrected</option>
+          <option value="unvalidated">Escalation unvalidated</option>
+        </select>
+        <button onclick="loadHistory()" style="padding:7px 14px;background:var(--blue);border:none;border-radius:8px;color:white;font-family:var(--sans);font-size:var(--fs-xs);font-weight:600;cursor:pointer;">Load</button>
+      </div>
+    </div>
+    <div id="historyStats" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;"></div>
+    <div id="historyList"><div style="text-align:center;padding:40px;color:var(--gray-400);font-size:var(--fs-sm);">Click Load to fetch records</div></div>
+  </div>
+</div>
+
+<div class="save-toast" id="saveToast">Synced</div>
+
 <script>
+
 // Today's date injected at runtime so AI never uses stale year
 const TODAY = new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
 
@@ -2354,6 +2660,7 @@ function esc(str){
 initAuth();
 // KB loads on demand when tab is opened -- not on page init
 // This prevents null-reference errors from KB DOM elements not being present
+
 </script>
 </body>
 </html>
