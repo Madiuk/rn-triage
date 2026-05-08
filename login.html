@@ -10,8 +10,10 @@
 body{
   font-family:'DM Sans',sans-serif;
   background:linear-gradient(135deg,#eff6ff 0%,#f1f3f5 100%);
-  min-height:100vh;display:flex;flex-direction:column;
-  align-items:center;justify-content:center;padding:24px;
+  min-height:100vh;
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  padding:24px;
 }
 .card{
   background:#fff;border-radius:20px;
@@ -21,38 +23,59 @@ body{
 .brand{display:flex;align-items:center;gap:12px;margin-bottom:40px;}
 .brand-icon{
   width:46px;height:46px;border-radius:12px;
-  background:#2563eb;display:flex;align-items:center;
-  justify-content:center;font-size:22px;font-weight:800;
-  color:white;font-family:'DM Sans',sans-serif;letter-spacing:-1px;
-  flex-shrink:0;
+  background:#2563eb;color:white;
+  display:flex;align-items:center;justify-content:center;
+  font-size:22px;font-weight:800;font-family:'DM Sans',sans-serif;
+  letter-spacing:-1px;flex-shrink:0;
 }
 .brand-name{font-size:26px;font-weight:700;color:#212529;letter-spacing:-.5px;line-height:1;}
-.brand-tagline{font-size:12px;color:#adb5bd;margin-top:3px;font-weight:500;}
+.brand-tag{font-size:12px;color:#adb5bd;margin-top:3px;font-weight:500;}
 h1{font-size:19px;font-weight:700;color:#212529;margin-bottom:6px;}
 .sub{font-size:14px;color:#6c757d;margin-bottom:28px;line-height:1.55;}
+.field{margin-bottom:16px;}
 label{display:block;font-size:13px;font-weight:600;color:#495057;margin-bottom:7px;}
-input[type=email]{
+input[type=email],
+input[type=text],
+select{
   width:100%;padding:12px 14px;
   border:1.5px solid #dee2e6;border-radius:10px;
   font-family:'DM Sans',sans-serif;font-size:15px;
   color:#212529;outline:none;background:#fff;
   transition:border-color .15s,box-shadow .15s;
+  appearance:none;-webkit-appearance:none;
 }
-input[type=email]:focus{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.1);}
-.field{margin-bottom:20px;}
+input[type=email]:focus,
+input[type=text]:focus,
+select:focus{
+  border-color:#2563eb;
+  box-shadow:0 0 0 3px rgba(37,99,235,.1);
+}
+select{
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236c757d' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;
+  background-position:right 14px center;
+  padding-right:36px;
+  cursor:pointer;
+}
 .btn{
   width:100%;padding:13px;margin-top:4px;
   background:#2563eb;border:none;border-radius:10px;
   color:white;font-family:'DM Sans',sans-serif;
   font-size:15px;font-weight:600;cursor:pointer;
-  transition:background .15s,transform .1s;
   display:flex;align-items:center;justify-content:center;gap:8px;
+  transition:background .15s,transform .1s;
 }
 .btn:hover{background:#1d4ed8;}
 .btn:active{transform:scale(.99);}
 .btn:disabled{background:#adb5bd;cursor:not-allowed;transform:none;}
+.btn-secondary{
+  background:#fff;border:1.5px solid #dee2e6;color:#495057;
+  margin-top:8px;
+}
+.btn-secondary:hover{background:#f8f9fa;border-color:#ced4da;}
 .spinner{
-  width:16px;height:16px;border:2.5px solid rgba(255,255,255,.4);
+  width:16px;height:16px;
+  border:2.5px solid rgba(255,255,255,.4);
   border-top-color:white;border-radius:50%;
   animation:spin .7s linear infinite;display:none;
 }
@@ -66,8 +89,8 @@ input[type=email]:focus{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235
 .msg.ok{background:#f0fdf4;border:1.5px solid #86efac;color:#15803d;}
 .msg.err{background:#fef2f2;border:1.5px solid #fca5a5;color:#dc2626;}
 .msg.show{display:block;}
+.check-icon{font-size:40px;display:block;text-align:center;margin-bottom:12px;}
 .footer{font-size:12px;color:#adb5bd;text-align:center;margin-top:28px;line-height:1.6;}
-.sent-icon{font-size:32px;display:block;margin-bottom:8px;}
 </style>
 </head>
 <body>
@@ -77,13 +100,14 @@ input[type=email]:focus{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235
     <div class="brand-icon">R</div>
     <div>
       <div class="brand-name">Relai</div>
-      <div class="brand-tagline">Intelligent task routing</div>
+      <div class="brand-tag">Intelligent task routing</div>
     </div>
   </div>
 
+  <!-- View 1: Sign in form -->
   <div id="formView">
     <h1>Sign in to your workspace</h1>
-    <p class="sub">Enter your details and we'll send you a secure one-time sign-in link.</p>
+    <p class="sub">Enter your details and we'll send you a secure sign-in link.</p>
 
     <div class="field">
       <label for="em">Work email</label>
@@ -97,14 +121,14 @@ input[type=email]:focus{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235
 
     <div class="field">
       <label for="dept">Department</label>
-      <select id="dept" style="width:100%;padding:12px 14px;border:1.5px solid #dee2e6;border-radius:10px;font-family:'DM Sans',sans-serif;font-size:15px;color:#212529;outline:none;background:#fff;transition:border-color .15s,box-shadow .15s;appearance:none;cursor:pointer;">
+      <select id="dept">
         <option value="">Select your department...</option>
         <option value="Clinical">Clinical (RN / Provider)</option>
         <option value="Non-Clinical">Non-Clinical (Customer Service)</option>
       </select>
     </div>
 
-    <button class="btn" onclick="sendLink()">
+    <button class="btn" id="submitBtn" onclick="sendLink()">
       <span id="btnTxt">Send sign-in link</span>
       <div class="spinner" id="spin"></div>
     </button>
@@ -112,76 +136,105 @@ input[type=email]:focus{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235
     <div class="msg" id="msg"></div>
   </div>
 
-  <div id="sentView" style="display:none;text-align:center;">
-    <span class="sent-icon">&#128231;</span>
-    <h1 style="margin-bottom:10px;">Check your email</h1>
-    <p class="sub" id="sentMsg"></p>
-    <p style="font-size:13px;color:#adb5bd;margin-top:16px;">
-      Didn't get it? Check your spam folder, or
-      <a href="#" onclick="resetForm(); return false;" style="color:#2563eb;text-decoration:none;font-weight:600;">try again</a>.
+  <!-- View 2: Email sent confirmation -->
+  <div id="sentView" style="display:none;">
+    <span class="check-icon">&#128231;</span>
+    <h1 style="text-align:center;margin-bottom:10px;">Check your email</h1>
+    <p class="sub" style="text-align:center;" id="sentMsg"></p>
+    <p style="font-size:13px;color:#adb5bd;text-align:center;margin-top:16px;">
+      Didn't get it? Check your spam, or
+      <a href="#" onclick="resetForm();return false;" style="color:#2563eb;text-decoration:none;font-weight:600;">try again</a>.
     </p>
   </div>
 
-  <div id="signedInView" style="display:none;text-align:center;">
-    <div style="font-size:48px;margin-bottom:16px;">&#10003;</div>
-    <h1 style="margin-bottom:10px;color:#15803d;">You're signed in</h1>
-    <p class="sub">Your identity has been verified. Click below to enter your workspace.</p>
-    <button class="btn" onclick="window.location.href='/'" style="margin-top:8px;">
+  <!-- View 3: Signed in via magic link -->
+  <div id="signedInView" style="display:none;">
+    <span class="check-icon">&#10003;</span>
+    <h1 style="text-align:center;margin-bottom:10px;color:#15803d;">You're signed in</h1>
+    <p class="sub" style="text-align:center;">Your identity has been verified. Click below to enter your workspace.</p>
+    <button class="btn" onclick="window.location.href='/'">
       Enter Workspace &rarr;
     </button>
   </div>
 
-  <div class="footer">
-    Protected by Relai &mdash; Big Easy Weight Loss
-  </div>
+  <div class="footer">Protected by Relai &mdash; Big Easy Weight Loss</div>
 </div>
 
 <script>
-// ── CONFIG ────────────────────────────────────────────────────────────────────
+// ── CONFIG — replace these with your actual values ────────────────────────────
 var SUPA_URL = 'https://aturbsnqpdtvhrnujrqb.supabase.co';
 var SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF0dXJic25xcGR0dmhybnVqcnFiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc4NDc5MTgsImV4cCI6MjA5MzQyMzkxOH0.l7LdmI8PfFiIXa1nIwwauiWh6KnzpwhlpK5uieATsic';
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Handle magic link return — fires immediately on page load
-(function handleCallback() {
+// ── Handle magic link return (runs immediately, before DOM is ready) ──────────
+(function() {
   var h = window.location.hash;
   if (!h || !h.includes('access_token')) return;
+
   var p = new URLSearchParams(h.replace('#', ''));
   var token = p.get('access_token');
   var refresh = p.get('refresh_token');
   if (!token) return;
 
-  // Store session
+  // Save session
   localStorage.setItem('relai_session', JSON.stringify({
     access_token: token,
-    refresh_token: refresh,
+    refresh_token: refresh || '',
     timestamp: Date.now()
   }));
 
-  // Clean the URL hash so tokens aren't visible
+  // Clean URL
   history.replaceState(null, '', window.location.pathname);
 
-  // Show signed-in state with a button — avoids popup blocker on auto-redirect
-  document.addEventListener('DOMContentLoaded', function() {
-    document.getElementById('formView').style.display = 'none';
-    document.getElementById('sentView').style.display = 'none';
-    document.getElementById('signedInView').style.display = 'block';
-  });
+  // Show signed-in view — works whether DOM is ready or not
+  function showSignedIn() {
+    var fv = document.getElementById('formView');
+    var sv = document.getElementById('sentView');
+    var iv = document.getElementById('signedInView');
+    if (fv) fv.style.display = 'none';
+    if (sv) sv.style.display = 'none';
+    if (iv) iv.style.display = 'block';
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', showSignedIn);
+  } else {
+    showSignedIn();
+  }
 })();
 
+// ── Redirect if already logged in ────────────────────────────────────────────
+(function() {
+  // Don't redirect if we're processing a magic link
+  if (window.location.hash && window.location.hash.includes('access_token')) return;
+  try {
+    var s = JSON.parse(localStorage.getItem('relai_session') || 'null');
+    if (!s || !s.access_token) return;
+    // Quick token expiry check (JWT payload)
+    var payload = JSON.parse(atob(s.access_token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
+    if (payload.exp && payload.exp < Date.now() / 1000) {
+      localStorage.removeItem('relai_session');
+      return;
+    }
+    // Valid session — go to app
+    window.location.replace('/');
+  } catch(e) {}
+})();
+
+// ── Form helpers ─────────────────────────────────────────────────────────────
+function show(html, type) {
+  var el = document.getElementById('msg');
+  el.innerHTML = html;
+  el.className = 'msg show ' + (type || 'ok');
+}
+
 function setLoading(on) {
-  var btn = document.querySelector('.btn');
+  var btn = document.getElementById('submitBtn');
   var txt = document.getElementById('btnTxt');
   var sp = document.getElementById('spin');
   btn.disabled = on;
   txt.style.opacity = on ? '0' : '1';
   sp.className = on ? 'spinner on' : 'spinner';
-}
-
-function showMsg(html, type) {
-  var el = document.getElementById('msg');
-  el.innerHTML = html;
-  el.className = 'msg show ' + type;
 }
 
 function resetForm() {
@@ -191,19 +244,27 @@ function resetForm() {
   document.getElementById('msg').className = 'msg';
 }
 
+// ── Send magic link ───────────────────────────────────────────────────────────
 function sendLink() {
   var email = document.getElementById('em').value.trim();
-
-  var name  = document.getElementById('nm') ? document.getElementById('nm').value.trim() : '';
-  var dept  = document.getElementById('dept') ? document.getElementById('dept').value : '';
+  var name  = document.getElementById('nm').value.trim();
+  var dept  = document.getElementById('dept').value;
 
   if (!email || !email.includes('@') || !email.includes('.')) {
-    showMsg('Please enter a valid email address.', 'err');
+    show('Please enter a valid email address.', 'err');
     document.getElementById('em').focus();
     return;
   }
-  if (!name) { showMsg('Please enter your first name.', 'err'); document.getElementById('nm') && document.getElementById('nm').focus(); return; }
-  if (!dept) { showMsg('Please select your department.', 'err'); return; }
+  if (!name) {
+    show('Please enter your first name.', 'err');
+    document.getElementById('nm').focus();
+    return;
+  }
+  if (!dept) {
+    show('Please select your department.', 'err');
+    document.getElementById('dept').focus();
+    return;
+  }
 
   setLoading(true);
 
@@ -215,28 +276,29 @@ function sendLink() {
 
   xhr.onload = function() {
     setLoading(false);
+    var resp = {};
+    try { resp = JSON.parse(xhr.responseText); } catch(e) {}
+
     if (xhr.status >= 200 && xhr.status < 300) {
-      // Success — show the sent confirmation view
-      localStorage.setItem('relai_pending_profile', JSON.stringify({full_name: name, department: dept}));
+      localStorage.setItem('relai_pending_profile', JSON.stringify({
+        full_name: name,
+        department: dept
+      }));
       document.getElementById('formView').style.display = 'none';
       document.getElementById('sentMsg').innerHTML =
         'We sent a sign-in link to <strong>' + email + '</strong>. ' +
-        'Click the link in that email to sign in. The link expires in 1 hour.';
+        'Click the link in that email to enter your workspace. It expires in 1 hour.';
       document.getElementById('sentView').style.display = 'block';
     } else {
-      var resp = {};
-      try { resp = JSON.parse(xhr.responseText); } catch(e) {}
-      var m = resp.msg || resp.message || resp.error_description || resp.error || xhr.responseText || 'Please try again.';
-      // Friendly messages for common errors
+      var m = resp.msg || resp.message || resp.error_description || resp.error || 'Please try again.';
       if (xhr.status === 429) m = 'Too many requests — please wait a minute before trying again.';
-      if (xhr.status === 400 && m.includes('valid')) m = 'That email address doesn\'t appear to be registered. Contact your administrator.';
-      showMsg(m, 'err');
+      show('Error ' + xhr.status + ': ' + m, 'err');
     }
   };
 
   xhr.onerror = function() {
     setLoading(false);
-    showMsg('Unable to connect. Please check your internet connection and try again.', 'err');
+    show('Connection error — check your internet connection.', 'err');
   };
 
   xhr.send(JSON.stringify({
@@ -248,11 +310,13 @@ function sendLink() {
   }));
 }
 
-// Allow pressing Enter in the email field
-document.getElementById('em').addEventListener('keydown', function(e) {
-  if (e.key === 'Enter') sendLink();
+// Enter key in any field submits
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') {
+    var fv = document.getElementById('formView');
+    if (fv && fv.style.display !== 'none') sendLink();
+  }
 });
 </script>
-
 </body>
 </html>
