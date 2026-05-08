@@ -201,6 +201,7 @@ textarea::placeholder{color:var(--gray-400);}
 .kb-entry-collapsed .kb-entry-footer{display:none;}
 .kb-entry-toggle{background:none;border:none;cursor:pointer;font-size:11px;color:var(--gray-400);padding:0 4px;font-family:var(--sans);}
 .kb-entry-toggle:hover{color:var(--blue);}
+.danger{border-color:var(--gray-200);color:var(--gray-500);background:var(--white);}
 .danger:hover{border-color:var(--red-m);color:var(--red);background:var(--red-l);}
 
 /* Restored — output card dynamic classes */
@@ -235,3 +236,12 @@ textarea::placeholder{color:var(--gray-400);}
 .esc-btn.selected-yes{background:var(--green);color:white;border-color:var(--green);}
 .esc-btn.selected-no{background:var(--red);color:white;border-color:var(--red);}
 .esc-btn:disabled{opacity:.45;cursor:not-allowed;}
+
+
+/* Restored missing classes */
+
+/* Saved state for category save button */
+.cat-save-btn.saved{background:var(--green);color:white;border-color:var(--green);}
+
+/* Results column layout */
+.results-col{display:flex;flex-direction:column;gap:12px;min-width:0;}
