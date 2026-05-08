@@ -202,3 +202,36 @@ textarea::placeholder{color:var(--gray-400);}
 .kb-entry-toggle{background:none;border:none;cursor:pointer;font-size:11px;color:var(--gray-400);padding:0 4px;font-family:var(--sans);}
 .kb-entry-toggle:hover{color:var(--blue);}
 .danger:hover{border-color:var(--red-m);color:var(--red);background:var(--red-l);}
+
+/* Restored — output card dynamic classes */
+.cat-pill{display:inline-flex;align-items:center;padding:5px 12px;border-radius:20px;border:1.5px solid var(--gray-200);background:var(--white);font-family:var(--sans);font-size:var(--fs-sm);color:var(--gray-600);cursor:pointer;transition:all .15s;user-select:none;line-height:1.3;}
+.cat-pill:hover{border-color:var(--blue-m);color:var(--blue);}
+.sel-clin{border-color:var(--blue);background:var(--blue);color:white;font-weight:600;}
+.sel-nc{border-color:var(--amber);background:var(--amber);color:white;font-weight:600;}
+.feedback-row{display:flex;flex-direction:row;flex-wrap:nowrap;gap:8px;align-items:center;}
+.sev-dot{background:var(--red);}
+.sev-dot{background:var(--amber);}
+.sev-dot{background:var(--green);}
+.sev-severe{background:var(--red-l);color:var(--red);border:1.5px solid var(--red-m);}
+.sev-severe .sev-dot{background:var(--red);}
+.sev-medium{background:var(--amber-l);color:var(--amber);border:1.5px solid var(--amber-m);}
+.sev-medium .sev-dot{background:var(--amber);}
+.sev-low{background:var(--green-l);color:var(--green);border:1.5px solid var(--green-m);}
+.sev-low .sev-dot{background:var(--green);}
+
+/* Severity badge */
+.severity-badge{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:20px;font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.04em;}
+.severity-badge.sev-severe{background:#fef2f2;color:var(--red);border:1.5px solid var(--red-m);}
+.severity-badge.sev-medium{background:var(--amber-l);color:var(--amber);border:1.5px solid var(--amber-m);}
+.severity-badge.sev-low{background:#f0fdf4;color:var(--green);border:1.5px solid var(--green-m);}
+.sev-dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex-shrink:0;}
+
+/* Escalation Yes/No buttons — consistent with design system */
+.esc-btn{flex:1;padding:7px 10px;border-radius:8px;border:1.5px solid var(--gray-200);background:var(--white);font-family:var(--sans);font-size:var(--fs-xs);font-weight:600;cursor:pointer;transition:all .15s;text-align:center;}
+.esc-btn.yes{border-color:var(--green-m);color:var(--green);}
+.esc-btn.yes:hover{background:var(--green);color:white;}
+.esc-btn.no{border-color:var(--red-m);color:var(--red);}
+.esc-btn.no:hover{background:var(--red);color:white;}
+.esc-btn.selected-yes{background:var(--green);color:white;border-color:var(--green);}
+.esc-btn.selected-no{background:var(--red);color:white;border-color:var(--red);}
+.esc-btn:disabled{opacity:.45;cursor:not-allowed;}
