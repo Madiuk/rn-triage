@@ -113,8 +113,8 @@ let currentUser = null;      // Supabase user object
 let currentProfile = null;   // Profile + company data
 let currentHistoryId = null;
 let triageStartTime = null;
-const SUPABASE_URL = 'https://aturbsnqpdtvhrnujrqb.supabase.co'; // Set via window.__RELAI_SUPABASE_URL__ at load
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF0dXJic25xcGR0dmhybnVqcnFiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc4NDc5MTgsImV4cCI6MjA5MzQyMzkxOH0.l7LdmI8PfFiIXa1nIwwauiWh6KnzpwhlpK5uieATsic'; // Set via window.__RELAI_SUPABASE_ANON_KEY__ at load
+const SUPABASE_URL = ''; // Set via window.__RELAI_SUPABASE_URL__ at load
+const SUPABASE_ANON_KEY = ''; // Set via window.__RELAI_SUPABASE_ANON_KEY__ at load
 
 function getSession(){
   try{ return JSON.parse(localStorage.getItem('relai_session')||'null'); }catch(e){ return null; }
@@ -718,12 +718,18 @@ function onTimeframeChange(sel){
 
 async function saveTimeframe(){
   var sel=document.getElementById('timeframeSelect'),btn=document.getElementById('timeframeSaveBtn');
-  if(!sel||!btn)return;
-  var orig=btn.style.background;
-  btn.style.background='var(--gray-300)';btn.disabled=true;
-  if(currentHistoryId)await api('/history','POST',{action:'update_urgency',id:currentHistoryId,urgency_override:sel.value});
-  btn.style.background='var(--green)';
-  setTimeout(function(){btn.style.background='var(--green)';btn.disabled=false;},1200);
+  if(!sel||!btn) return;
+  if(!currentHistoryId){ showToast('Run a triage first','warn'); return; }
+  btn.disabled=true; btn.style.opacity='0.6';
+  try{
+    await api('/history','POST',{action:'update_urgency',id:currentHistoryId,urgency_override:sel.value});
+    showToast('Timeframe saved');
+    btn.style.background='var(--green)'; btn.style.opacity='1';
+    setTimeout(function(){btn.style.background='var(--green)';btn.disabled=false;},1500);
+  }catch(e){
+    showToast('Error saving timeframe','error');
+    btn.disabled=false; btn.style.opacity='1';
+  }
 }
 
 // VOTING
@@ -1095,18 +1101,24 @@ function toggleCatTag(btn){
 
 async function saveCategoryTags(){
   var btn=document.getElementById('catSaveBtn');
-  if(!btn||!currentHistoryId)return;
-  btn.textContent='Saving...';btn.disabled=true;
-  var clinVals=[],ncVals=[];
-  document.querySelectorAll('.cat-pill.sel-clin').forEach(function(p){clinVals.push(p.getAttribute('data-val'));});
-  document.querySelectorAll('.cat-pill.sel-nc').forEach(function(p){ncVals.push(p.getAttribute('data-val'));});
-  // Also save timeframe in same call
-  var tfSel=document.getElementById('timeframeSelect');
-  var saves=[api('/history','POST',{action:'update_category',id:currentHistoryId,category:(clinVals.join(', ')||'')+(ncVals.length?' | Non-clinical: '+ncVals.join(', '):'')})];
-  if(tfSel) saves.push(api('/history','POST',{action:'update_urgency',id:currentHistoryId,urgency_override:tfSel.value}));
-  await Promise.all(saves);
-  btn.textContent='Saved';btn.className='cat-save-btn saved';
-  setTimeout(function(){btn.textContent='Save';btn.className='cat-save-btn';btn.disabled=false;},2000);
+  if(!btn) return;
+  if(!currentHistoryId){ showToast('Run a triage first','warn'); return; }
+  btn.textContent='Saving...'; btn.disabled=true;
+  try{
+    var clinVals=[],ncVals=[];
+    document.querySelectorAll('.cat-pill.sel-clin').forEach(function(p){clinVals.push(p.getAttribute('data-val'));});
+    document.querySelectorAll('.cat-pill.sel-nc').forEach(function(p){ncVals.push(p.getAttribute('data-val'));});
+    var tfSel=document.getElementById('timeframeSelect');
+    var saves=[api('/history','POST',{action:'update_category',id:currentHistoryId,category:(clinVals.join(', ')||'')+(ncVals.length?' | Non-clinical: '+ncVals.join(', '):'')})];
+    if(tfSel) saves.push(api('/history','POST',{action:'update_urgency',id:currentHistoryId,urgency_override:tfSel.value}));
+    await Promise.all(saves);
+    btn.textContent='Saved ✓'; btn.className='cat-save-btn saved';
+    showToast('Categories saved');
+    setTimeout(function(){btn.textContent='Save';btn.className='cat-save-btn';btn.disabled=false;},2000);
+  }catch(e){
+    showToast('Error saving categories','error');
+    btn.textContent='Save'; btn.disabled=false;
+  }
 }
 
 
