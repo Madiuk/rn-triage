@@ -577,7 +577,7 @@ const TODAY = new Date().toLocaleDateString('en-US',{year:'numeric',month:'long'
 
 const BASE_PROMPT = `GLP-1 telehealth RN triage. Today: ${TODAY}. Output ONLY valid JSON.
 
-{"non_clinical_flag":bool,"non_clinical_items":["..."],"routed_to":"string","internal_note":"string","clinical_routing_flag":bool,"clinical_routing_level":"severe|moderate|mild|none","clinical_routing_note":"string","clinical_category":"GI side effects|Weight plateau|No early weight loss|Food noise/cravings|Hair loss|Fatigue|Heartburn/reflux|Diarrhea|Injection/administration|Dosing question|Skin/site reaction|Medication storage|Urgent-escalate|General/multiple","urgency":"routine|same-day|urgent","follow_up_questions":["..."],"draft_response":"string"}
+{"non_clinical_flag":bool,"non_clinical_items":["..."],"routed_to":"string","internal_note":"string","clinical_routing_flag":bool,"clinical_routing_level":"severe|moderate|mild|none","clinical_routing_note":"string","clinical_category":"GI side effects|Weight plateau|No early weight loss|Food noise/cravings|Hair loss|Fatigue|Heartburn/reflux|Diarrhea|Injection/administration|Dosing question|Skin/site reaction|Medication storage|Urgent-escalate|General/multiple","urgency":"routine|same-day|urgent","follow_up_questions":["..."],"draft_response":"string","review_request":{"question":"string or null","context":"routing|severity|category|kb_gap|protocol|null","confidence":0.0}}
 
 non_clinical_flag: true if ANY non-clinical content present (billing, payment, shipping, tracking, refund, account, subscription, cancellation, prescription transfer, or any administrative request).
 non_clinical_items: list the NON-CLINICAL CATEGORY for each non-clinical topic — use short standard labels only, never describe the situation. Valid labels: "Billing/Payment" | "Shipment/Tracking" | "Account/Subscription" | "Refund Request" | "General Inquiry" | "Complaint/Concern". Example: ["Shipment/Tracking"]. Empty array if none.
@@ -589,6 +589,9 @@ clinical_routing_note: empty string always (deprecated).
 clinical_category: MUST be EXACTLY one of these values — copy it verbatim: "Injection/Dosing" | "Side Effects" | "Severe Side Effects" | "Medication Management" | "Stall/Lack of Results" | "General Inquiry". Pick the single best match. Use "Severe Side Effects" when symptoms are urgent or life-threatening. Use "Side Effects" for all other reported side effects. Use "Injection/Dosing" for any injection technique, dosing schedule, missed dose, or storage questions. Use "Medication Management" for titration, switching medications, or medication-related decisions. Use "Stall/Lack of Results" for plateau, no weight loss, food noise, or appetite questions. Do NOT combine values, do NOT invent new values.
 urgency: per URGENCY RULES.
 follow_up_questions: specific questions if info missing. Include dose question if dose not stated.
+review_request: Populate ONLY when your confidence on a clinical decision is below 0.75. Write a specific question for the supervising RN that would help you improve future responses — e.g. "Patient asked about black licorice with tirzepatide, is this a clinical concern?" Set context to: routing, severity, category, kb_gap, or protocol. Set confidence to your actual 0.0-1.0 score. If confidence is high, set question and context to null and confidence to 1.0.
+
+review_request: Only populate when confidence < 0.75 on a clinical decision. question must be specific and answerable by a clinical expert — not a patient question. context must be one of: routing, severity, category, kb_gap, protocol. confidence is your certainty score 0.0-1.0. Set to null when confident.
 draft_response: ALWAYS populate. Warm RN voice, patient details, prose with line breaks, 120 words max. If non_clinical_flag true: include one brief sentence acknowledging the non-clinical item is being handled by the support team, then address the clinical portion. If follow_up_questions present: warm opening then weave questions into flowing prose. Otherwise: complete actionable advice.
 
 Knowledge base sections follow. Apply them precisely.`;
@@ -679,8 +682,8 @@ let currentUser = null;      // Supabase user object
 let currentProfile = null;   // Profile + company data
 let currentHistoryId = null;
 let triageStartTime = null;
-const SUPABASE_URL = ''; // Set via window.__RELAI_SUPABASE_URL__ at load
-const SUPABASE_ANON_KEY = ''; // Set via window.__RELAI_SUPABASE_ANON_KEY__ at load
+const SUPABASE_URL = 'https://aturbsnqpdtvhrnujrqb.supabase.co'; // Set via window.__RELAI_SUPABASE_URL__ at load
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF0dXJic25xcGR0dmhybnVqcnFiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc4NDc5MTgsImV4cCI6MjA5MzQyMzkxOH0.l7LdmI8PfFiIXa1nIwwauiWh6KnzpwhlpK5uieATsic'; // Set via window.__RELAI_SUPABASE_ANON_KEY__ at load
 
 function getSession(){
   try{ return JSON.parse(localStorage.getItem('relai_session')||'null'); }catch(e){ return null; }
@@ -1185,7 +1188,7 @@ function switchTab(name,btn){
   document.getElementById('tab-'+name).classList.add('active');
   btn.classList.add('active');
   if(name==='kb')loadKBFromServer();
-  if(name==='history')loadClarifications();
+  if(name==='history')loadReviews();
 }
 
 // TRIAGE
@@ -1223,7 +1226,13 @@ currentHistoryId=null;
     if(!raw)throw new Error('Empty response from API.');
     var parsed=JSON.parse(raw.replace(/```json|```/g,'').trim());
     renderResults(parsed);
-    saveHistoryRecord(parsed,msg).then(function(id){currentHistoryId=id;});
+    saveHistoryRecord(parsed,msg).then(function(id){
+      currentHistoryId=id;
+      // Save review request if AI flagged low confidence
+      if(parsed.review_request && parsed.review_request.question){
+        saveReviewRequest(parsed.review_request, msg, parsed.draft_response, id);
+      }
+    });
   }catch(err){
     var msg = err.message||'Unknown error';
     var isJson = msg.includes('JSON') || msg.includes('Unexpected token') || msg.includes('SyntaxError');
@@ -1855,6 +1864,189 @@ function goToClarifications(){
   var histBtn = document.getElementById('historyTabBtn');
   if(histBtn) switchTab('history', histBtn);
 }
+
+async function saveReviewRequest(reviewRequest, patientMsg, aiDraft, triageId){
+  try{
+    await api('/reviews','POST',{
+      action: 'create',
+      triage_id: triageId,
+      company_id: getCompanyId(),
+      created_by: getUserId(),
+      question: reviewRequest.question,
+      context: reviewRequest.context || 'general',
+      confidence: reviewRequest.confidence || null,
+      patient_message: (patientMsg||'').substring(0,500),
+      ai_draft: (aiDraft||'').substring(0,500)
+    });
+    // Refresh badge count
+    loadReviews();
+  }catch(e){}
+}
+
+async function loadReviews(){
+  try{
+    var rows = await api('/reviews');
+    var pending = Array.isArray(rows) ? rows.filter(function(r){return r.status==='pending';}) : [];
+    updateReviewBadge(pending.length);
+    window._pendingReviews = pending;
+    renderReviews(pending);
+  }catch(e){}
+}
+
+function updateReviewBadge(count){
+  var badge = document.getElementById('clarificationBadge');
+  var profBadge = document.getElementById('profileBadgeCount');
+  if(badge){
+    badge.style.display = count > 0 ? 'flex' : 'none';
+    badge.textContent = count > 9 ? '9+' : String(count);
+  }
+  if(profBadge) profBadge.textContent = count > 0 ? String(count) : '';
+}
+
+function renderReviews(pending){
+  var list = document.getElementById('clarificationList');
+  var countEl = document.getElementById('clarificationCount');
+  if(!list) return;
+
+  if(countEl){
+    countEl.textContent = pending.length > 0 ? pending.length + ' pending' : '';
+    countEl.style.display = pending.length > 0 ? '' : 'none';
+  }
+
+  list.innerHTML = '';
+
+  if(!pending.length){
+    list.innerHTML = '<div style="text-align:center;padding:32px 20px;color:var(--gray-400);font-size:var(--fs-sm);">No pending items. The AI is operating with high confidence.</div>';
+    return;
+  }
+
+  var contextLabels = {routing:'Routing Decision',severity:'Severity Classification',category:'Category Assignment',kb_gap:'Knowledge Gap',protocol:'Protocol Question',general:'General Review'};
+
+  pending.forEach(function(item){
+    var conf = item.confidence ? Math.round(item.confidence * 100) + '%' : 'n/a';
+    var confColor = item.confidence < 0.5 ? 'var(--red)' : item.confidence < 0.7 ? 'var(--amber)' : 'var(--green)';
+    var label = contextLabels[item.context] || item.context || 'Review';
+    var excerpt = item.patient_message ? item.patient_message.substring(0,120) + (item.patient_message.length > 120 ? '...' : '') : '';
+
+    // Card
+    var card = document.createElement('div');
+    card.id = 'review-' + item.id;
+    card.style.cssText = 'border:1.5px solid var(--gray-200);border-radius:12px;overflow:hidden;margin-bottom:12px;';
+
+    // Header
+    var hdr = document.createElement('div');
+    hdr.style.cssText = 'padding:12px 16px;background:var(--gray-50);border-bottom:1px solid var(--gray-100);display:flex;align-items:center;justify-content:space-between;gap:12px;';
+    hdr.innerHTML = '<div style="display:flex;align-items:center;gap:8px;">' +
+      '<span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);">' + esc(label) + '</span>' +
+      '<span style="font-size:11px;font-weight:700;padding:2px 7px;border-radius:8px;background:var(--gray-100);color:' + confColor + ';">AI confidence: ' + conf + '</span>' +
+      '</div>' +
+      '<span style="font-size:11px;color:var(--gray-400);">' + new Date(item.created_at).toLocaleDateString() + '</span>';
+
+    // Body
+    var body = document.createElement('div');
+    body.style.cssText = 'padding:14px 16px;';
+
+    var qDiv = document.createElement('div');
+    qDiv.style.cssText = 'font-size:var(--fs-base);font-weight:600;color:var(--gray-800);margin-bottom:8px;line-height:1.5;';
+    qDiv.textContent = item.question;
+    body.appendChild(qDiv);
+
+    if(excerpt){
+      var exDiv = document.createElement('div');
+      exDiv.style.cssText = 'font-size:var(--fs-xs);color:var(--gray-500);background:var(--gray-50);border-radius:7px;padding:8px 10px;margin-bottom:12px;line-height:1.5;font-style:italic;';
+      exDiv.textContent = 'Patient: "' + excerpt + '"';
+      body.appendChild(exDiv);
+    }
+
+    var ta = document.createElement('textarea');
+    ta.id = 'ans-' + item.id;
+    ta.style.cssText = 'width:100%;min-height:80px;padding:10px 12px;border:1.5px solid var(--gray-200);border-radius:8px;font-family:var(--sans);font-size:var(--fs-sm);resize:vertical;outline:none;color:var(--gray-800);';
+    ta.placeholder = 'Your answer — be specific. This will be applied to the KB or used to improve routing logic.';
+    body.appendChild(ta);
+
+    var btnRow = document.createElement('div');
+    btnRow.style.cssText = 'display:flex;gap:8px;margin-top:8px;align-items:center;';
+
+    var submitBtn = document.createElement('button');
+    submitBtn.style.cssText = 'padding:8px 18px;background:var(--blue);border:none;border-radius:8px;color:white;font-family:var(--sans);font-size:var(--fs-sm);font-weight:600;cursor:pointer;';
+    submitBtn.textContent = 'Submit Answer';
+    (function(itemId, itemQ, itemCtx){
+      submitBtn.addEventListener('click', function(){ submitReview(itemId, itemQ, itemCtx); });
+    })(item.id, item.question, item.context || 'general');
+
+    var dismissBtn = document.createElement('button');
+    dismissBtn.style.cssText = 'padding:8px 14px;background:var(--white);border:1.5px solid var(--gray-200);border-radius:8px;color:var(--gray-500);font-family:var(--sans);font-size:var(--fs-sm);font-weight:500;cursor:pointer;';
+    dismissBtn.textContent = 'Dismiss';
+    (function(itemId){ dismissBtn.addEventListener('click', function(){ dismissReview(itemId); }); })(item.id);
+
+    var statusSpan = document.createElement('span');
+    statusSpan.id = 'review-status-' + item.id;
+    statusSpan.style.cssText = 'font-size:var(--fs-xs);color:var(--gray-500);flex:1;';
+
+    btnRow.appendChild(submitBtn);
+    btnRow.appendChild(dismissBtn);
+    btnRow.appendChild(statusSpan);
+    body.appendChild(btnRow);
+
+    card.appendChild(hdr);
+    card.appendChild(body);
+    list.appendChild(card);
+  });
+}
+
+
+async function submitReview(id, question, context){
+  var ansEl = document.getElementById('ans-'+id);
+  var statusEl = document.getElementById('review-status-'+id);
+  if(!ansEl || !ansEl.value.trim()){
+    if(statusEl) statusEl.textContent = 'Please enter an answer.';
+    return;
+  }
+  if(statusEl){ statusEl.textContent = 'Saving and applying...'; statusEl.style.color='var(--gray-400)'; }
+
+  try{
+    var result = await api('/reviews','POST',{
+      action: 'resolve',
+      id: id,
+      question: question,
+      context: context,
+      answer: ansEl.value.trim(),
+      resolved_by: getUserId(),
+      resolved_by_name: window.currentNurse || 'Admin'
+    });
+
+    var appliedTo = result.applied_to || 'confirmation';
+    var msg = appliedTo==='kb' ? '✓ Answer added to Knowledge Base' :
+              appliedTo==='correction' ? '✓ Saved as correction' :
+              '✓ Saved — confirms existing logic';
+
+    if(statusEl){ statusEl.textContent = msg; statusEl.style.color='var(--green)'; }
+
+    // Remove from list after short delay
+    setTimeout(function(){
+      var card = document.getElementById('review-'+id);
+      if(card){ card.style.opacity='0'; card.style.transition='opacity .3s'; }
+      setTimeout(function(){
+        loadReviews();
+        // If answer went to KB, refresh the KB if open
+        if(appliedTo==='kb') invalidateKBCache();
+      }, 300);
+    }, 1500);
+
+  }catch(e){
+    if(statusEl){ statusEl.textContent = 'Error: '+e.message; statusEl.style.color='var(--red)'; }
+  }
+}
+
+async function dismissReview(id){
+  try{
+    await api('/reviews','POST',{ action:'dismiss', id:id });
+    var card = document.getElementById('review-'+id);
+    if(card){ card.style.opacity='0'; card.style.transition='opacity .3s'; }
+    setTimeout(function(){ loadReviews(); }, 300);
+  }catch(e){}
+}
+
 
 function showToast(msg,type){
   var t=document.getElementById('saveToast');
