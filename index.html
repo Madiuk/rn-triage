@@ -485,20 +485,48 @@ async function initAuth(){
     var r = await fetch('/.netlify/functions/auth/profile',{
       headers:{'Authorization':'Bearer '+session.access_token}
     });
-    if(!r.ok){ throw new Error('auth_failed'); }
-    var data = await r.json();
-    if(!data || !data.user || !data.user.id){ throw new Error('no_user'); }
-    currentUser = data.user;
-    currentProfile = data.profile;
-    var name = (currentProfile&&currentProfile.full_name)||currentUser.email.split('@')[0];
-    window.currentNurse = name;
-    var initials = name.split(' ').map(function(w){return w[0]||'';}).join('').substring(0,2).toUpperCase()||'?';
-    var chipEl = document.getElementById('staffChipName');
-    var avatarEl = document.getElementById('chipAvatar');
-    if(chipEl) chipEl.textContent = name.split(' ')[0];
-    if(avatarEl) avatarEl.textContent = initials;
+    if(r.ok){
+      var data = await r.json();
+      if(data && data.user && data.user.id){
+        currentUser = data.user;
+        currentProfile = data.profile;
+        var name = (currentProfile&&currentProfile.full_name)||currentUser.email.split('@')[0];
+        window.currentNurse = name;
+        var initials = name.split(' ').map(function(w){return w[0]||'';}).join('').substring(0,2).toUpperCase()||'?';
+        var chipEl = document.getElementById('staffChipName');
+        var avatarEl = document.getElementById('chipAvatar');
+        if(chipEl) chipEl.textContent = name.split(' ')[0];
+        if(avatarEl) avatarEl.textContent = initials;
+        return;
+      }
+    }
+    // Auth function not deployed yet — decode JWT locally
+    throw new Error('use_local');
   }catch(e){
-    // Session invalid or expired — clear and redirect to login
+    // Try to decode token locally before giving up
+    try{
+      var payload = JSON.parse(atob(session.access_token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
+      if(payload.sub && payload.exp > Date.now()/1000){
+        // Token still valid — use local data
+        var email = payload.email || '';
+        var meta = payload.user_metadata || {};
+        // Also check pending profile saved during signup
+        var pending = {};
+        try{ pending = JSON.parse(localStorage.getItem('relai_pending_profile')||'{}'); }catch(e){}
+        var name = meta.full_name || pending.full_name || meta.name || email.split('@')[0] || 'Staff';
+        var dept = meta.department || pending.department || '';
+        if(dept) window.currentDepartment = dept;
+        window.currentNurse = name;
+        currentUser = { id: payload.sub, email: email };
+        var initials = name.split(' ').map(function(w){return w[0]||'';}).join('').substring(0,2).toUpperCase()||'?';
+        var chipEl = document.getElementById('staffChipName');
+        var avatarEl = document.getElementById('chipAvatar');
+        if(chipEl) chipEl.textContent = name.split(' ')[0];
+        if(avatarEl) avatarEl.textContent = initials;
+        return;
+      }
+    }catch(e2){}
+    // Token expired or invalid — redirect to login
     localStorage.removeItem('relai_session');
     window.location.href = '/login.html';
   }
@@ -1490,7 +1518,7 @@ function buildEntries(){
   var entries=[],pos=0;
   ['sideeffects','templates','protocols','urls','routing','notes'].forEach(function(section){
     (kb[section]||[]).forEach(function(entry){
-      entries.push({section:section,name:entry.name,content:entry.text,position:pos++,nurse_name:entry.nurse_name||window.currentNurse||'Unknown',updated_at:new Date().toISOString()});
+      entries.push({section:section,name:entry.name,content:entry.text,position:pos++,nurse_name:entry.nurse_name||window.currentNurse||'Unknown',user_id:(currentUser&&currentUser.id)||null,updated_at:new Date().toISOString()});
     });
   });
   return entries;
