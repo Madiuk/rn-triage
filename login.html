@@ -125,9 +125,16 @@ input.error{border-color:var(--red);}
 const SUPABASE_URL = 'https://aturbsnqpdtvhrnujrqb.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF0dXJic25xcGR0dmhybnVqcnFiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc4NDc5MTgsImV4cCI6MjA5MzQyMzkxOH0.l7LdmI8PfFiIXa1nIwwauiWh6KnzpwhlpK5uieATsic';
 
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+let supabase;
 
 document.addEventListener('DOMContentLoaded', async function() {
+  // Initialize client after DOM and CDN are ready
+  if (!window.supabase) {
+    showMessage('Failed to load authentication library. Please refresh the page.', 'error');
+    return;
+  }
+  supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
   // Check for existing session
   const { data: { session } } = await supabase.auth.getSession();
   if (session) {
@@ -171,6 +178,7 @@ document.addEventListener('DOMContentLoaded', async function() {
 });
 
 async function handleSubmit() {
+  if (!supabase) { showMessage('Authentication not ready. Please refresh.', 'error'); return; }
   var email = document.getElementById('emailInput').value.trim();
   var name = document.getElementById('nameInput').value.trim();
   var isInvite = document.getElementById('nameField').style.display !== 'none';
