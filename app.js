@@ -814,7 +814,7 @@ function renderResults(d){
 
   // ── Two side-by-side top cards ────────────────────────────────────────────
   html+=
-    '<div style="display:grid;grid-template-columns:220px 1fr;gap:12px;align-items:start;">'+
+    '<div style="display:grid;grid-template-columns:minmax(200px,240px) 1fr;gap:12px;align-items:start;">'+
 
       // LEFT — Status + timeframe editable
       '<div class="out-card">'+
@@ -832,8 +832,8 @@ function renderResults(d){
               '<div style="margin-top:10px;">'+
                 '<div style="font-size:var(--fs-xs);color:var(--gray-500);font-weight:600;margin-bottom:6px;">Severity correct?</div>'+
                 '<div style="display:flex;gap:6px;">'+
-                  '<button id="escYesBtn" onclick="recordEscalation(true)" style="flex:1;padding:5px 8px;border:1.5px solid var(--green-m);border-radius:7px;background:var(--white);color:var(--green);font-family:var(--sans);font-size:var(--fs-xs);font-weight:600;cursor:pointer;transition:all .15s;">&#10003; Yes</button>'+
-                  '<button id="escNoBtn" onclick="recordEscalation(false)" style="flex:1;padding:5px 8px;border:1.5px solid var(--red-m);border-radius:7px;background:var(--white);color:var(--red);font-family:var(--sans);font-size:var(--fs-xs);font-weight:600;cursor:pointer;transition:all .15s;">&#10007; No</button>'+
+                  '<button id="escYesBtn" class="esc-btn yes" onclick="recordEscalation(true)">&#10003; Yes</button>'+
+                  '<button id="escNoBtn" class="esc-btn no" onclick="recordEscalation(false)">&#10007; No</button>'+
                 '</div>'+
               '</div>'+
             '</div>'
@@ -1114,18 +1114,15 @@ async function recordEscalation(correct){
   if(!currentHistoryId){ showToast('Run a triage first','warn'); return; }
   var yBtn=document.getElementById('escYesBtn');
   var nBtn=document.getElementById('escNoBtn');
-  // Visual feedback
-  if(correct){
-    if(yBtn){ yBtn.style.background='var(--green)'; yBtn.style.color='white'; yBtn.disabled=true; }
-    if(nBtn){ nBtn.disabled=true; nBtn.style.opacity='0.4'; }
-  } else {
-    if(nBtn){ nBtn.style.background='var(--red)'; nBtn.style.color='white'; nBtn.disabled=true; }
-    if(yBtn){ yBtn.disabled=true; yBtn.style.opacity='0.4'; }
-  }
+  // Visual feedback using CSS classes
+  if(yBtn){ yBtn.disabled=true; yBtn.className='esc-btn yes'+(correct?' selected-yes':''); }
+  if(nBtn){ nBtn.disabled=true; nBtn.className='esc-btn no'+(!correct?' selected-no':''); }
+  if(yBtn&&!correct) yBtn.style.opacity='0.4';
+  if(nBtn&&correct) nBtn.style.opacity='0.4';
   try{
     await api('/history','POST',{action:'update_escalation',id:currentHistoryId,correct:correct});
-    showToast(correct?'Escalation confirmed':'Escalation flagged as incorrect');
-  }catch(e){ showToast('Error saving'); }
+    showToast(correct?'Severity confirmed ✓':'Severity flagged — will review');
+  }catch(e){ showToast('Error saving','error'); }
 }
 
 
