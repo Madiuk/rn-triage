@@ -7,28 +7,71 @@
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-body{font-family:'DM Sans',sans-serif;background:#f1f3f5;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;}
-.card{background:#fff;border-radius:20px;box-shadow:0 8px 40px rgba(0,0,0,.1);padding:48px 44px;width:100%;max-width:420px;}
-.brand{display:flex;align-items:center;gap:12px;margin-bottom:36px;}
-.brand-icon{width:44px;height:44px;border-radius:11px;background:#2563eb;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;color:white;}
-.brand-name{font-size:26px;font-weight:700;color:#212529;letter-spacing:-.5px;}
-.brand-tagline{font-size:13px;color:#adb5bd;margin-top:1px;}
-h1{font-size:20px;font-weight:700;color:#212529;margin-bottom:6px;}
-p.sub{font-size:14px;color:#6c757d;margin-bottom:28px;line-height:1.5;}
-label{display:block;font-size:13px;font-weight:600;color:#495057;margin-bottom:6px;}
-input{width:100%;padding:12px 14px;border:1.5px solid #e9ecef;border-radius:10px;font-family:'DM Sans',sans-serif;font-size:15px;color:#212529;outline:none;transition:border-color .15s;}
-input:focus{border-color:#2563eb;}
-.field{margin-bottom:16px;}
-button{width:100%;margin-top:8px;padding:13px;background:#2563eb;border:none;border-radius:10px;color:white;font-family:'DM Sans',sans-serif;font-size:16px;font-weight:600;cursor:pointer;}
-button:hover{background:#1d4ed8;}
-.msg{margin-top:18px;padding:14px 16px;border-radius:10px;font-size:14px;line-height:1.6;display:none;}
-.msg.ok{background:#f0fdf4;border:1.5px solid #bbf7d0;color:#16a34a;}
-.msg.err{background:#fef2f2;border:1.5px solid #fecaca;color:#dc2626;}
+body{
+  font-family:'DM Sans',sans-serif;
+  background:linear-gradient(135deg,#eff6ff 0%,#f1f3f5 100%);
+  min-height:100vh;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;padding:24px;
+}
+.card{
+  background:#fff;border-radius:20px;
+  box-shadow:0 4px 6px rgba(0,0,0,.04),0 12px 40px rgba(0,0,0,.08);
+  padding:48px 44px;width:100%;max-width:420px;
+}
+.brand{display:flex;align-items:center;gap:12px;margin-bottom:40px;}
+.brand-icon{
+  width:46px;height:46px;border-radius:12px;
+  background:#2563eb;display:flex;align-items:center;
+  justify-content:center;font-size:22px;font-weight:800;
+  color:white;font-family:'DM Sans',sans-serif;letter-spacing:-1px;
+  flex-shrink:0;
+}
+.brand-name{font-size:26px;font-weight:700;color:#212529;letter-spacing:-.5px;line-height:1;}
+.brand-tagline{font-size:12px;color:#adb5bd;margin-top:3px;font-weight:500;}
+h1{font-size:19px;font-weight:700;color:#212529;margin-bottom:6px;}
+.sub{font-size:14px;color:#6c757d;margin-bottom:28px;line-height:1.55;}
+label{display:block;font-size:13px;font-weight:600;color:#495057;margin-bottom:7px;}
+input[type=email]{
+  width:100%;padding:12px 14px;
+  border:1.5px solid #dee2e6;border-radius:10px;
+  font-family:'DM Sans',sans-serif;font-size:15px;
+  color:#212529;outline:none;background:#fff;
+  transition:border-color .15s,box-shadow .15s;
+}
+input[type=email]:focus{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.1);}
+.field{margin-bottom:20px;}
+.btn{
+  width:100%;padding:13px;margin-top:4px;
+  background:#2563eb;border:none;border-radius:10px;
+  color:white;font-family:'DM Sans',sans-serif;
+  font-size:15px;font-weight:600;cursor:pointer;
+  transition:background .15s,transform .1s;
+  display:flex;align-items:center;justify-content:center;gap:8px;
+}
+.btn:hover{background:#1d4ed8;}
+.btn:active{transform:scale(.99);}
+.btn:disabled{background:#adb5bd;cursor:not-allowed;transform:none;}
+.spinner{
+  width:16px;height:16px;border:2.5px solid rgba(255,255,255,.4);
+  border-top-color:white;border-radius:50%;
+  animation:spin .7s linear infinite;display:none;
+}
+.spinner.on{display:block;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.msg{
+  margin-top:18px;padding:14px 16px;
+  border-radius:10px;font-size:14px;line-height:1.6;
+  display:none;
+}
+.msg.ok{background:#f0fdf4;border:1.5px solid #86efac;color:#15803d;}
+.msg.err{background:#fef2f2;border:1.5px solid #fca5a5;color:#dc2626;}
 .msg.show{display:block;}
-.footer{font-size:12px;color:#adb5bd;text-align:center;margin-top:24px;line-height:1.6;}
+.footer{font-size:12px;color:#adb5bd;text-align:center;margin-top:28px;line-height:1.6;}
+.sent-icon{font-size:32px;display:block;margin-bottom:8px;}
 </style>
 </head>
 <body>
+
 <div class="card">
   <div class="brand">
     <div class="brand-icon">R</div>
@@ -37,75 +80,141 @@ button:hover{background:#1d4ed8;}
       <div class="brand-tagline">Intelligent task routing</div>
     </div>
   </div>
-  <h1>Sign in to your workspace</h1>
-  <p class="sub">Enter your email and we'll send you a secure sign-in link.</p>
-  <div class="field">
-    <label for="em">Work email</label>
-    <input type="email" id="em" placeholder="you@company.com" autocomplete="email">
+
+  <div id="formView">
+    <h1>Sign in to your workspace</h1>
+    <p class="sub">Enter your work email and we'll send you a secure one-time sign-in link. No password needed.</p>
+
+    <div class="field">
+      <label for="em">Work email</label>
+      <input type="email" id="em" placeholder="you@company.com" autocomplete="email">
+    </div>
+
+    <button class="btn" onclick="sendLink()">
+      <span id="btnTxt">Send sign-in link</span>
+      <div class="spinner" id="spin"></div>
+    </button>
+
+    <div class="msg" id="msg"></div>
   </div>
-  <button onclick="sendLink()">Send sign-in link</button>
-  <div class="msg" id="msg"></div>
-  <div class="footer">Having trouble? Contact your workspace administrator.</div>
+
+  <div id="sentView" style="display:none;text-align:center;">
+    <span class="sent-icon">&#128231;</span>
+    <h1 style="margin-bottom:10px;">Check your email</h1>
+    <p class="sub" id="sentMsg"></p>
+    <p style="font-size:13px;color:#adb5bd;margin-top:16px;">
+      Didn't get it? Check your spam folder, or
+      <a href="#" onclick="resetForm(); return false;" style="color:#2563eb;text-decoration:none;font-weight:600;">try again</a>.
+    </p>
+  </div>
+
+  <div class="footer">
+    Protected by Relai &mdash; Big Easy Weight Loss
+  </div>
 </div>
 
 <script>
+// ── CONFIG ────────────────────────────────────────────────────────────────────
 var SUPA_URL = 'https://aturbsnqpdtvhrnujrqb.supabase.co';
 var SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF0dXJic25xcGR0dmhybnVqcnFiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc4NDc5MTgsImV4cCI6MjA5MzQyMzkxOH0.l7LdmI8PfFiIXa1nIwwauiWh6KnzpwhlpK5uieATsic';
+// ─────────────────────────────────────────────────────────────────────────────
 
-function show(html, type) {
+// Handle magic link return — fires immediately on page load
+(function handleCallback() {
+  var h = window.location.hash;
+  if (!h || !h.includes('access_token')) return;
+  var p = new URLSearchParams(h.replace('#', ''));
+  var token = p.get('access_token');
+  var refresh = p.get('refresh_token');
+  if (!token) return;
+  // Store session
+  localStorage.setItem('relai_session', JSON.stringify({
+    access_token: token,
+    refresh_token: refresh,
+    timestamp: Date.now()
+  }));
+  // Clean URL and redirect
+  history.replaceState(null, '', window.location.pathname);
+  window.location.replace('/');
+})();
+
+function setLoading(on) {
+  var btn = document.querySelector('.btn');
+  var txt = document.getElementById('btnTxt');
+  var sp = document.getElementById('spin');
+  btn.disabled = on;
+  txt.style.opacity = on ? '0' : '1';
+  sp.className = on ? 'spinner on' : 'spinner';
+}
+
+function showMsg(html, type) {
   var el = document.getElementById('msg');
   el.innerHTML = html;
   el.className = 'msg show ' + type;
 }
 
+function resetForm() {
+  document.getElementById('sentView').style.display = 'none';
+  document.getElementById('formView').style.display = 'block';
+  document.getElementById('em').value = '';
+  document.getElementById('msg').className = 'msg';
+}
+
 function sendLink() {
   var email = document.getElementById('em').value.trim();
-  if (!email || !email.includes('@')) {
-    show('Please enter a valid email address.', 'err');
+
+  if (!email || !email.includes('@') || !email.includes('.')) {
+    showMsg('Please enter a valid email address.', 'err');
+    document.getElementById('em').focus();
     return;
   }
 
-  show('Sending...', 'ok');
+  setLoading(true);
 
   var xhr = new XMLHttpRequest();
   xhr.open('POST', SUPA_URL + '/auth/v1/otp', true);
   xhr.setRequestHeader('Content-Type', 'application/json');
   xhr.setRequestHeader('apikey', SUPA_KEY);
   xhr.setRequestHeader('Authorization', 'Bearer ' + SUPA_KEY);
+
   xhr.onload = function() {
-    var resp = {};
-    try { resp = JSON.parse(xhr.responseText); } catch(e) {}
+    setLoading(false);
     if (xhr.status >= 200 && xhr.status < 300) {
-      show('Check your email for a sign-in link sent to <strong>' + email + '</strong>.', 'ok');
+      // Success — show the sent confirmation view
+      document.getElementById('formView').style.display = 'none';
+      document.getElementById('sentMsg').innerHTML =
+        'We sent a sign-in link to <strong>' + email + '</strong>. ' +
+        'Click the link in that email to sign in. The link expires in 1 hour.';
+      document.getElementById('sentView').style.display = 'block';
     } else {
-      var m = resp.msg || resp.message || resp.error || xhr.responseText || 'Unknown error';
-      show('Error ' + xhr.status + ': ' + m, 'err');
+      var resp = {};
+      try { resp = JSON.parse(xhr.responseText); } catch(e) {}
+      var m = resp.msg || resp.message || resp.error_description || resp.error || xhr.responseText || 'Please try again.';
+      // Friendly messages for common errors
+      if (xhr.status === 429) m = 'Too many requests — please wait a minute before trying again.';
+      if (xhr.status === 400 && m.includes('valid')) m = 'That email address doesn\'t appear to be registered. Contact your administrator.';
+      showMsg(m, 'err');
     }
   };
+
   xhr.onerror = function() {
-    show('Network error — check SUPA_URL is correct.', 'err');
+    setLoading(false);
+    showMsg('Unable to connect. Please check your internet connection and try again.', 'err');
   };
+
   xhr.send(JSON.stringify({
     email: email,
-    options: { emailRedirectTo: window.location.origin + '/login.html' }
+    options: {
+      emailRedirectTo: window.location.origin + '/login.html'
+    }
   }));
 }
 
-// Handle magic link callback
-(function() {
-  var h = window.location.hash;
-  if (!h || !h.includes('access_token')) return;
-  var p = new URLSearchParams(h.replace('#',''));
-  var t = p.get('access_token');
-  if (!t) return;
-  localStorage.setItem('relai_session', JSON.stringify({
-    access_token: t,
-    refresh_token: p.get('refresh_token'),
-    timestamp: Date.now()
-  }));
-  show('Signed in — redirecting...', 'ok');
-  setTimeout(function(){ window.location.href = '/'; }, 600);
-})();
+// Allow pressing Enter in the email field
+document.getElementById('em').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') sendLink();
+});
 </script>
+
 </body>
 </html>
