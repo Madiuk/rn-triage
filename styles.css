@@ -344,3 +344,10 @@ textarea::placeholder{color:var(--gray-400);}
 .data-table tbody tr:nth-child(even){background:var(--gray-50);}
 .data-table td{padding:9px 14px;color:var(--gray-700);}
 .data-table td.staff-name{color:var(--gray-800);font-weight:600;}
+
+/* Task-shape pill — flags dual tasks (clinical + non-clinical routing
+   needed) so staff know to paste the internal note in addition to the
+   clinical reply. Single tasks render as a muted em-dash. */
+.task-shape-pill{display:inline-block;font-size:11px;font-weight:700;padding:1px 8px;border-radius:10px;letter-spacing:.04em;text-transform:uppercase;}
+.task-shape-dual{background:var(--amber-l);color:var(--amber);border:1px solid var(--amber-m);}
+.task-shape-muted{color:var(--gray-300);font-size:var(--fs-xs);}

@@ -1060,8 +1060,12 @@ async function loadHistory(){
       return;
     }
 
-    // Tag every row with its priority tier so filter + display agree
-    rows.forEach(function(r){ r._tier = priorityTier(r); });
+    // Tag every row with its priority tier and task shape so filter +
+    // display agree.
+    rows.forEach(function(r){
+      r._tier = priorityTier(r);
+      r._shape = taskShape(r);
+    });
 
     // Filter
     var filtered = rows.filter(function(r){
@@ -1190,6 +1194,7 @@ async function loadHistory(){
           '<thead><tr>'+
             '<th class="num">Score</th>'+
             '<th>Priority</th>'+
+            '<th>Type</th>'+
             '<th>Date</th>'+
             '<th>Staff</th>'+
             '<th>Category</th>'+
@@ -1206,9 +1211,16 @@ async function loadHistory(){
             var corrected = r.actual_response_sent?'<span style="color:var(--green);">&#10003;</span>':'<span style="color:var(--gray-300);">—</span>';
             var dur = formatDuration(r.session_duration_seconds);
             var tier = r._tier || 'clinical';
+            // Empty cell for single tasks keeps the queue visually quiet;
+            // dual tasks get a small amber pill so staff know there's a
+            // routing step in addition to the clinical reply.
+            var shapeCell = r._shape === 'dual'
+              ? '<span class="task-shape-pill task-shape-dual">Dual</span>'
+              : '<span class="task-shape-muted">—</span>';
             return '<tr>'+
               '<td class="num" style="font-weight:700;color:'+scoreColor+';">'+score+'</td>'+
               '<td style="color:'+tierColor[tier]+';font-weight:600;">'+tierLabel[tier]+'</td>'+
+              '<td>'+shapeCell+'</td>'+
               '<td>'+dt+'</td>'+
               '<td class="staff-name">'+esc(r.nurse_name||'')+'</td>'+
               '<td>'+esc(r.clinical_category||'')+'</td>'+
