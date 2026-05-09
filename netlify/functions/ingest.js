@@ -15,8 +15,10 @@ exports.handler = async function(event) {
   };
 
   try {
-    // Validate API key from header
-    const apiKey = event.headers['x-relai-api-key'] || event.headers['authorization'];
+    // Validate API key from header. Strip "Bearer " when callers send the
+    // key in a standard Authorization header.
+    const rawKey = event.headers['x-relai-api-key'] || event.headers['authorization'] || '';
+    const apiKey = rawKey.replace(/^Bearer\s+/i, '').trim();
     if (!apiKey) return { statusCode: 401, body: JSON.stringify({ error: 'API key required. Send X-Relai-Api-Key header.' }) };
 
     // Look up company from API key (simple hash check)

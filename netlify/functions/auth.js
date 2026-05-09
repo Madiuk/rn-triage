@@ -58,7 +58,7 @@ exports.handler = async function(event) {
         );
         const profiles = await profRes.json();
         profile = Array.isArray(profiles) && profiles.length > 0 ? profiles[0] : null;
-      } catch(e) {}
+      } catch(e) { console.error('auth.fetchProfile:', e.message); }
 
       // If no profile row exists yet, create one from user metadata
       if (!profile) {
@@ -73,7 +73,7 @@ exports.handler = async function(event) {
           });
           const inserted = await insertRes.json();
           profile = Array.isArray(inserted) ? inserted[0] : inserted;
-        } catch(e) {}
+        } catch(e) { console.error('auth.createProfile:', e.message); }
       }
 
       // Update last_seen silently
@@ -83,7 +83,7 @@ exports.handler = async function(event) {
           headers: { ...hdr, 'Prefer': 'return=minimal' },
           body: JSON.stringify({ last_seen: new Date().toISOString() })
         });
-      } catch(e) {}
+      } catch(e) { console.error('auth.updateLastSeen:', e.message); }
 
       // Get company name separately if company_id exists
       let companyName = 'Big Easy Weight Loss';
@@ -95,7 +95,7 @@ exports.handler = async function(event) {
           );
           const companies = await compRes.json();
           if (Array.isArray(companies) && companies[0]) companyName = companies[0].name;
-        } catch(e) {}
+        } catch(e) { console.error('auth.fetchCompany:', e.message); }
       }
 
       // Attach company name to profile for convenience
@@ -180,7 +180,7 @@ exports.handler = async function(event) {
               body: JSON.stringify({ last_seen: new Date().toISOString() })
             });
           }
-        } catch(e) {}
+        } catch(e) { console.error('auth.signoutTouch:', e.message); }
       }
       return { statusCode: 200, headers: CORS, body: JSON.stringify({ success: true }) };
     }
@@ -188,6 +188,7 @@ exports.handler = async function(event) {
     return { statusCode: 404, headers: CORS, body: JSON.stringify({ error: 'Not found' }) };
 
   } catch(err) {
+    console.error('auth.handler:', err.message);
     return { statusCode: 500, headers: CORS, body: JSON.stringify({ error: err.message }) };
   }
 };
