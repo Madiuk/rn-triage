@@ -1,0 +1,25 @@
+# Dependencies (none today — guard against future bundler additions)
+node_modules/
+
+# Build artifacts
+dist/
+.netlify/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local secrets / env
+.env
+.env.local
+.env.*.local
+
+# Generated archives — never commit the downloadable update bundles
+relai-update*.tar.gz
+relai-update*.zip
+*.patch
