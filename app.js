@@ -150,8 +150,17 @@ async function initAuth(){
     var initials = name.split(' ').map(function(n){return n[0];}).join('').substring(0,2).toUpperCase();
     var chipEl = document.getElementById('staffChipName');
     var avatarEl = document.getElementById('chipAvatar');
-    if(chipEl) chipEl.textContent = name.split(' ')[0]; // first name only
+      if(chipEl) chipEl.textContent = name.split(' ')[0]; // first name only
     if(avatarEl) avatarEl.textContent = initials;
+    // Update topbar tenant label from tenant config (falls back to defaults).
+    var brandTenantEl = document.getElementById('brandTenant');
+    if(brandTenantEl){
+      var members = currentProfile&&currentProfile.company_members;
+      var tenantName = (members&&members[0]&&members[0].companies&&members[0].companies.name)
+        || (currentProfile&&currentProfile.company_name)
+        || tenantValue(currentProfile&&currentProfile.tenant, 'brand.name');
+      brandTenantEl.textContent = tenantName;
+    }
     // Store name and department globally
     var dept = (currentProfile&&currentProfile.role)||'';
     window.currentNurse = name;
@@ -199,9 +208,31 @@ function openProfile(){
   document.getElementById('profileEmail').textContent = email;
   document.getElementById('profileRole').textContent = roleLabel;
   document.getElementById('profileCompany').textContent = company;
-  document.getElementById('profileStats').textContent = 'Triages this session: ' + (window._sessionTriages||0);
+  // Show a placeholder while the real numbers load from the DB. These
+  // persist across logouts/magic-link refreshes — they're not session-scoped.
+  document.getElementById('profileStats').textContent = 'Loading triage stats…';
   document.getElementById('profilePanel').classList.add('show');
   document.getElementById('profileOverlay').classList.add('show');
+  loadProfileStats();
+}
+
+async function loadProfileStats(){
+  var el = document.getElementById('profileStats');
+  if(!el) return;
+  try{
+    var s = await api('/history/stats');
+    if(s && typeof s === 'object' && (s.today != null || s.total != null)){
+      el.innerHTML =
+        '<div>Triages today: <strong>' + (s.today||0) + '</strong></div>' +
+        '<div>Last 7 days: <strong>' + (s.week||0) + '</strong></div>' +
+        '<div>All time: <strong>' + (s.total||0) + '</strong></div>';
+    } else {
+      el.textContent = 'Triage stats unavailable';
+    }
+  }catch(e){
+    console.error('loadProfileStats:', e.message);
+    el.textContent = 'Triage stats unavailable';
+  }
 }
 
 function closeProfile(){
@@ -429,8 +460,8 @@ async function saveEntryInline(section,i,btn){
 function removeEntry(section,i){if(!confirm('Delete this entry?'))return;kb[section].splice(i,1);renderKB();}
 function exportKB(){
   var blob=new Blob([JSON.stringify({kb:kb},null,2)],{type:'application/json'});
-  var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='glp1-kb-backup.json';a.click();
-}
+  var stamp = new Date().toISOString().slice(0,10);
+  var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='kb-backup-'+stamp+'.json';a.click();}
 function importKB(e){
   var file=e.target.files[0];if(!file)return;
   var reader=new FileReader();
@@ -1023,11 +1054,17 @@ async function loadHistory(){
       return;
     }
 
+    // Tag every row with its priority tier so filter + display agree
+    rows.forEach(function(r){ r._tier = priorityTier(r); });
+
     // Filter
     var filtered = rows.filter(function(r){
-      if(filterVal==='urgent') return r.urgency_score>=9;
-      if(filterVal==='escalated') return r.clinical_routing_level&&r.clinical_routing_level!=='none';
-      if(filterVal==='corrected') return r.actual_response_sent;
+      if(filterVal==='severe-se')   return r._tier==='severe-se';
+      if(filterVal==='any-se')      return r._tier==='severe-se' || r._tier==='moderate-se' || r._tier==='mild-se';
+      if(filterVal==='clinical')    return r._tier==='clinical';
+      if(filterVal==='non-clinical')return r._tier==='non-clinical';
+      if(filterVal==='urgent')      return r.urgency_score>=9;
+      if(filterVal==='corrected')   return r.actual_response_sent;
       return true;
     });
 
@@ -1118,33 +1155,57 @@ async function loadHistory(){
         '</div>';
     }
 
-    // Triage queue table
+      // Triage queue table — sorted by priority score so the most pressing
+    // tasks land at the top, exactly how the queue should behave when EHR
+    // ingest starts pushing tasks in automatically.
+    var tierLabel = {
+      'severe-se':   'Severe SE',
+      'moderate-se': 'Moderate SE',
+      'mild-se':     'Mild SE',
+      'clinical':    'Clinical',
+      'non-clinical':'Non-Clinical'
+    };
+    var tierColor = {
+      'severe-se':   'var(--red)',
+      'moderate-se': 'var(--amber)',
+      'mild-se':     'var(--green)',
+      'clinical':    'var(--blue)',
+      'non-clinical':'var(--gray-500)'
+    };
+    var sortedRows = filtered.slice().sort(function(a,b){
+      var sa = a.urgency_score||0, sb = b.urgency_score||0;
+      if(sb !== sa) return sb - sa;                 // higher score first
+      return new Date(b.created_at) - new Date(a.created_at); // then newer first
+    });
     var tableHtml =
       '<div class="data-table-wrap">'+
-        '<div class="data-table-title">Recent Triages</div>'+
+        '<div class="data-table-title">Recent Triages — sorted by priority</div>'+
         '<table class="data-table">'+
           '<thead><tr>'+
+            '<th class="num">Score</th>'+
+            '<th>Priority</th>'+
             '<th>Date</th>'+
             '<th>Staff</th>'+
             '<th>Category</th>'+
-            '<th class="num">Score</th>'+
             '<th>Urgency</th>'+
             '<th class="num">Corrected</th>'+
             '<th class="num">Time</th>'+
           '</tr></thead>'+
           '<tbody>'+
-          filtered.slice(0,100).map(function(r){
+          sortedRows.slice(0,100).map(function(r){
             var dt = new Date(r.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
             var score = r.urgency_score||'-';
-            var scoreColor = score>=9?'var(--red)':score>=6?'var(--amber)':'var(--green)';
+            var scoreColor = score>=9?'var(--red)':score>=6?'var(--amber)':score>=3?'var(--blue)':'var(--gray-500)';
             var urg = r.urgency_override||r.urgency_original||'-';
             var corrected = r.actual_response_sent?'<span style="color:var(--green);">&#10003;</span>':'<span style="color:var(--gray-300);">—</span>';
             var dur = formatDuration(r.session_duration_seconds);
+            var tier = r._tier || 'clinical';
             return '<tr>'+
+              '<td class="num" style="font-weight:700;color:'+scoreColor+';">'+score+'</td>'+
+              '<td style="color:'+tierColor[tier]+';font-weight:600;">'+tierLabel[tier]+'</td>'+
               '<td>'+dt+'</td>'+
               '<td class="staff-name">'+esc(r.nurse_name||'')+'</td>'+
               '<td>'+esc(r.clinical_category||'')+'</td>'+
-              '<td class="num" style="font-weight:700;color:'+scoreColor+';">'+score+'</td>'+
               '<td>'+esc(urg)+'</td>'+
               '<td class="num">'+corrected+'</td>'+
               '<td class="num">'+dur+'</td>'+
