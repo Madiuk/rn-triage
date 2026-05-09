@@ -71,8 +71,15 @@ maintainable before adding features.
   `status: pending`, `source_channel: 'bask'`.
 - worker.js polls pending rows on a schedule (Supabase Edge Function
   via pg_cron, or Inngest), runs triage, transitions to `triaged`.
-- Staff dashboard shows triaged-but-unreviewed queue. Approve/edit/send
-  → bask.js POSTs response back to Bask API → status `sent`.
+- Staff dashboard shows triaged-but-unreviewed queue **sorted by
+  priority score (severe SE → moderate → mild → clinical →
+  non-clinical)** with a multi-select category filter:
+  Severe Side Effects · Side Effects · Clinical Questions ·
+  Non-Clinical Questions (and additional categories as the system
+  grows). Staff can filter to their preferred work, claim a task, and
+  send the response.
+- Approve/edit/send → bask.js POSTs response back to Bask API →
+  status `sent`.
 - Patient reply webhook → new pending row linked to the prior thread
   via `external_id` or `thread_id`. Prior context auto-included.
 - Failure handling: bask down, AI down, malformed input — each goes to

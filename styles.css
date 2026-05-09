@@ -267,9 +267,10 @@ textarea::placeholder{color:var(--gray-400);}
 
 /* TOPBAR brand + chip ———————————————————————————————————————————— */
 .brand-mini-icon{font-size:17px;font-weight:800;letter-spacing:-1px;font-family:var(--sans);}
-.brand-row{display:flex;align-items:baseline;gap:8px;}
-.brand-tag{font-size:11px;font-weight:600;color:var(--gray-400);letter-spacing:.02em;}
-.tab-btn-more{}
+.brand-stack{display:flex;flex-direction:column;line-height:1.15;}
+.brand-stack .brand-name{font-size:var(--fs-md);font-weight:700;letter-spacing:-.3px;color:var(--gray-900);}
+.brand-stack .brand-sub{font-size:var(--fs-xs);color:var(--gray-500);margin-top:2px;font-weight:500;}
+.brand-sep{color:var(--gray-300);margin:0 4px;}
 .chip-avatar{width:22px;height:22px;border-radius:50%;background:var(--blue);color:white;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;}
 .dept-badge{display:none;font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px;background:var(--blue-m);color:var(--blue);}
 .dept-badge.cs{background:var(--amber-l);color:var(--amber);}

@@ -193,6 +193,41 @@ exports.handler = async function (event) {
     if (path.includes("/history")) {
       const base = SUPABASE_URL + "/rest/v1/query_history";
 
+      // /history/stats — aggregated triage counts for the calling user.
+      // Returns { today, week, total }. Cheap (3 HEAD-style count queries).
+      if (path.includes("/history/stats") && method === "GET") {
+        const user = await verifyUser(token);
+        if (!user) return json(401, { error: "Authentication required." });
+
+        const now = new Date();
+        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+        const startOfWeek = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+        const countHdrs = { ...readHeaders(token), Prefer: "count=exact", Range: "0-0" };
+
+        function getCount(res) {
+          const range = res.headers.get("content-range") || "";
+          const m = range.match(/\/(\d+|\*)$/);
+          if (!m || m[1] === "*") return 0;
+          return parseInt(m[1], 10) || 0;
+        }
+
+        try {
+          const [tRes, wRes, allRes] = await Promise.all([
+            fetch(base + `?user_id=eq.${user.id}&created_at=gte.${encodeURIComponent(startOfToday)}&select=id`, { headers: countHdrs }),
+            fetch(base + `?user_id=eq.${user.id}&created_at=gte.${encodeURIComponent(startOfWeek)}&select=id`, { headers: countHdrs }),
+            fetch(base + `?user_id=eq.${user.id}&select=id`, { headers: countHdrs }),
+          ]);
+          return json(200, {
+            today: getCount(tRes),
+            week: getCount(wRes),
+            total: getCount(allRes),
+          });
+        } catch (e) {
+          console.error("kb.historyStats:", e.message);
+          return json(500, { error: "Failed to load stats." });
+        }
+      }
+
       if (method === "GET") {
         const isAll = path.includes("/history/all");
         const query = isAll
