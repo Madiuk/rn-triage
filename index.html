@@ -125,7 +125,7 @@
           </select>
         </div>
         <textarea class="entry-content-area" id="entryContent" placeholder="Enter protocol, guidance, or template content..."></textarea>
-        <div style="display:flex;justify-content:flex-end;">
+        <div class="entry-submit-row">
           <button class="entry-submit-btn" id="entrySubmitBtn" onclick="submitEntry()">
             <span id="entrySubmitTxt">Save &amp; Sync to Team</span>
             <div class="spinner" id="entrySpinner"></div>
@@ -152,10 +152,10 @@
     <div id="kb-tab-routing" class="kb-tab-panel"><div id="routing-list"></div></div>
     <div id="kb-tab-urls" class="kb-tab-panel"><div id="urls-list"></div></div>
     <div id="kb-tab-corrections" class="kb-tab-panel">
-      <div style="padding:10px 0 14px;">
-        <button class="btn-xs" id="loadCorrectionsBtn" onclick="toggleCorrectionsPanel()" style="font-size:var(--fs-sm);padding:8px 16px;">Load Response Corrections</button>
+      <div class="corrections-toggle-row">
+        <button class="btn-xs corrections-toggle" id="loadCorrectionsBtn" onclick="toggleCorrectionsPanel()">Load Response Corrections</button>
       </div>
-      <div id="corrections-panel" style="display:none;">
+      <div id="corrections-panel" class="corrections-panel">
         <div id="corrections-list"><div class="empty-state">Loading...</div></div>
       </div>
     </div>
@@ -165,7 +165,7 @@
         <div class="kb-spinner" id="kbSpinner"></div>
       </button>
       <button class="kb-export-btn" onclick="exportKB()">Export Backup</button>
-      <label class="kb-export-btn" style="cursor:pointer;">Import Backup<input type="file" accept=".json" style="display:none;" onchange="importKB(event)"></label>
+      <label class="kb-export-btn kb-import-label">Import Backup<input type="file" accept=".json" class="kb-import-input" onchange="importKB(event)"></label>
     </div>
   </div>
 </div>
@@ -216,7 +216,7 @@
           </div>
           <div class="help-faq">
             <button class="help-faq-q" onclick="toggleFaq(this)"><span>What does the severity badge mean?</span><span class="help-arrow">&#9660;</span></button>
-            <div class="help-faq-a"><strong style="color:var(--red);">Side Effect: Severe</strong> means escalate to a provider immediately. <strong style="color:var(--amber);">Side Effect: Moderate</strong> means gather more information and reassess. <strong style="color:var(--green);">Side Effect: Mild</strong> means an education response is appropriate. The badge only appears when a side effect is detected.</div>
+            <div class="help-faq-a"><strong class="help-sev-severe">Side Effect: Severe</strong> means escalate to a provider immediately. <strong class="help-sev-moderate">Side Effect: Moderate</strong> means gather more information and reassess. <strong class="help-sev-mild">Side Effect: Mild</strong> means an education response is appropriate. The badge only appears when a side effect is detected.</div>
           </div>
           <div class="help-faq">
             <button class="help-faq-q" onclick="toggleFaq(this)"><span>What is the routing card?</span><span class="help-arrow">&#9660;</span></button>
@@ -339,6 +339,8 @@
 
 <div class="save-toast" id="saveToast">Synced</div>
 
+<script src="data/defaults.js"></script>
+<script src="data/triage-lib.js"></script>
 <script src="data/base-prompt.js"></script>
 <script src="data/default-kb.js"></script>
 <script src="app.js"></script>

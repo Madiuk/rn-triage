@@ -1,109 +1,138 @@
 # Relai — Triage and Tasking
 
-AI-assisted clinical triage and task routing for telehealth practices. 
+AI-assisted clinical triage and task routing for telehealth practices.
+Currently single-tenant (Big Easy Weight Loss) trial; architected to
+become a multi-tenant SaaS.
+
+> **Working on this codebase?** Read `AGENTS.md` first. It's the rule
+> book — every AI session should follow it. The strategic roadmap lives
+> in `PLAN.md`.
 
 ---
 
-## What It Does
+## What it does
 
-Relai helps clinical and non-clinical staff process patient messages faster and more consistently. Staff paste a patient message, the AI classifies it, generates a draft response, and routes any non-clinical items (billing, shipment, etc.) to the right support team — all in one step.
+Staff paste a patient message; Claude classifies it against a per-tenant
+Knowledge Base and returns a structured triage decision: urgency,
+clinical category, severity, suggested response draft, and routing
+information for non-clinical items. Staff approve / edit / send and
+optionally paste back what they actually sent — that becomes a learning
+signal that's stored against the triage record.
 
-Over time, Relai learns from staff corrections and builds a confidence model that could eventually support auto-replies for routine inquiries.
-
----
-
-## Key Features
-
-- **AI Triage** — classifies patient messages by urgency, clinical category, and task type
-- **Dual Task Detection** — identifies messages with both clinical and non-clinical components and handles each appropriately
-- **Routing Cards** — generates internal notes for support team handoffs (Bask integration)
-- **Clinical Knowledge Base** — staff-maintained protocols, side effect guidance, templates, and routing rules that the AI reads on every triage
-- **Learning Loop** — staff paste what they actually sent; the AI compares drafts to corrections and generates learning notes
-- **Severity Validation** — staff confirm or flag the AI's side effect severity classification to improve future accuracy
-- **AI Review Queue** — when the AI's confidence is below threshold, it flags the triage for clinical expert review; answers feed back into the knowledge base
-- **Magic Link Auth** — passwordless login via Supabase, no passwords to manage
-- **Staff Attribution** — all triages, KB entries, and corrections are attributed to the logged-in user
-- **Multi-tenancy Ready** — company-scoped data, RLS policies, and role-based identity (Clinical / Non-Clinical)
+When the EHR side (Bask Health) is ready, ingestion will be automatic
+via webhooks → `ingest.js` → `worker.js` → triage → push response back
+through `bask.js`.
 
 ---
 
-## Tech Stack
-
-| Layer | Technology |
-|---|---|
-| Frontend | Vanilla HTML, CSS, JavaScript — no framework |
-| AI Model | Claude Haiku 4.5 via Anthropic API |
-| Backend | Netlify Serverless Functions (Node.js) |
-| Database | Supabase (PostgreSQL + RLS) |
-| Auth | Supabase Magic Link (passwordless) |
-| Hosting | Netlify |
-| Version Control | GitHub |
-
----
-
-## Project Structure
+## Repo layout
 
 ```
-rn-triage/
-├── index.html                  # HTML structure
-├── app.js                      # All application logic (~103KB)
-├── styles.css                  # All styles (~20KB)
-├── login.html                  # Magic link auth page
-└── netlify/
-    └── functions/
-        ├── auth.js             # Profile management, invite, signout
-        ├── kb.js               # Knowledge base CRUD, history, corrections, reviews
-        ├── triage.js           # Anthropic API proxy
-        └── ingest.js           # Webhook ingest (Bask integration stub)
+/                          repo root
+├── index.html             SPA shell + tabs (Triage, KB, Help, History)
+├── login.html             magic-link landing
+├── app.js                 SPA logic (kept monolithic — split deferred)
+├── styles.css             class-based styles, CSS variables
+├── data/
+│   ├── defaults.js        fallback constants (brand, models)
+│   ├── triage-lib.js      pure helpers — testable in Node
+│   ├── base-prompt.js     system prompt template
+│   └── default-kb.js      seed KB (used on first run if DB empty)
+├── netlify/
+│   └── functions/
+│       ├── auth.js        profile + tenant config + invite + signout
+│       ├── kb.js          KB / history / reviews / analyze proxy
+│       ├── triage.js      Anthropic /v1/messages proxy with allowlist
+│       ├── ingest.js      EHR webhook intake (idempotent by external_id)
+│       ├── worker.js      background processor for pending rows (stub)
+│       └── bask.js        outbound to Bask EHR (stub)
+├── migrations/            SQL migrations — single source of DB truth
+├── tests/                 plain-Node unit tests (npm test)
+├── eval/                  eval harness skeleton for triage regression tests
+├── AGENTS.md              project rules for AI agents
+├── PLAN.md                strategic roadmap
+└── README.md              this file
 ```
 
 ---
 
-## Database Schema (Supabase)
+## Tech stack
 
-| Table | Purpose |
-|---|---|
-| `profiles` | User profiles — name, role, company |
-| `companies` | Tenant companies |
-| `company_members` | User ↔ company membership |
-| `kb_entries` | Knowledge base entries per section |
-| `query_history` | Triage records with full AI output and corrections |
-| `review_requests` | AI-flagged items needing clinical expert input |
-| `api_keys` | Webhook API keys (hashed) |
-
----
-
-## Netlify Environment Variables
-
-Set these in Netlify → Site Settings → Environment Variables:
-
-| Variable | Description |
-|---|---|
-| `SUPABASE_URL` | Your Supabase project URL |
-| `SUPABASE_ANON_KEY` | Public anon key (safe for client use) |
-| `SUPABASE_SERVICE_KEY` | Service role key (server-side only, bypasses RLS) |
-| `ANTHROPIC_API_KEY` | Anthropic API key for Claude |
+| Layer            | Choice                                |
+|------------------|---------------------------------------|
+| Frontend         | Vanilla HTML + CSS + ES2017 JS        |
+| AI — triage      | Claude Sonnet 4.6 (with prompt cache) |
+| AI — corrections | Claude Haiku 4.5                      |
+| Backend          | Netlify Serverless Functions (Node)   |
+| Database         | Supabase (Postgres + RLS)             |
+| Auth             | Supabase magic-link                   |
+| Hosting          | Netlify                               |
 
 ---
 
-## Knowledge Base Sections
+## Running locally / making changes
 
-The AI reads relevant KB sections on every triage based on message classification:
+There is no build step today. Edit files directly; Netlify auto-deploys
+`main`. To test backend changes locally use `netlify dev`.
 
-| Section | Contents |
-|---|---|
-| **Side Effects** | Education and management guidance for GLP-1 side effects |
-| **Templates** | Response frameworks for common message types |
-| **Protocols** | If/then clinical decision logic |
-| **Rules & Notes** | Urgency thresholds, severity rules, system behavior |
-| **Routing** | When and how to escalate or route to support |
-| **URLs** | Reference links used in patient responses |
+```sh
+# Run tests
+npm test
+
+# Run eval harness (stub — see eval/README.md)
+npm run eval
+```
 
 ---
 
-## AI Triage Output
+## Environment variables (set in Netlify → Site Settings → Env Vars)
 
-Each triage returns a structured JSON response:
+| Variable               | Used by              | Purpose                                                          |
+|------------------------|----------------------|------------------------------------------------------------------|
+| `SUPABASE_URL`         | all functions        | PostgREST endpoint                                               |
+| `SUPABASE_ANON_KEY`    | all functions        | Public client key (RLS-respecting reads)                         |
+| `SUPABASE_SERVICE_KEY` | auth, kb, ingest, worker | Service role key — for writes that bypass RLS where required |
+| `ANTHROPIC_API_KEY`    | triage, kb /analyze  | Anthropic API key                                                |
+| `BASK_API_URL`         | bask                 | Bask EHR API base URL (when integration goes live)               |
+| `BASK_API_KEY`         | bask                 | Bask API token                                                   |
+
+---
+
+## Database
+
+Schema is captured in `migrations/`. To bring up a new environment, run
+the SQL files in numeric order in Supabase's SQL Editor. New schema
+changes go in a new file (`migrations/0005_*.sql` etc.) — never edit a
+previous migration.
+
+Key tables:
+- `profiles` — Supabase Auth users + name/role/company
+- `companies` — tenant orgs (legacy; will fold into `tenants`)
+- `tenants` — per-tenant config (brand, theme, defaults)
+- `kb_entries` — knowledge base, scoped by `company_id`
+- `query_history` — every triage run + correction + reward signal
+- `review_requests` — low-confidence triages flagged for clinical expert
+- `audit_log` — append-only event log
+- `api_keys` — webhook ingest auth (sha256 hashed)
+
+---
+
+## Active learning
+
+When a clinical expert resolves a `review_requests` row with context
+`kb_gap` or `protocol`, the answer is automatically inserted into
+`kb_entries` (in section `notes` or `protocols` respectively). This
+closes the "AI flagged uncertainty → expert answers → next triage uses
+the answer" loop without manual KB editing. See `kb.js`
+`promoteReviewToKB`.
+
+Every triage also captures `edit_distance` (Levenshtein from the AI's
+draft to what was actually sent) and `session_duration_seconds`. These
+are the reward signals for tracking model quality over time.
+
+---
+
+## Triage output JSON
 
 ```json
 {
@@ -114,55 +143,32 @@ Each triage returns a structured JSON response:
   "clinical_routing_flag": true,
   "clinical_routing_level": "moderate",
   "clinical_category": "Side Effects",
-  "urgency": "Same Day",
+  "urgency": "same-day",
   "follow_up_questions": [],
   "draft_response": "I hear you — those symptoms sound uncomfortable...",
   "review_request": {
-    "question": "Patient described symptoms consistent with RLS — should this escalate to severe?",
+    "question": "Patient described symptoms consistent with X — should this escalate?",
     "context": "severity",
     "confidence": 0.61
   }
 }
 ```
 
-`review_request` is only populated when the AI's confidence falls below 0.75 on a clinical decision.
+`review_request` is only populated when the AI's confidence falls below
+the threshold (0.75 by default; see `data/defaults.js`).
 
 ---
 
-## Auth Flow
+## Auth flow
 
-1. Staff visit `/login.html` and enter email, first name, and department
-2. Supabase sends a magic link to their email
-3. Clicking the link returns them to the app with a session token
-4. `initAuth()` validates the token and loads their profile from Supabase
+1. Staff visit `/login.html` and enter email, first name, department
+2. Supabase sends a magic link
+3. Clicking the link returns the user with a session token
+4. `initAuth()` validates the token, loads profile + tenant config
 5. Name and department badge appear in the staff chip (top right)
 
-New users must be added to Supabase Auth by an administrator before they can receive a magic link. Public signups are disabled.
-
----
-
-## Learning System
-
-Every triage captures:
-- AI draft vs what was actually sent (correction delta)
-- Category corrections made by staff
-- Severity validation (correct / incorrect)
-- Timeframe overrides
-- Thumbs up / thumbs down on response quality
-- Session duration
-- Staff identity (user ID)
-
-When staff submit a correction, Claude Haiku compares the AI draft to what was sent and generates a learning note that gets stored against the triage record.
-
-The AI Review Queue surfaces cases where the AI was uncertain, letting clinical leads answer specific questions that feed back into the KB or correction history.
-
----
-
-## Deployment
-
-1. Push to GitHub — Netlify deploys automatically on push to `main`
-2. Netlify functions deploy from `netlify/functions/`
-3. Run database migrations in Supabase SQL Editor as needed
+New users must be created in Supabase Auth by an administrator first.
+Public signups are disabled.
 
 ---
 
@@ -170,4 +176,4 @@ The AI Review Queue surfaces cases where the AI was uncertain, letting clinical 
 
 Active trial — internal use only. Not for public access.
 
-Built and maintained by Brad Madiuk
+Built and maintained by Brad Madiuk.

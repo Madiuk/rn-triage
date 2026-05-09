@@ -38,6 +38,71 @@ async function verifyUser(token) {
   }
 }
 
+// Best-effort append to public.audit_log. Never throws — audit failures
+// must not block real operations.
+async function writeAuditLog(entry) {
+  try {
+    await fetch(SUPABASE_URL + "/rest/v1/audit_log", {
+      method: "POST",
+      headers: { ...writeHeaders(), Prefer: "return=minimal" },
+      body: JSON.stringify(entry),
+    });
+  } catch (e) {
+    console.error("kb.writeAuditLog:", e.message);
+  }
+}
+
+// Promote a resolved review_request into a kb_entries row. Returns the
+// section it was filed under, or null on failure.
+async function promoteReviewToKB({ companyId, context, question, answer, resolvedByName }) {
+  // Map review context to KB section. kb_gap → notes (general rules),
+  // protocol → protocols. Other contexts don't auto-promote.
+  const section = context === "kb_gap" ? "notes" : context === "protocol" ? "protocols" : null;
+  if (!section || !answer) return null;
+
+  // Compute a stable position (append to end of section).
+  let position = 0;
+  try {
+    const posRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/kb_entries?company_id=eq.${companyId}&section=eq.${section}&select=position&order=position.desc&limit=1`,
+      { headers: readHeaders() }
+    );
+    const rows = await posRes.json();
+    if (Array.isArray(rows) && rows[0] && typeof rows[0].position === "number") {
+      position = rows[0].position + 1;
+    }
+  } catch (e) {
+    console.error("kb.promotePosition:", e.message);
+  }
+
+  const trimmedQ = (question || "").slice(0, 80);
+  const name = `Resolved review — ${trimmedQ || new Date().toISOString().slice(0, 10)}`;
+  const content = `Q: ${question || ""}\n\nA: ${answer}`;
+
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/kb_entries`, {
+      method: "POST",
+      headers: { ...writeHeaders(), Prefer: "return=minimal" },
+      body: JSON.stringify({
+        company_id: companyId,
+        section,
+        name,
+        content,
+        position,
+        nurse_name: resolvedByName || "Review queue",
+      }),
+    });
+    if (!r.ok) {
+      console.error("kb.promoteReviewToKB:", "insert failed", r.status);
+      return null;
+    }
+    return section;
+  } catch (e) {
+    console.error("kb.promoteReviewToKB:", e.message);
+    return null;
+  }
+}
+
 const json = (status, body) => ({
   statusCode: status,
   headers: { "Content-Type": "application/json" },
@@ -113,6 +178,13 @@ exports.handler = async function (event) {
           return json(insRes.status, { error: "KB write failed; previous entries restored." });
         }
 
+        await writeAuditLog({
+          actor_id: user.id,
+          event_type: "kb.replace",
+          entity_type: "kb_entries",
+          payload: { count: newEntries.length, prior_count: backup.length },
+        });
+
         return json(200, await insRes.text());
       }
     }
@@ -163,6 +235,9 @@ exports.handler = async function (event) {
             if (body.session_duration_seconds != null) {
               patch.session_duration_seconds = body.session_duration_seconds;
             }
+            if (body.edit_distance != null) {
+              patch.edit_distance = body.edit_distance;
+            }
             return patchById(patch);
           }
           case "delete_correction":
@@ -209,9 +284,37 @@ exports.handler = async function (event) {
         }
 
         if (body.action === "resolve") {
+          // Look up the review row first so we can route the answer
+          // correctly even if the client doesn't send context/triage_id.
+          let review = null;
+          try {
+            const lookup = await fetch(base + "?id=eq." + body.id + "&select=*", { headers: readHeaders(token) });
+            const arr = await lookup.json();
+            if (Array.isArray(arr) && arr[0]) review = arr[0];
+          } catch (e) { console.error("kb.reviewLookup:", e.message); }
+
+          const ctx = body.context || (review && review.context) || "general";
+          const companyId = (review && review.company_id) || body.company_id || null;
+
+          // Decide what to do with the answer. kb_gap / protocol promote
+          // into kb_entries; other contexts are saved on the review row only.
+          let appliedTo = "confirmation";
+          let promotedSection = null;
+          if (companyId && (ctx === "kb_gap" || ctx === "protocol")) {
+            promotedSection = await promoteReviewToKB({
+              companyId,
+              context: ctx,
+              question: body.question || (review && review.question) || "",
+              answer: body.answer || "",
+              resolvedByName: body.resolved_by_name || null,
+            });
+            if (promotedSection) appliedTo = "kb";
+          }
+
           const patch = {
             status: "resolved",
             answer: body.answer || "",
+            applied_to: appliedTo,
             resolved_by: body.resolved_by || user.id,
             resolved_by_name: body.resolved_by_name || null,
             resolved_at: new Date().toISOString(),
@@ -222,9 +325,22 @@ exports.handler = async function (event) {
             body: JSON.stringify(patch),
           });
           if (!r.ok) return json(r.status, { error: "Failed to resolve review." });
-          // applied_to is a hook for future routing logic (KB write, correction
-          // attach, etc). For now every resolution is a confirmation.
-          return json(200, { success: true, applied_to: "confirmation" });
+
+          await writeAuditLog({
+            company_id: companyId,
+            actor_id: user.id,
+            actor_name: body.resolved_by_name || null,
+            event_type: "review.resolve",
+            entity_type: "review_requests",
+            entity_id: body.id,
+            payload: { applied_to: appliedTo, context: ctx, promoted_section: promotedSection },
+          });
+
+          return json(200, {
+            success: true,
+            applied_to: appliedTo,
+            promoted_section: promotedSection,
+          });
         }
 
         if (body.action === "dismiss") {

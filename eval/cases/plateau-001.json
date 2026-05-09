@@ -1,0 +1,15 @@
+{
+  "id": "plateau-001",
+  "description": "Weight plateau — should not flag clinical routing, should pull templates",
+  "input": {
+    "message": "I've been on 1mg semaglutide for 6 weeks and my weight hasn't moved in 10 days. Is something wrong?",
+    "prior_context": ""
+  },
+  "expected": {
+    "urgency": "routine",
+    "clinical_routing_level": "none",
+    "clinical_category": ["Stall/Lack of Results", "General Inquiry"],
+    "draft_must_include_any": ["plateau", "calorie", "protein", "TDEE", "tracking"],
+    "draft_must_not_include": ["911", "ER", "emergency"]
+  }
+}

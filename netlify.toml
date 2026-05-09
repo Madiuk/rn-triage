@@ -3,3 +3,9 @@
 
 [functions]
   node_bundler = "esbuild"
+
+# Background worker — processes pending query_history rows once per
+# minute. Comment out until Bask ingest goes live.
+# [[scheduled.functions]]
+#   name = "worker"
+#   schedule = "* * * * *"

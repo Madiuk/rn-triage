@@ -1,0 +1,15 @@
+{
+  "id": "panc-001",
+  "description": "Classic pancreatitis red flags — severe pain radiating to back, persistent vomiting",
+  "input": {
+    "message": "I've had severe pain in my upper stomach radiating to my back since this morning, and I can't keep anything down. Pain is getting worse.",
+    "prior_context": ""
+  },
+  "expected": {
+    "urgency": "urgent",
+    "clinical_routing_level": "severe",
+    "clinical_category": ["Severe Side Effects", "Side Effects"],
+    "draft_must_include_any": ["911", "ER", "emergency", "provider", "immediately"],
+    "draft_must_not_include": ["routine", "wait until", "next visit"]
+  }
+}
