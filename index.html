@@ -104,13 +104,11 @@
 <div class="tab-panel" id="tab-kb">
   <div class="kb-layout">
     <div class="kb-header">
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;">
-        <div>
-          <h2>Clinical Knowledge Base</h2>
-          <p>Protocols, side effect guidance, routing rules, and response templates. The AI reads this on every triage.</p>
-        </div>
-        <div class="kb-sync-bar" id="syncBar" style="margin:0;flex-shrink:0;"><span id="syncMsg">Loading...</span></div>
+      <div class="kb-header-row">
+        <h2>Clinical Knowledge Base</h2>
+        <div class="kb-sync-bar" id="syncBar"><span id="syncMsg">Loading...</span></div>
       </div>
+      <p>Protocols, side effect guidance, routing rules, and response templates. The AI reads this on every triage.</p>
     </div>
     <div class="entry-add-box">
       <div class="entry-add-header"><span>+ Add Entry</span></div>
@@ -127,7 +125,7 @@
           </select>
         </div>
         <textarea class="entry-content-area" id="entryContent" placeholder="Enter protocol, guidance, or template content..."></textarea>
-        <div style="display:flex;justify-content:flex-end;">
+        <div class="entry-submit-row">
           <button class="entry-submit-btn" id="entrySubmitBtn" onclick="submitEntry()">
             <span id="entrySubmitTxt">Save &amp; Sync to Team</span>
             <div class="spinner" id="entrySpinner"></div>
@@ -154,10 +152,10 @@
     <div id="kb-tab-routing" class="kb-tab-panel"><div id="routing-list"></div></div>
     <div id="kb-tab-urls" class="kb-tab-panel"><div id="urls-list"></div></div>
     <div id="kb-tab-corrections" class="kb-tab-panel">
-      <div style="padding:10px 0 14px;">
-        <button class="btn-xs" id="loadCorrectionsBtn" onclick="toggleCorrectionsPanel()" style="font-size:var(--fs-sm);padding:8px 16px;">Load Response Corrections</button>
+      <div class="corrections-toggle-row">
+        <button class="btn-xs corrections-toggle" id="loadCorrectionsBtn" onclick="toggleCorrectionsPanel()">Load Response Corrections</button>
       </div>
-      <div id="corrections-panel" style="display:none;">
+      <div id="corrections-panel" class="corrections-panel">
         <div id="corrections-list"><div class="empty-state">Loading...</div></div>
       </div>
     </div>
@@ -167,7 +165,7 @@
         <div class="kb-spinner" id="kbSpinner"></div>
       </button>
       <button class="kb-export-btn" onclick="exportKB()">Export Backup</button>
-      <label class="kb-export-btn" style="cursor:pointer;">Import Backup<input type="file" accept=".json" style="display:none;" onchange="importKB(event)"></label>
+      <label class="kb-export-btn kb-import-label">Import Backup<input type="file" accept=".json" class="kb-import-input" onchange="importKB(event)"></label>
     </div>
   </div>
 </div>
@@ -214,11 +212,11 @@
           <div class="help-section-title">Reading the Results</div>
           <div class="help-faq">
             <button class="help-faq-q" onclick="toggleFaq(this)"><span>What is the Classification card?</span><span class="help-arrow">&#9660;</span></button>
-            <div class="help-faq-a">The top card shows what the AI decided: urgency (Routine / Same Day / URGENT), task type, clinical category, and severity badge if a side effect was detected. Check this first. If anything looks wrong, correct the category using the pills and save.</div>
+            <div class="help-faq-a">The top-left card shows the AI's task type and the severity badge (when a side effect is flagged). The top-right card holds the category pills you can correct. Check both before sending — if a category is wrong, click the correct pill and Save.</div>
           </div>
           <div class="help-faq">
             <button class="help-faq-q" onclick="toggleFaq(this)"><span>What does the severity badge mean?</span><span class="help-arrow">&#9660;</span></button>
-            <div class="help-faq-a"><strong style="color:var(--red);">Side Effect: Severe</strong> means escalate to a provider immediately. <strong style="color:var(--amber);">Side Effect: Moderate</strong> means gather more information and reassess. <strong style="color:var(--green);">Side Effect: Mild</strong> means an education response is appropriate.</div>
+            <div class="help-faq-a"><strong class="help-sev-severe">Side Effect: Severe</strong> means escalate to a provider immediately. <strong class="help-sev-moderate">Side Effect: Moderate</strong> means gather more information and reassess. <strong class="help-sev-mild">Side Effect: Mild</strong> means an education response is appropriate. The badge only appears when a side effect is detected.</div>
           </div>
           <div class="help-faq">
             <button class="help-faq-q" onclick="toggleFaq(this)"><span>What is the routing card?</span><span class="help-arrow">&#9660;</span></button>
@@ -226,7 +224,7 @@
           </div>
           <div class="help-faq">
             <button class="help-faq-q" onclick="toggleFaq(this)"><span>What does Response Timeframe mean?</span><span class="help-arrow">&#9660;</span></button>
-            <div class="help-faq-a"><strong>Routine</strong> means respond in normal queue order. <strong>Same Day</strong> means the patient needs a reply today. <strong>URGENT</strong> means escalate now. If wrong, adjust the dropdown and click Save.</div>
+            <div class="help-faq-a"><strong>Routine</strong> means respond in normal queue order. <strong>Same Day</strong> means the patient needs a reply today. <strong>URGENT</strong> means escalate now. If wrong, adjust the dropdown and click the green checkmark to save.</div>
           </div>
         </div>
         <div class="help-section">
@@ -256,6 +254,10 @@
             <button class="help-faq-q" onclick="toggleFaq(this)"><span>What if I entered the wrong correction?</span><span class="help-arrow">&#9660;</span></button>
             <div class="help-faq-a">Go to <strong>Clinical Knowledge Base &rarr; Corrections tab</strong> and click <strong>Load Response Corrections</strong>. Find the incorrect entry and click <strong>Delete</strong>.</div>
           </div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>What about thumbs up / thumbs down?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a">Use them to flag whether the draft was usable as-is. Thumbs up = good response, send the draft. Thumbs down = needs work — followed by a correction. Both feed into the dataset.</div>
+          </div>
         </div>
         <div class="help-section">
           <div class="help-section-title">Knowledge Base</div>
@@ -266,6 +268,21 @@
           <div class="help-faq">
             <button class="help-faq-q" onclick="toggleFaq(this)"><span>Which KB section should I use?</span><span class="help-arrow">&#9660;</span></button>
             <div class="help-faq-a"><strong>Side Effects</strong> &mdash; education and management guidance.<br><strong>Templates</strong> &mdash; response frameworks for common messages.<br><strong>Protocols</strong> &mdash; if/then decision logic.<br><strong>Rules &amp; Notes</strong> &mdash; urgency thresholds, severity rules. Edit carefully.<br><strong>Routing</strong> &mdash; when and how to escalate or route.<br><strong>URLs</strong> &mdash; links you reference in patient responses.</div>
+          </div>
+        </div>
+        <div class="help-section">
+          <div class="help-section-title">Triage Queue &amp; Stats</div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>Where do I see what I've been doing?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a">Open your profile (top-right chip) and click <strong>Pending Review Items</strong>, or click the <strong>&bull;&bull;&bull;</strong> tab. The Triage Queue page shows aggregate stats and a per-staff breakdown — total triages, average priority score, escalation rate, correction rate, and average time per triage.</div>
+          </div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>What does "Escalated" mean in the stats?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a">A triage counts as escalated whenever the AI flagged a side effect at any severity level (mild, moderate, or severe). It's the AI's classification, not a staff action.</div>
+          </div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>What does "Correction Rate" mean?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a">Percent of triages where staff pasted a different response into <strong>What was sent to the patient</strong>. A high rate means staff are editing drafts often — useful signal for what the AI should learn from.</div>
           </div>
         </div>
         <div class="help-section">
@@ -311,7 +328,6 @@
           <option value="urgent">Urgent only</option>
           <option value="escalated">Escalated</option>
           <option value="corrected">Corrected</option>
-          <option value="unvalidated">Escalation unvalidated</option>
         </select>
         <button class="history-load" onclick="loadHistory()">Load</button>
       </div>
@@ -323,6 +339,8 @@
 
 <div class="save-toast" id="saveToast">Synced</div>
 
+<script src="data/defaults.js"></script>
+<script src="data/triage-lib.js"></script>
 <script src="data/base-prompt.js"></script>
 <script src="data/default-kb.js"></script>
 <script src="app.js"></script>
