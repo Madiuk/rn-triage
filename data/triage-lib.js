@@ -110,6 +110,23 @@ function priorityTier(parsed) {
   return 'clinical';
 }
 
+// Task shape — orthogonal to priority. A 'dual' task has BOTH clinical
+// and non-clinical components and requires extra routing work (paste an
+// internal note into the EHR for the support team) on top of the
+// clinical reply. 'single' covers everything else. Lets the queue UI
+// flag dual tasks visually so staff know there's a routing step beyond
+// the clinical response.
+function taskShape(parsed) {
+  if (!parsed) return 'single';
+  var lvl = (parsed.clinical_routing_level || 'none').toLowerCase();
+  var hasSE = !!parsed.clinical_routing_flag && lvl !== 'none';
+  var cat = (parsed.clinical_category || '').trim();
+  var hasClinicalContent = hasSE || (cat && cat !== 'General Inquiry' && cat !== 'General/multiple');
+  var items = parsed.non_clinical_items;
+  var hasNonClin = !!parsed.non_clinical_flag || (Array.isArray(items) && items.length > 0);
+  return (hasClinicalContent && hasNonClin) ? 'dual' : 'single';
+}
+
 // Format a duration in seconds for display ("12s", "2m 30s").
 function formatDuration(seconds) {
   if (!seconds || seconds < 0) return '—';
@@ -153,6 +170,7 @@ if (typeof module !== 'undefined' && module.exports) {
     classifyMessage,
     computeUrgencyScore,
     priorityTier,
+    taskShape,
     formatDuration,
     levenshteinDistance,
   };
