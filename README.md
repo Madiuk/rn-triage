@@ -1,4 +1,3 @@
-<!-- Workflow test -->
 # Relai — Triage and Tasking
 
 AI-assisted clinical triage and task routing for telehealth practices.
