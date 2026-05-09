@@ -42,11 +42,72 @@ function classifyMessage(msg) {
   return Array.from(new Set(types));
 }
 
-// Compute a 0–10 priority score from the AI's classification. Pure.
-function computeUrgencyScore(urgency, routingLevel, hasSideEffect) {
-  var base = urgency === 'urgent' ? 9 : urgency === 'same-day' ? 6 : 3;
-  var sev = routingLevel === 'severe' ? 2 : routingLevel === 'moderate' ? 1 : 0;
-  return Math.min(10, base + (hasSideEffect ? sev : 0));
+// Compute a 1–10 priority score from the AI's classification. Pure.
+//
+// Tiered so that side effects always rank above non-side-effect clinical
+// questions, and clinical content always ranks above non-clinical only.
+// Within each tier the AI's `urgency` ('urgent' / 'same-day' / 'routine')
+// shifts the score by 1 so the queue surfaces the most pressing item
+// first when integrations push tasks in automatically.
+//
+// Score map:
+//   10  Severe side effect, urgent
+//    9  Severe side effect, non-urgent
+//    8  Moderate side effect, urgent
+//    7  Moderate side effect, non-urgent
+//    6  Mild side effect, urgent
+//    5  Mild side effect, non-urgent
+//    4  Clinical question (no side effect), urgent
+//    3  Clinical question (no side effect), non-urgent
+//    2  Non-clinical only, urgent
+//    1  Non-clinical only, non-urgent
+//
+// Accepts either a parsed triage object or three positional args
+// (back-compat with older callers that pass urgency, routingLevel, hasSideEffect).
+function computeUrgencyScore(parsedOrUrgency, routingLevel, hasSideEffect) {
+  var parsed;
+  if (parsedOrUrgency && typeof parsedOrUrgency === 'object') {
+    parsed = parsedOrUrgency;
+  } else {
+    parsed = {
+      urgency: parsedOrUrgency,
+      clinical_routing_level: routingLevel,
+      clinical_routing_flag: !!hasSideEffect,
+    };
+  }
+  var urgency = (parsed.urgency || 'routine').toLowerCase();
+  var lvl = (parsed.clinical_routing_level || 'none').toLowerCase();
+  var hasSE = !!(parsed.clinical_routing_flag) && lvl !== 'none';
+  var cat = (parsed.clinical_category || '').trim();
+  var hasClinicalContent = cat && cat !== 'General Inquiry' && cat !== 'General/multiple';
+  var nonClinicalOnly = !!parsed.non_clinical_flag && !hasSE && !hasClinicalContent;
+
+  var tier;
+  if (hasSE && lvl === 'severe')        tier = 9;   // 9–10
+  else if (hasSE && lvl === 'moderate') tier = 7;   // 7–8
+  else if (hasSE && lvl === 'mild')     tier = 5;   // 5–6
+  else if (hasClinicalContent)          tier = 3;   // 3–4
+  else if (nonClinicalOnly)             tier = 1;   // 1–2
+  else                                  tier = 3;   // unclassified → treat as clinical question
+
+  var bump = urgency === 'urgent' ? 1 : 0;
+  return Math.min(10, tier + bump);
+}
+
+// High-level priority tier — useful for filter dropdowns, color-coding,
+// and stack-ranking. Returns one of:
+//   'severe-se' | 'moderate-se' | 'mild-se' | 'clinical' | 'non-clinical'
+function priorityTier(parsed) {
+  var lvl = (parsed && parsed.clinical_routing_level || 'none').toLowerCase();
+  var hasSE = !!(parsed && parsed.clinical_routing_flag) && lvl !== 'none';
+  var cat = (parsed && parsed.clinical_category || '').trim();
+  var hasClinicalContent = cat && cat !== 'General Inquiry' && cat !== 'General/multiple';
+  if (hasSE && lvl === 'severe')   return 'severe-se';
+  if (hasSE && lvl === 'moderate') return 'moderate-se';
+  if (hasSE && lvl === 'mild')     return 'mild-se';
+  if (hasClinicalContent)          return 'clinical';
+  if (parsed && parsed.non_clinical_flag) return 'non-clinical';
+  return 'clinical';
 }
 
 // Format a duration in seconds for display ("12s", "2m 30s").
@@ -91,6 +152,7 @@ if (typeof module !== 'undefined' && module.exports) {
     parseTriageJSON,
     classifyMessage,
     computeUrgencyScore,
+    priorityTier,
     formatDuration,
     levenshteinDistance,
   };
