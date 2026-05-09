@@ -85,21 +85,37 @@ exports.handler = async function(event) {
         });
       } catch(e) { console.error('auth.updateLastSeen:', e.message); }
 
-      // Get company name separately if company_id exists
-      let companyName = 'Big Easy Weight Loss';
+      // Get company name + tenant config in parallel if company_id exists.
+      // Both are best-effort — if either is missing the client falls back
+      // to RELAI_DEFAULTS in data/defaults.js so single-tenant deployments
+      // continue to work without a tenants row.
+      let companyName = null;
+      let tenantConfig = null;
       if (profile && profile.company_id) {
         try {
-          const compRes = await fetch(
-            `${SUPABASE_URL}/rest/v1/companies?id=eq.${profile.company_id}&select=name`,
-            { headers: hdr }
-          );
+          const [compRes, tenRes] = await Promise.all([
+            fetch(`${SUPABASE_URL}/rest/v1/companies?id=eq.${profile.company_id}&select=name`, { headers: hdr }),
+            fetch(`${SUPABASE_URL}/rest/v1/tenants?company_id=eq.${profile.company_id}&select=*`, { headers: hdr })
+          ]);
           const companies = await compRes.json();
           if (Array.isArray(companies) && companies[0]) companyName = companies[0].name;
-        } catch(e) { console.error('auth.fetchCompany:', e.message); }
+          const tenants = await tenRes.json();
+          if (Array.isArray(tenants) && tenants[0]) {
+            const t = tenants[0];
+            tenantConfig = {
+              brand: { name: t.brand_name, tag: t.brand_tag, primaryColor: t.primary_color },
+              defaultResponseStyle: t.default_response_style || null,
+              allowedCategories: t.allowed_categories || [],
+              escalationThresholds: t.escalation_thresholds || {}
+            };
+          }
+        } catch(e) { console.error('auth.fetchTenant:', e.message); }
       }
 
-      // Attach company name to profile for convenience
-      if (profile) profile.company_name = companyName;
+      if (profile) {
+        if (companyName) profile.company_name = companyName;
+        if (tenantConfig) profile.tenant = tenantConfig;
+      }
 
       return {
         statusCode: 200,
