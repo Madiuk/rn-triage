@@ -165,8 +165,6 @@ exports.handler = async function (event) {
             }
             return patchById(patch);
           }
-          case "update_escalation":
-            return patchById({ escalation_validated: true, escalation_correct: body.correct });
           case "delete_correction":
             return patchById({ actual_response_sent: null, correction_note: null });
           default: {

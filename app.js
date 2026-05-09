@@ -746,17 +746,10 @@ function renderResults(d){
             '<div style="font-size:var(--fs-xs);color:var(--gray-500);font-weight:600;">Task type: <span style="color:var(--gray-800);font-weight:700;">'+taskType+'</span></div>'+
           '</div>'+
 
-          // Severity + escalation validation — only when side effect detected
+          // Severity badge — shown when the AI flagged a side effect
           (hasSideEffect&&isClinical?
             '<div style="padding:10px 0;border-top:1px solid var(--gray-100);">'+
               severityBadge+
-              '<div style="margin-top:10px;">'+
-                '<div style="font-size:var(--fs-xs);color:var(--gray-500);font-weight:600;margin-bottom:6px;">Severity correct?</div>'+
-                '<div style="display:flex;gap:6px;">'+
-                  '<button id="escYesBtn" class="esc-btn yes" onclick="recordEscalation(true)">&#10003; Yes</button>'+
-                  '<button id="escNoBtn" class="esc-btn no" onclick="recordEscalation(false)">&#10007; No</button>'+
-                '</div>'+
-              '</div>'+
             '</div>'
           :'')+
 
@@ -1026,22 +1019,6 @@ async function saveCategoryTags(){
 }
 
 
-async function recordEscalation(correct){
-  if(!currentHistoryId){ showToast('Run a triage first','warn'); return; }
-  var yBtn=document.getElementById('escYesBtn');
-  var nBtn=document.getElementById('escNoBtn');
-  // Visual feedback using CSS classes
-  if(yBtn){ yBtn.disabled=true; yBtn.className='esc-btn yes'+(correct?' selected-yes':''); }
-  if(nBtn){ nBtn.disabled=true; nBtn.className='esc-btn no'+(!correct?' selected-no':''); }
-  if(yBtn&&!correct) yBtn.style.opacity='0.4';
-  if(nBtn&&correct) nBtn.style.opacity='0.4';
-  try{
-    await api('/history','POST',{action:'update_escalation',id:currentHistoryId,correct:correct});
-    showToast(correct?'Severity confirmed ✓':'Severity flagged — will review');
-  }catch(e){ showToast('Error saving','error'); }
-}
-
-
 async function castVote(type, btn){
   if(!currentHistoryId){ showToast('Run a triage first','warn'); return; }
   if(btn.classList.contains('active')) return;
@@ -1055,79 +1032,161 @@ async function castVote(type, btn){
   } catch(e){ showToast('Error saving feedback'); }
 }
 
+function formatDuration(seconds){
+  if(!seconds || seconds < 0) return '—';
+  if(seconds < 60) return Math.round(seconds) + 's';
+  var m = Math.floor(seconds / 60), s = Math.round(seconds % 60);
+  return s ? (m + 'm ' + s + 's') : (m + 'm');
+}
+
 async function loadHistory(){
   var filter = document.getElementById('historyFilter');
   var filterVal = filter ? filter.value : 'all';
   var list = document.getElementById('historyList');
   var stats = document.getElementById('historyStats');
-  list.innerHTML = '<div style="text-align:center;padding:40px;color:var(--gray-400);">Loading...</div>';
+  list.innerHTML = '<div class="history-empty">Loading...</div>';
   try{
     var rows = await api('/history/all');
     if(!Array.isArray(rows)||!rows.length){
-      list.innerHTML = '<div style="text-align:center;padding:40px;color:var(--gray-400);">No records yet.</div>';
+      stats.innerHTML = '';
+      list.innerHTML = '<div class="history-empty">No records yet.</div>';
       return;
     }
+
     // Filter
     var filtered = rows.filter(function(r){
       if(filterVal==='urgent') return r.urgency_score>=9;
       if(filterVal==='escalated') return r.clinical_routing_level&&r.clinical_routing_level!=='none';
       if(filterVal==='corrected') return r.actual_response_sent;
-      if(filterVal==='unvalidated') return r.clinical_routing_level&&r.clinical_routing_level!=='none'&&!r.escalation_validated;
       return true;
     });
-    // Stats
-    var total=rows.length, urgent=rows.filter(function(r){return r.urgency_score>=9;}).length;
-    var escalated=rows.filter(function(r){return r.clinical_routing_level&&r.clinical_routing_level!=='none';}).length;
-    var corrected=rows.filter(function(r){return r.actual_response_sent;}).length;
-    var wrongEsc=rows.filter(function(r){return r.escalation_validated&&!r.escalation_correct;}).length;
-    var avgScore=rows.reduce(function(a,r){return a+(r.urgency_score||0);},0)/Math.max(rows.length,1);
-    stats.innerHTML=[
-      {label:'Total Triages',val:total,color:'var(--blue)'},
-      {label:'Avg Priority Score',val:avgScore.toFixed(1)+' / 10',color:'var(--gray-700)'},
-      {label:'Escalated',val:escalated,color:'var(--amber)'},
-      {label:'Flagged Incorrect',val:wrongEsc,color:'var(--red)'},
+
+    // Aggregate stats
+    var total = rows.length;
+    var escalated = rows.filter(function(r){return r.clinical_routing_level&&r.clinical_routing_level!=='none';}).length;
+    var corrected = rows.filter(function(r){return r.actual_response_sent;}).length;
+    var avgScore = rows.reduce(function(a,r){return a+(r.urgency_score||0);},0)/Math.max(total,1);
+    var corrRate = Math.round((corrected/Math.max(total,1))*100);
+
+    var durRows = rows.filter(function(r){return r.session_duration_seconds && r.session_duration_seconds > 0;});
+    var avgDur = durRows.length ? durRows.reduce(function(a,r){return a+r.session_duration_seconds;},0)/durRows.length : 0;
+
+    var catCounts = {};
+    rows.forEach(function(r){
+      var c = r.clinical_category||'Unknown';
+      catCounts[c] = (catCounts[c]||0)+1;
+    });
+    var topCat = Object.keys(catCounts).sort(function(a,b){return catCounts[b]-catCounts[a];})[0] || '—';
+
+    stats.innerHTML = [
+      {label:'Total Triages', val:total, color:'var(--blue)'},
+      {label:'Avg Priority Score', val:avgScore.toFixed(1)+' / 10', color:'var(--gray-700)'},
+      {label:'Escalated', val:escalated, color:'var(--amber)'},
+      {label:'Correction Rate', val:corrRate+'%', color:corrRate>40?'var(--amber)':'var(--green)'},
+      {label:'Avg Time / Triage', val:formatDuration(avgDur), color:'var(--gray-700)'},
+      {label:'Top Category', val:topCat, color:'var(--gray-700)', wide:true}
     ].map(function(s){
-      return '<div style="background:var(--white);border:1.5px solid var(--gray-200);border-radius:12px;padding:16px 18px;">'+
-        '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:6px;">'+s.label+'</div>'+
-        '<div style="font-size:var(--fs-xl);font-weight:700;color:'+s.color+';">'+s.val+'</div>'+
+      return '<div class="stat-card'+(s.wide?' stat-card-wide':'')+'">'+
+        '<div class="stat-label">'+s.label+'</div>'+
+        '<div class="stat-value" style="color:'+s.color+';">'+esc(String(s.val))+'</div>'+
       '</div>';
     }).join('');
-    // Table
-    list.innerHTML='<div style="background:var(--white);border:1.5px solid var(--gray-200);border-radius:12px;overflow:hidden;">'+
-      '<table style="width:100%;border-collapse:collapse;font-size:var(--fs-xs);">'+
-        '<thead><tr style="background:var(--gray-50);border-bottom:1px solid var(--gray-200);">'+
-          '<th style="padding:10px 14px;text-align:left;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);">Date</th>'+
-          '<th style="padding:10px 14px;text-align:left;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);">Staff</th>'+
-          '<th style="padding:10px 14px;text-align:left;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);">Category</th>'+
-          '<th style="padding:10px 14px;text-align:center;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);">Score</th>'+
-          '<th style="padding:10px 14px;text-align:left;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);">Urgency</th>'+
-          '<th style="padding:10px 14px;text-align:center;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);">Corrected</th>'+
-          '<th style="padding:10px 14px;text-align:center;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);">Esc. Valid</th>'+
-        '</tr></thead>'+
-        '<tbody>'+
-        filtered.slice(0,100).map(function(r,i){
-          var dt=new Date(r.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
-          var score=r.urgency_score||'-';
-          var scoreColor=score>=9?'var(--red)':score>=6?'var(--amber)':'var(--green)';
-          var urg=r.urgency_override||r.urgency_original||'-';
-          var corrected=r.actual_response_sent?'&#10003;':'-';
-          var escStatus=!r.escalation_validated?'-':r.escalation_correct?'<span style="color:var(--green)">&#10003;</span>':'<span style="color:var(--red)">&#10007;</span>';
-          var bg=i%2===0?'var(--white)':'var(--gray-50)';
-          return '<tr style="background:'+bg+';border-bottom:1px solid var(--gray-100);">'+
-            '<td style="padding:9px 14px;color:var(--gray-600);">'+dt+'</td>'+
-            '<td style="padding:9px 14px;color:var(--gray-700);font-weight:500;">'+esc(r.nurse_name||'')+'</td>'+
-            '<td style="padding:9px 14px;color:var(--gray-800);">'+esc(r.clinical_category||'')+'</td>'+
-            '<td style="padding:9px 14px;text-align:center;font-weight:700;color:'+scoreColor+';">'+score+'</td>'+
-            '<td style="padding:9px 14px;color:var(--gray-700);">'+esc(urg)+'</td>'+
-            '<td style="padding:9px 14px;text-align:center;color:var(--green);">'+corrected+'</td>'+
-            '<td style="padding:9px 14px;text-align:center;">'+escStatus+'</td>'+
-          '</tr>';
-        }).join('')+
-        '</tbody>'+
-      '</table>'+
-    '</div>';
+
+    // Per-staff breakdown
+    var byStaff = {};
+    rows.forEach(function(r){
+      var name = r.nurse_name || 'Unknown';
+      var s = byStaff[name] || (byStaff[name] = {count:0, scoreSum:0, corrected:0, escalated:0, durSum:0, durCount:0});
+      s.count++;
+      s.scoreSum += r.urgency_score||0;
+      if(r.actual_response_sent) s.corrected++;
+      if(r.clinical_routing_level && r.clinical_routing_level !== 'none') s.escalated++;
+      if(r.session_duration_seconds && r.session_duration_seconds > 0){
+        s.durSum += r.session_duration_seconds;
+        s.durCount++;
+      }
+    });
+    var staffRows = Object.keys(byStaff).map(function(name){
+      var s = byStaff[name];
+      return {
+        name: name,
+        count: s.count,
+        avgScore: (s.scoreSum/s.count).toFixed(1),
+        corrRate: Math.round((s.corrected/s.count)*100),
+        escalated: s.escalated,
+        avgDur: s.durCount ? formatDuration(s.durSum/s.durCount) : '—'
+      };
+    }).sort(function(a,b){return b.count-a.count;});
+
+    var staffHtml = '';
+    if(staffRows.length){
+      staffHtml =
+        '<div class="staff-breakdown">'+
+          '<div class="staff-breakdown-title">Per-Staff Breakdown</div>'+
+          '<table class="data-table">'+
+            '<thead><tr>'+
+              '<th>Staff</th>'+
+              '<th class="num">Triages</th>'+
+              '<th class="num">Avg Score</th>'+
+              '<th class="num">Corrections</th>'+
+              '<th class="num">Escalated</th>'+
+              '<th class="num">Avg Time</th>'+
+            '</tr></thead>'+
+            '<tbody>'+
+            staffRows.map(function(s){
+              return '<tr>'+
+                '<td class="staff-name">'+esc(s.name)+'</td>'+
+                '<td class="num">'+s.count+'</td>'+
+                '<td class="num">'+s.avgScore+'</td>'+
+                '<td class="num">'+s.corrRate+'%</td>'+
+                '<td class="num">'+s.escalated+'</td>'+
+                '<td class="num">'+s.avgDur+'</td>'+
+              '</tr>';
+            }).join('')+
+            '</tbody>'+
+          '</table>'+
+        '</div>';
+    }
+
+    // Triage queue table
+    var tableHtml =
+      '<div class="data-table-wrap">'+
+        '<div class="data-table-title">Recent Triages</div>'+
+        '<table class="data-table">'+
+          '<thead><tr>'+
+            '<th>Date</th>'+
+            '<th>Staff</th>'+
+            '<th>Category</th>'+
+            '<th class="num">Score</th>'+
+            '<th>Urgency</th>'+
+            '<th class="num">Corrected</th>'+
+            '<th class="num">Time</th>'+
+          '</tr></thead>'+
+          '<tbody>'+
+          filtered.slice(0,100).map(function(r){
+            var dt = new Date(r.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+            var score = r.urgency_score||'-';
+            var scoreColor = score>=9?'var(--red)':score>=6?'var(--amber)':'var(--green)';
+            var urg = r.urgency_override||r.urgency_original||'-';
+            var corrected = r.actual_response_sent?'<span style="color:var(--green);">&#10003;</span>':'<span style="color:var(--gray-300);">—</span>';
+            var dur = formatDuration(r.session_duration_seconds);
+            return '<tr>'+
+              '<td>'+dt+'</td>'+
+              '<td class="staff-name">'+esc(r.nurse_name||'')+'</td>'+
+              '<td>'+esc(r.clinical_category||'')+'</td>'+
+              '<td class="num" style="font-weight:700;color:'+scoreColor+';">'+score+'</td>'+
+              '<td>'+esc(urg)+'</td>'+
+              '<td class="num">'+corrected+'</td>'+
+              '<td class="num">'+dur+'</td>'+
+            '</tr>';
+          }).join('')+
+          '</tbody>'+
+        '</table>'+
+      '</div>';
+
+    list.innerHTML = staffHtml + tableHtml;
   }catch(e){
-    list.innerHTML='<div style="color:var(--red);padding:20px;">Error: '+esc(e.message)+'</div>';
+    list.innerHTML = '<div style="color:var(--red);padding:20px;">Error: '+esc(e.message)+'</div>';
   }
 }
 
