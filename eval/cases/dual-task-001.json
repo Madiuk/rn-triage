@@ -1,0 +1,16 @@
+{
+  "id": "dual-task-001",
+  "description": "Dual task — non-clinical (shipping) + clinical (mild nausea). Both should be flagged.",
+  "input": {
+    "message": "My second shipment is 3 days late and tracking shows no movement. Also I've had mild nausea for 2 days but I can still eat.",
+    "prior_context": ""
+  },
+  "expected": {
+    "urgency": "routine",
+    "clinical_routing_level": "mild",
+    "clinical_category": ["Side Effects"],
+    "non_clinical_flag": true,
+    "non_clinical_items_includes": ["Shipment/Tracking"],
+    "draft_must_include_any": ["nausea", "support team", "shipping"]
+  }
+}
