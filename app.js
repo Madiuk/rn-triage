@@ -64,40 +64,9 @@ function getKBSection(section, label){
 
 function invalidateKBCache(){ kbCache = {}; }
 
-// Local message classifier -- runs client-side, zero cost, zero latency
-// Returns array of relevant content types to include in KB prompt
-function classifyMessage(msg){
-  var m = msg.toLowerCase();
-  var types = [];
-
-  // Always include: rules + routing (small, always needed)
-  types.push('rules');
-  types.push('routing');
-
-  // Non-clinical signals
-  var nonClinical = /bill|pay|charg|invoice|refund|ship|track|deliver|package|order|account|subscri|cancel|prescription transfer|pharmacy|credit card|receipt/.test(m);
-  if(nonClinical) types.push('routing_detail');
-
-  // Side effect signals
-  var sideEffect = /nausea|vomit|sick|diarrhea|constip|heartburn|reflux|hair|fatigue|tired|inject|site|react|itch|swell|rash|pain|hurt|ache|hypoglyc|shak|sweat|dizz|weak|fever|bleed/.test(m);
-  if(sideEffect){ types.push('sideeffects'); types.push('protocols'); }
-
-  // Weight/plateau/food signals
-  var weightFocus = /weight|plateau|stall|loss|gain|scale|food noise|crav|hungry|hunger|calorie|eat|diet|appetite/.test(m);
-  if(weightFocus) types.push('templates');
-
-  // Dosing/injection signals
-  var dosing = /dose|dosing|inject|units|mg|ml|syringe|vial|concentrat|titrat|missed|skip|forgot|storage|refriger|freez/.test(m);
-  if(dosing){ types.push('protocols'); }
-
-  // URLs only if likely giving advice (weight, plateau, food)
-  if(weightFocus) types.push('urls');
-
-  // If nothing clinical detected, still include sideeffects rules for classification
-  if(!sideEffect && !weightFocus && !dosing) types.push('sideeffects');
-
-  return [...new Set(types)]; // deduplicate
-}
+// classifyMessage / parseTriageJSON / computeUrgencyScore / formatDuration /
+// levenshteinDistance are defined in data/triage-lib.js so they can be
+// unit-tested in Node. Browser sees them as globals.
 
 function getKBPrompt(msg){
   var types = msg ? classifyMessage(msg) : ['rules','routing','sideeffects','templates','protocols','urls'];
@@ -204,7 +173,9 @@ function openProfile(){
   // Format role for display: 'Clinical' or 'Non-Clinical' with department context
   var roleLabel = role==='Clinical'?'Clinical Staff (RN)':role==='Non-Clinical'?'Non-Clinical Staff':role.charAt(0).toUpperCase()+role.slice(1);
   var members = currentProfile&&currentProfile.company_members;
-  var company = members&&members[0]&&members[0].companies?members[0].companies.name:'Big Easy Weight Loss';
+  var company = (members&&members[0]&&members[0].companies&&members[0].companies.name)
+    || (currentProfile&&currentProfile.company_name)
+    || tenantValue(currentProfile&&currentProfile.tenant, 'brand.name');
   document.getElementById('profileAvatar').textContent = initials;
   document.getElementById('profileName').textContent = name;
   document.getElementById('profileEmail').textContent = email;
@@ -334,15 +305,6 @@ async function saveKB(){
   finally{btn.disabled=false;txt.textContent='Save & Sync to Team';spin.className='kb-spinner';}
 }
 
-
-function computeUrgencyScore(urgency, routingLevel, hasSideEffect){
-  // Base score from urgency
-  var base = urgency==='urgent' ? 9 : urgency==='same-day' ? 6 : 3;
-  // Severity modifier
-  var sev = routingLevel==='severe' ? 2 : routingLevel==='moderate' ? 1 : 0;
-  // Cap at 10
-  return Math.min(10, base + (hasSideEffect ? sev : 0));
-}
 
 async function saveHistoryRecord(parsed,msg){
   var userName = (currentProfile&&currentProfile.full_name)||(currentUser&&currentUser.email)||window.currentNurse||'Staff';
@@ -529,17 +491,6 @@ function switchTab(name,btn){
 }
 
 // TRIAGE
-// Triage responses are JSON; the model occasionally wraps them in code
-// fences or adds stray prose. Strip fences first, then fall back to the
-// first/last brace if a direct parse fails.
-function parseTriageJSON(raw){
-  var cleaned = raw.replace(/```json|```/g,'').trim();
-  try { return JSON.parse(cleaned); } catch(e) {}
-  var s = cleaned.indexOf('{'), e = cleaned.lastIndexOf('}');
-  if(s !== -1 && e > s) return JSON.parse(cleaned.substring(s, e + 1));
-  throw new Error('Could not parse triage JSON.');
-}
-
 function setLoading(on){
   document.getElementById('btnText').textContent=on?'Analyzing...':'Run Triage';
   document.getElementById('btnSpinner').className=on?'spinner active':'spinner';
@@ -680,11 +631,19 @@ async function submitCorrection(){
     var analyzeData=await analyzeRes.json();
     var note=(analyzeData.content||[]).map(function(b){return b.text||'';}).join('').trim();
     var duration = triageStartTime ? Math.round((Date.now()-triageStartTime)/1000) : null;
-    if(currentHistoryId)await api('/history','POST',{action:'save_actual',id:currentHistoryId,actual_response:actual,correction_note:note,session_duration_seconds:duration});
+    var editDist = levenshteinDistance(aiDraft||'', actual||'');
+    if(currentHistoryId)await api('/history','POST',{
+      action:'save_actual',
+      id:currentHistoryId,
+      actual_response:actual,
+      correction_note:note,
+      session_duration_seconds:duration,
+      edit_distance:editDist
+    });
     status.textContent=note?'OK Saved. Learning note: "'+note.substring(0,90)+(note.length>90?'...':'')+'"':'OK Response saved.';
     status.className='learn-status success';
     document.getElementById('correctionInput').value='';
-  }catch(e){status.textContent='Error: '+e.message;status.className='learn-status error';}
+      }catch(e){status.textContent='Error: '+e.message;status.className='learn-status error';}
   finally{btn.disabled=false;btn.querySelector('span').textContent='Submit & Learn';}
 }
 
@@ -693,7 +652,7 @@ async function submitCorrection(){
 // No hardcoded category lists or fallback inference. Single source of truth.
 function buildSeverityBadge(routingLevel){
   var level = (routingLevel||'none').toLowerCase();
-    var map = {
+  var map = {
     'severe': {cls:'sev-severe', label:'Side Effect: Severe'},
     'moderate': {cls:'sev-medium', label:'Side Effect: Moderate'},
     'mild': {cls:'sev-low', label:'Side Effect: Mild'}
@@ -869,10 +828,11 @@ var correctionsLoaded = false;
 function toggleCorrectionsPanel(){
   var panel=document.getElementById('corrections-panel');
   var btn=document.getElementById('loadCorrectionsBtn');
-  var open=panel.style.display!=='none';
-  panel.style.display=open?'none':'block';
-  btn.textContent=open?'v Load':'^ Hide';
-  if(!open&&!correctionsLoaded)loadCorrections();
+  var wasOpen=panel.classList.contains('show');
+  panel.classList.toggle('show');
+  var nowOpen=!wasOpen;
+  btn.textContent=nowOpen?'^ Hide':'v Load';
+  if(nowOpen&&!correctionsLoaded)loadCorrections();
 }
 
 async function loadCorrections(){
@@ -1027,13 +987,6 @@ async function castVote(type, btn){
   } catch(e){ showToast('Error saving feedback'); }
 }
 
-function formatDuration(seconds){
-  if(!seconds || seconds < 0) return '—';
-  if(seconds < 60) return Math.round(seconds) + 's';
-  var m = Math.floor(seconds / 60), s = Math.round(seconds % 60);
-  return s ? (m + 'm ' + s + 's') : (m + 'm');
-}
-
 async function loadHistory(){
   var filter = document.getElementById('historyFilter');
   var filterVal = filter ? filter.value : 'all';
@@ -1096,8 +1049,7 @@ async function loadHistory(){
       s.scoreSum += r.urgency_score||0;
       if(r.actual_response_sent) s.corrected++;
       if(r.clinical_routing_level && r.clinical_routing_level !== 'none') s.escalated++;
-      if(r.session_duration_)
-              if(r.session_duration_seconds && r.session_duration_seconds > 0){
+      if(r.session_duration_seconds && r.session_duration_seconds > 0){
         s.durSum += r.session_duration_seconds;
         s.durCount++;
       }
@@ -1392,4 +1344,3 @@ function esc(str){
 initAuth();
 // KB loads on demand when tab is opened -- not on page init
 // This prevents null-reference errors from KB DOM elements not being present
-         
