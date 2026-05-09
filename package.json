@@ -1,0 +1,13 @@
+{
+  "name": "relai",
+  "version": "0.2.0",
+  "description": "Relai — clinical triage and tasking, AI-assisted.",
+  "private": true,
+  "scripts": {
+    "test": "node tests/run.js",
+    "eval": "node eval/run.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
