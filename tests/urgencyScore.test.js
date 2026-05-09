@@ -1,4 +1,4 @@
-const { computeUrgencyScore, priorityTier, formatDuration, levenshteinDistance } = require('../data/triage-lib.js');
+const { computeUrgencyScore, priorityTier, taskShape, formatDuration, levenshteinDistance } = require('../data/triage-lib.js');
 
 // Helper to build a parsed-style object for the new signature.
 function p(opts) {
@@ -140,6 +140,61 @@ describe('computeUrgencyScore — new tiered scale', () => {
       non_clinical_flag: true,
     }));
     assert.equal(s, 1);
+  });
+});
+
+describe('taskShape', () => {
+  it('clinical only is single', () => {
+    assert.equal(taskShape({
+      clinical_routing_flag: true,
+      clinical_routing_level: 'mild',
+      clinical_category: 'Side Effects',
+    }), 'single');
+  });
+
+  it('non-clinical only is single', () => {
+    assert.equal(taskShape({
+      non_clinical_flag: true,
+      non_clinical_items: ['Shipment/Tracking'],
+    }), 'single');
+  });
+
+  it('side effect + non-clinical is dual', () => {
+    assert.equal(taskShape({
+      clinical_routing_flag: true,
+      clinical_routing_level: 'mild',
+      clinical_category: 'Side Effects',
+      non_clinical_flag: true,
+      non_clinical_items: ['Shipment/Tracking'],
+    }), 'dual');
+  });
+
+  it('clinical question (no SE) + non-clinical is dual', () => {
+    assert.equal(taskShape({
+      clinical_routing_flag: false,
+      clinical_routing_level: 'none',
+      clinical_category: 'Injection/Dosing',
+      non_clinical_flag: true,
+    }), 'dual');
+  });
+
+  it('General Inquiry + non-clinical is single (no real clinical content)', () => {
+    assert.equal(taskShape({
+      clinical_category: 'General Inquiry',
+      non_clinical_flag: true,
+    }), 'single');
+  });
+
+  it('non_clinical_items array alone counts as non-clinical', () => {
+    assert.equal(taskShape({
+      clinical_routing_flag: true,
+      clinical_routing_level: 'severe',
+      non_clinical_items: ['Billing/Payment'],
+    }), 'dual');
+  });
+
+  it('handles null parsed', () => {
+    assert.equal(taskShape(null), 'single');
   });
 });
 
