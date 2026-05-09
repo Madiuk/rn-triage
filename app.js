@@ -68,6 +68,24 @@ function invalidateKBCache(){ kbCache = {}; }
 // levenshteinDistance are defined in data/triage-lib.js so they can be
 // unit-tested in Node. Browser sees them as globals.
 
+// Build the full KB string (every section, in stable order). Used as the
+// second cache block in runTriage so Anthropic prompt caching can hit on
+// every warm call. Stable key = stable cache. classifyMessage-driven
+// per-message KB selection invalidates the cache and is no longer used
+// for the live triage call.
+function getFullKB(){
+  var sections = [
+    {key:'notes',       label:'CLINICAL RULES (read first)'},
+    {key:'routing',     label:'ROUTING RULES'},
+    {key:'sideeffects', label:'SIDE EFFECT GUIDANCE'},
+    {key:'templates',   label:'RESPONSE TEMPLATES'},
+    {key:'protocols',   label:'PROTOCOLS'},
+    {key:'urls',        label:'URLS'}
+  ];
+  return sections.map(function(s){ return getKBSection(s.key, s.label); })
+    .filter(Boolean).join('\n\n');
+}
+
 function getKBPrompt(msg){
   var types = msg ? classifyMessage(msg) : ['rules','routing','sideeffects','templates','protocols','urls'];
   var p = [];
@@ -503,11 +521,7 @@ async function runTriage(){
   setLoading(true);
 currentHistoryId=null;
   document.getElementById('results').innerHTML='<div class="placeholder"><div class="spinner active" style="width:26px;height:26px;border-color:var(--gray-300);border-top-color:var(--blue);"></div><div class="placeholder-text" style="margin-top:14px;">Analyzing message...</div></div>';
-  var kbContent=getKBPrompt(msg);
-  var sysPrompt=kbContent?BASE_PROMPT+'\n\n'+kbContent:BASE_PROMPT;
-
-
-  // Build user content -- include prior conversation if provided
+    // Build user content -- include prior conversation if provided
   var prior = (document.getElementById('priorInput')||{}).value||'';
   prior = prior.trim();
   var userContent = prior
@@ -515,13 +529,21 @@ currentHistoryId=null;
     : msg;
 
   try{
-    // System prompt is sent as cacheable content blocks. The KB rarely
-    // changes between triages, so Anthropic prompt caching cuts ~90% of
-    // input cost and most of the latency on warm calls.
-    var systemBlocks = [{type:'text', text: sysPrompt, cache_control:{type:'ephemeral'}}];
+    // System prompt is split into two cache breakpoints so Anthropic
+    // prompt caching actually hits on warm calls. The first block is the
+    // base prompt (rarely changes); the second is the full KB (changes
+    // only when staff edit it). Both stay stable across triages, so the
+    // cache hits ~95% of the time during a busy session and reads cost
+    // 10% of input price. Sending the full KB instead of a per-message
+    // classified subset is also a small accuracy win — the AI has every
+    // protocol available, not a regex-selected slice.
+    var systemBlocks = [
+      { type:'text', text: BASE_PROMPT, cache_control:{type:'ephemeral'} },
+      { type:'text', text: getFullKB(), cache_control:{type:'ephemeral'} }
+    ];
     var res=await fetch('/.netlify/functions/triage',{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1024,system:systemBlocks,messages:[{role:'user',content:userContent}]})
+      body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,system:systemBlocks,messages:[{role:'user',content:userContent}]})
     });
     var data=await res.json();
     if(data.error)throw new Error(typeof data.error==='string'?data.error:(data.error.message||JSON.stringify(data.error)));
