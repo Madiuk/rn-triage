@@ -12,6 +12,14 @@ alter table public.query_history
 alter table public.query_history
   alter column status set default 'completed';
 
+-- Backfill any rows that don't conform to the new allowlist before
+-- adding the check constraint. NULL or any unrecognized value gets
+-- mapped to 'completed' (the legacy default for manual triages).
+update public.query_history
+set status = 'completed'
+where status is null
+   or status not in ('pending','triaged','reviewed','sent','patient_replied','closed','completed');
+
 -- Drop and recreate the status check constraint (idempotent via
 -- conditional). Status values:
 --   pending          - ingested, not yet triaged
