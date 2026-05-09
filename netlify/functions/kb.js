@@ -197,12 +197,17 @@ exports.handler = async function (event) {
       // Returns { today, week, total }. Cheap (3 HEAD-style count queries).
       if (path.includes("/history/stats") && method === "GET") {
         const user = await verifyUser(token);
-        if (!user) return json(401, { error: "Authentication required." });
+        if (!user || !user.id) return json(401, { error: "Authentication required." });
 
         const now = new Date();
         const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
         const startOfWeek = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
-        const countHdrs = { ...readHeaders(token), Prefer: "count=exact", Range: "0-0" };
+        // Use service-key headers and an explicit, JWT-verified user_id
+        // filter. This makes the per-user scoping independent of whatever
+        // RLS policies are configured on query_history — the Activity
+        // panel always reflects only the calling user's own triages.
+        const userId = encodeURIComponent(user.id);
+        const countHdrs = { ...writeHeaders(), Prefer: "count=exact", Range: "0-0" };
 
         function getCount(res) {
           const range = res.headers.get("content-range") || "";
@@ -213,9 +218,9 @@ exports.handler = async function (event) {
 
         try {
           const [tRes, wRes, allRes] = await Promise.all([
-            fetch(base + `?user_id=eq.${user.id}&created_at=gte.${encodeURIComponent(startOfToday)}&select=id`, { headers: countHdrs }),
-            fetch(base + `?user_id=eq.${user.id}&created_at=gte.${encodeURIComponent(startOfWeek)}&select=id`, { headers: countHdrs }),
-            fetch(base + `?user_id=eq.${user.id}&select=id`, { headers: countHdrs }),
+            fetch(base + `?user_id=eq.${userId}&created_at=gte.${encodeURIComponent(startOfToday)}&select=id`, { headers: countHdrs }),
+            fetch(base + `?user_id=eq.${userId}&created_at=gte.${encodeURIComponent(startOfWeek)}&select=id`, { headers: countHdrs }),
+            fetch(base + `?user_id=eq.${userId}&select=id`, { headers: countHdrs }),
           ]);
           return json(200, {
             today: getCount(tRes),
