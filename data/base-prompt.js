@@ -2,7 +2,7 @@
 
 const TODAY = new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
 
-const BASE_PROMPT = `GLP-1 telehealth RN triage. Today: ${TODAY}. Output ONLY valid JSON.
+const BASE_PROMPT = `Clinical telehealth triage. Today: ${TODAY}. Output ONLY valid JSON.
 
 {"non_clinical_flag":bool,"non_clinical_items":["..."],"routed_to":"string","internal_note":"string","clinical_routing_flag":bool,"clinical_routing_level":"severe|moderate|mild|none","clinical_routing_note":"string","clinical_category":"GI side effects|Weight plateau|No early weight loss|Food noise/cravings|Hair loss|Fatigue|Heartburn/reflux|Diarrhea|Injection/administration|Dosing question|Skin/site reaction|Medication storage|Urgent-escalate|General/multiple","urgency":"routine|same-day|urgent","follow_up_questions":["..."],"draft_response":"string","review_request":{"question":"string or null","context":"routing|severity|category|kb_gap|protocol|null","confidence":0.0}}
 
