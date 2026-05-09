@@ -302,6 +302,18 @@ textarea::placeholder{color:var(--gray-400);}
 .history-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;}
 .history-empty{text-align:center;padding:40px;color:var(--gray-400);font-size:var(--fs-sm);}
 
+/* KB Add Entry submit row + corrections panel ————————————————————— */
+.entry-submit-row{display:flex;justify-content:flex-end;}
+.corrections-toggle-row{padding:10px 0 14px;}
+.corrections-toggle{font-size:var(--fs-sm);padding:8px 16px;}
+.corrections-panel{display:none;}
+.corrections-panel.show{display:block;}
+.kb-import-label{cursor:pointer;}
+.kb-import-input{display:none;}
+.help-sev-severe{color:var(--red);}
+.help-sev-moderate{color:var(--amber);}
+.help-sev-mild{color:var(--green);}
+
 /* AI clarifications panel — sub-card ——————————————————————————————— */
 .review-card{border:1.5px solid var(--gray-200);border-radius:12px;overflow:hidden;margin-bottom:12px;}
 .review-card-hdr{padding:12px 16px;background:var(--gray-50);border-bottom:1px solid var(--gray-100);display:flex;align-items:center;justify-content:space-between;gap:12px;}
