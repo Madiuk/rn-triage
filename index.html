@@ -9,42 +9,42 @@
 <body>
 
 <!-- Profile Panel -->
-<div id="profileOverlay" style="display:none;position:fixed;inset:0;z-index:200;" onclick="closeProfile()"></div>
-<div id="profilePanel" style="position:fixed;top:0;right:-360px;width:340px;height:100vh;background:var(--white);box-shadow:-4px 0 24px rgba(0,0,0,.12);z-index:201;transition:right .25s ease;display:flex;flex-direction:column;">
-  <div style="padding:24px 24px 16px;border-bottom:1px solid var(--gray-100);">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
-      <div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--gray-500);">Your Profile</div>
-      <button onclick="closeProfile()" style="background:none;border:none;cursor:pointer;color:var(--gray-400);font-size:20px;line-height:1;">&times;</button>
+<div id="profileOverlay" class="profile-overlay" onclick="closeProfile()"></div>
+<div id="profilePanel" class="profile-panel">
+  <div class="profile-head">
+    <div class="profile-head-row">
+      <div class="profile-section-label">Your Profile</div>
+      <button class="profile-close" onclick="closeProfile()">&times;</button>
     </div>
-    <div style="display:flex;align-items:center;gap:14px;">
-      <div id="profileAvatar" style="width:52px;height:52px;border-radius:50%;background:var(--blue);color:white;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;flex-shrink:0;"></div>
+    <div class="profile-id">
+      <div id="profileAvatar" class="profile-avatar"></div>
       <div>
-        <div id="profileName" style="font-size:var(--fs-md);font-weight:700;color:var(--gray-900);"></div>
-        <div id="profileEmail" style="font-size:var(--fs-xs);color:var(--gray-500);margin-top:2px;"></div>
-        <div id="profileRole" style="display:inline-block;margin-top:5px;font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px;background:var(--blue-l);color:var(--blue);border:1px solid var(--blue-m);"></div>
+        <div id="profileName" class="profile-name"></div>
+        <div id="profileEmail" class="profile-email"></div>
+        <div id="profileRole" class="profile-role"></div>
       </div>
     </div>
   </div>
-  <div style="flex:1;overflow-y:auto;padding:16px 24px;display:flex;flex-direction:column;gap:4px;">
-    <div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--gray-400);padding:8px 0 4px;">Workspace</div>
-    <div id="profileCompany" style="font-size:var(--fs-sm);color:var(--gray-700);padding:8px 0;border-bottom:1px solid var(--gray-100);"></div>
-    <div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--gray-400);padding:12px 0 4px;">Activity</div>
-    <div id="profileStats" style="font-size:var(--fs-sm);color:var(--gray-700);padding:4px 0;"></div>
+  <div class="profile-body">
+    <div class="profile-eyebrow">Workspace</div>
+    <div id="profileCompany" class="profile-company"></div>
+    <div class="profile-eyebrow gap">Activity</div>
+    <div id="profileStats" class="profile-stats"></div>
   </div>
-  <div style="padding:16px 24px;border-top:1px solid var(--gray-100);display:flex;flex-direction:column;gap:8px;">
-    <button onclick="openHelpFromProfile()" style="width:100%;padding:10px;background:var(--gray-100);border:none;border-radius:8px;font-family:var(--sans);font-size:var(--fs-sm);font-weight:600;color:var(--gray-700);cursor:pointer;text-align:left;">&#10067; Help &amp; Guide</button>
-    <button onclick="goToClarifications()" style="width:100%;padding:10px;background:var(--red-l);border:1.5px solid var(--red-m);border-radius:8px;font-family:var(--sans);font-size:var(--fs-sm);font-weight:600;color:var(--red);cursor:pointer;text-align:left;display:flex;align-items:center;justify-content:space-between;"><span>&#9888; Pending Review Items</span><span id="profileBadgeCount" style="background:var(--red);color:white;border-radius:10px;padding:1px 7px;font-size:11px;"></span></button>
-    <button onclick="signOut()" style="width:100%;padding:10px;background:var(--red-l,#fef2f2);border:1.5px solid var(--red-m,#fecaca);border-radius:8px;font-family:var(--sans);font-size:var(--fs-sm);font-weight:600;color:var(--red);cursor:pointer;text-align:left;">&#8594; Sign Out</button>
+  <div class="profile-foot">
+    <button class="profile-action" onclick="openHelpFromProfile()">&#10067; Help &amp; Guide</button>
+    <button class="profile-action warn" onclick="goToClarifications()"><span>&#9888; Pending Review Items</span><span id="profileBadgeCount" class="profile-badge"></span></button>
+    <button class="profile-action danger" onclick="signOut()">&#8594; Sign Out</button>
   </div>
 </div>
 
 <div class="topbar">
   <div class="topbar-brand">
-    <div class="brand-icon" style="font-size:17px;font-weight:800;letter-spacing:-1px;font-family:var(--sans);">R</div>
+    <div class="brand-icon brand-mini-icon">R</div>
     <div>
-      <div style="display:flex;align-items:baseline;gap:8px;">
+      <div class="brand-row">
         <span class="brand-name">Relai</span>
-        <span style="font-size:11px;font-weight:600;color:var(--gray-400);letter-spacing:.02em;">Triage and Tasking</span>
+        <span class="brand-tag">Triage and Tasking</span>
       </div>
       <div class="brand-sub">Big Easy Weight Loss</div>
     </div>
@@ -52,15 +52,15 @@
   <div class="tab-nav">
     <button class="tab-btn active" onclick="switchTab('triage',this)">Triage</button>
     <button class="tab-btn" onclick="switchTab('kb',this)">Clinical Knowledge Base</button>
-    <button class="tab-btn" id="helpTabBtn" onclick="switchTab('help',this)" style="display:none;">Help &amp; Guide</button>
-    <button class="tab-btn" id="historyTabBtn" onclick="switchTab('history',this)" style="display:none;">&#8226;&#8226;&#8226;</button>
+    <button class="tab-btn hidden" id="helpTabBtn" onclick="switchTab('help',this)">Help &amp; Guide</button>
+    <button class="tab-btn hidden" id="historyTabBtn" onclick="switchTab('history',this)">&#8226;&#8226;&#8226;</button>
   </div>
   <div class="topbar-right">
-    <div class="nurse-chip" onclick="openProfile()" style="cursor:pointer;position:relative;" title="Your profile">
-      <div id="chipAvatar" style="width:22px;height:22px;border-radius:50%;background:var(--blue);color:white;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;">?</div>
+    <div class="nurse-chip" onclick="openProfile()" title="Your profile">
+      <div id="chipAvatar" class="chip-avatar">?</div>
       <span id="staffChipName">Loading...</span>
-      <span id="staffDeptBadge" style="display:none;font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px;background:var(--blue-m);color:var(--blue);">RN</span>
-      <div id="clarificationBadge" style="display:none;position:absolute;top:-5px;right:-5px;width:16px;height:16px;border-radius:50%;background:var(--red);color:white;font-size:9px;font-weight:700;align-items:center;justify-content:center;border:2px solid white;">0</div>
+      <span id="staffDeptBadge" class="dept-badge">RN</span>
+      <div id="clarificationBadge" class="chip-badge">0</div>
     </div>
   </div>
 </div>
@@ -69,18 +69,18 @@
 <div class="tab-panel active" id="tab-triage">
   <div class="triage-layout">
     <div class="input-col">
-      <div class="card" style="position:sticky;top:80px;">
+      <div class="card input-card">
         <div class="card-header">
           <span class="card-title">Patient Message</span>
-          <button id="priorToggle" onclick="togglePrior()" style="background:none;border:1.5px solid var(--gray-200);border-radius:7px;padding:4px 10px;font-family:var(--sans);font-size:var(--fs-xs);font-weight:600;color:var(--gray-500);cursor:pointer;transition:all .15s;">Add Prior Context</button>
+          <button id="priorToggle" class="prior-toggle" onclick="togglePrior()">Add Prior Context</button>
         </div>
         <div class="card-body">
-          <div id="priorContextPanel" style="display:none;margin-bottom:10px;">
-            <div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:6px;">Previous Patient Messages</div>
-            <textarea id="priorInput" style="min-height:110px;font-size:var(--fs-sm);border-color:var(--blue-m);background:var(--blue-l);" placeholder="Paste earlier conversation here for context..."></textarea>
-            <div style="font-size:var(--fs-xs);color:var(--blue);margin-top:4px;">&#9432; AI treats the message below as the latest reply in this thread.</div>
+          <div id="priorContextPanel" class="prior-panel">
+            <div class="eyebrow">Previous Patient Messages</div>
+            <textarea id="priorInput" class="prior-input" placeholder="Paste earlier conversation here for context..."></textarea>
+            <div class="prior-hint">&#9432; AI treats the message below as the latest reply in this thread.</div>
           </div>
-          <div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:6px;" id="msgLabel">Patient Message</div>
+          <div class="eyebrow" id="msgLabel">Patient Message</div>
           <textarea id="msgInput" placeholder="Paste the patient's message here..."></textarea>
           <button class="btn-run" id="triageBtn" onclick="runTriage()">
             <span id="btnText">Run Triage</span>
@@ -287,42 +287,44 @@
 
 <!-- HISTORY TAB -->
 <div class="tab-panel" id="tab-history">
-  <div style="max-width:1100px;margin:0 auto;padding:28px 24px;">
+  <div class="history-wrap">
     <!-- AI Clarifications Section -->
-    <div style="margin-bottom:28px;">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
-        <h2 style="font-size:var(--fs-lg);font-weight:700;">AI Needs Your Input</h2>
-        <div id="clarificationCount" style="background:var(--red-l);border:1.5px solid var(--red-m);border-radius:20px;padding:2px 10px;font-size:var(--fs-xs);font-weight:700;color:var(--red);"></div>
+    <div class="review-section">
+      <div class="review-section-row">
+        <h2>AI Needs Your Input</h2>
+        <div id="clarificationCount" class="review-pill"></div>
       </div>
-      <p style="font-size:var(--fs-sm);color:var(--gray-500);margin-bottom:14px;">Items the AI flagged for review — category corrections, routing questions, and confidence gaps.</p>
-      <div id="clarificationList" style="display:flex;flex-direction:column;gap:8px;">
-        <div style="text-align:center;padding:24px;color:var(--gray-400);font-size:var(--fs-sm);">No pending items. The AI is learning well.</div>
+      <p class="review-blurb">Items the AI flagged for review — category corrections, routing questions, and confidence gaps.</p>
+      <div id="clarificationList" class="review-list">
+        <div class="review-empty">No pending items. The AI is learning well.</div>
       </div>
     </div>
 
-    <div style="border-top:1px solid var(--gray-200);padding-top:24px;display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+    <div class="history-head">
       <div>
-        <h2 style="font-size:var(--fs-xl);font-weight:700;margin-bottom:4px;">Triage Queue</h2>
-        <p style="font-size:var(--fs-sm);color:var(--gray-500);">All triage records. Infrastructure view.</p>
+        <h2>Triage Queue</h2>
+        <p>All triage records. Infrastructure view.</p>
       </div>
-      <div style="display:flex;gap:8px;align-items:center;">
-        <select id="historyFilter" onchange="loadHistory()" style="padding:7px 10px;border:1.5px solid var(--gray-200);border-radius:8px;font-family:var(--sans);font-size:var(--fs-xs);background:var(--white);">
+      <div class="history-controls">
+        <select id="historyFilter" class="history-filter" onchange="loadHistory()">
           <option value="all">All records</option>
           <option value="urgent">Urgent only</option>
           <option value="escalated">Escalated</option>
           <option value="corrected">Corrected</option>
           <option value="unvalidated">Escalation unvalidated</option>
         </select>
-        <button onclick="loadHistory()" style="padding:7px 14px;background:var(--blue);border:none;border-radius:8px;color:white;font-family:var(--sans);font-size:var(--fs-xs);font-weight:600;cursor:pointer;">Load</button>
+        <button class="history-load" onclick="loadHistory()">Load</button>
       </div>
     </div>
-    <div id="historyStats" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;"></div>
-    <div id="historyList"><div style="text-align:center;padding:40px;color:var(--gray-400);font-size:var(--fs-sm);">Click Load to fetch records</div></div>
+    <div id="historyStats" class="history-stats"></div>
+    <div id="historyList"><div class="history-empty">Click Load to fetch records</div></div>
   </div>
 </div>
 
 <div class="save-toast" id="saveToast">Synced</div>
 
+<script src="data/base-prompt.js"></script>
+<script src="data/default-kb.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
