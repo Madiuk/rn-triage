@@ -41,12 +41,9 @@
 <div class="topbar">
   <div class="topbar-brand">
     <div class="brand-icon brand-mini-icon">R</div>
-    <div>
-      <div class="brand-row">
-        <span class="brand-name">Relai</span>
-        <span class="brand-tag">Triage and Tasking</span>
-      </div>
-      <div class="brand-sub">Big Easy Weight Loss</div>
+    <div class="brand-stack">
+      <div class="brand-name">Relai</div>
+      <div class="brand-sub"><span id="brandTenant">Big Easy Weight Loss</span> <span class="brand-sep">·</span> Triage and Tasking</div>
     </div>
   </div>
   <div class="tab-nav">
@@ -325,8 +322,11 @@
       <div class="history-controls">
         <select id="historyFilter" class="history-filter" onchange="loadHistory()">
           <option value="all">All records</option>
+          <option value="severe-se">Severe Side Effects</option>
+          <option value="any-se">All Side Effects</option>
+          <option value="clinical">Clinical Questions</option>
+          <option value="non-clinical">Non-Clinical Only</option>
           <option value="urgent">Urgent only</option>
-          <option value="escalated">Escalated</option>
           <option value="corrected">Corrected</option>
         </select>
         <button class="history-load" onclick="loadHistory()">Load</button>
