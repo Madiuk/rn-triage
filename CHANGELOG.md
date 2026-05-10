@@ -6,6 +6,37 @@ bumps cover meaningful capability additions, patch bumps cover fixes).
 
 ---
 
+## v0.3.7 — 2026-05-10
+
+Eighth-pass follow-up to v0.3.6 — testing the new asymmetry surface
+that v0.3.6's tenant-scoped writes might have created. Found one
+genuine downstream issue.
+
+### Fixed
+
+- **`patchById` returned 200 with empty array on cross-tenant patch
+  attempts.** The new tenant-scoped WHERE clause from v0.3.6
+  (`id=eq.<bodyid>&company_id=eq.<theirs>`) correctly matches zero
+  rows when a caller passes another tenant's row id. PostgREST
+  with `Prefer: return=representation` returns 200 with `[]`,
+  which a naive caller would read as "patch succeeded." Same
+  shape ambiguity for legitimate "id not found" failures. Now
+  surfaces 0-rows-affected as 404 explicitly, distinguishing
+  silent success from silent failure.
+
+### Audit method
+
+This was a **deliberate test of the v0.3.6 fixes' downstream
+effects**. The pattern from previous passes was that each fix
+created a new asymmetry that became the next round's bug. This
+pass asked: "does v0.3.6's write-path tenant scoping have any
+asymmetric failure modes?" — and the answer was yes (the empty-
+array-on-no-match silent success).
+
+Tests: 109 passing.
+
+---
+
 ## v0.3.6 — 2026-05-10
 
 Seventh-pass audit on Juno. Focused specifically on **integration

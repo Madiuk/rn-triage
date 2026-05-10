@@ -464,7 +464,15 @@ exports.handler = async function (event) {
         // `company_id=eq.<theirs>` to the WHERE so cross-tenant
         // patches affect zero rows. user_id fallback is for
         // legacy rows that were inserted with company_id=null
-        // before the v0.3.5 buildEntries fix.
+        // before the v0.3.6 buildEntries fix.
+        //
+        // Surface 0-rows-affected as 404 — PostgREST with
+        // `return=representation` returns 200 with an empty array
+        // when the WHERE matched nothing, which a naive caller would
+        // misread as "patch succeeded." Empty array = no row owned
+        // by this caller matched that id = the legitimate failure
+        // mode for both "id doesn't exist" and "id belongs to
+        // another tenant."
         const patchById = async (patch) => {
           if (!body.id) return json(400, { error: "id required" });
           const tenantClause = callerCompanyId
@@ -475,7 +483,19 @@ exports.handler = async function (event) {
             headers: wHdr,
             body: JSON.stringify(patch),
           });
-          return json(r.status, await r.text());
+          const responseText = await r.text();
+          if (r.ok) {
+            try {
+              const parsed = JSON.parse(responseText);
+              if (Array.isArray(parsed) && parsed.length === 0) {
+                return json(404, { error: "Row not found in caller's tenant." });
+              }
+            } catch (e) {
+              // Body wasn't JSON — return the raw response so the
+              // caller sees the actual server message.
+            }
+          }
+          return json(r.status, responseText);
         };
 
         // Whitelist of values that urgency_override can be set to.
