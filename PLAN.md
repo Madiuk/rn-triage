@@ -160,6 +160,95 @@ likely-universal across future tenants):
   Bask-sourced clinical question routes the same as an email-sourced
   one with the same category.
 
+#### Task ownership and handoffs
+
+A patient message creates one task. One task has one **primary owner**
+at a time. This section answers the questions that are moot today
+(single staff, manual paste) but become load-bearing the moment two
+or more staff have a shared queue:
+
+- *Who owns a task with both clinical and non-clinical parts?*
+- *Who sends the final reply to the patient?*
+- *What stops two staff from working on the same task in parallel
+  and sending two conflicting replies?*
+- *How does work get handed off to another team without losing it?*
+- *What happens when the AI is unsure?*
+
+The model:
+
+1. **AI picks a primary category.** Each message gets one or more
+   categories from the tenant's list. The primary category is the
+   one with the highest-gated `required_capabilities` (for medical
+   tenants today: a category requiring `clinical_response` outranks
+   one that doesn't). Tie-broken by `urgency_score`.
+2. **Task lands in the primary category's queue.** Anyone whose
+   capability set satisfies that category's requirements AND who has
+   that category in their `category_preferences` sees the task as
+   claimable. Other staff see nothing.
+3. **Claiming creates ownership.** When a staff member starts work,
+   they claim the task: `query_history.claimed_by` = their user_id,
+   `claimed_at` = now. Other staff in the same queue see it as
+   "claimed by Jane" — visible for transparency, not actionable.
+   This is the core **redundancy control** — only one owner at a
+   time, no parallel conflicting replies.
+4. **The owner sends the final reply to the patient.** Period. There
+   is exactly one outbound to the patient per task, and it comes
+   from the owner. Even when a task has a clinical part AND a
+   non-clinical part, only the owner replies; the other team's work
+   happens internally, not in the patient-facing thread.
+5. **Internal handoffs are structured, not free-text pastes.** When
+   the owner needs another team to do something (ship a replacement,
+   process a refund, transfer a pharmacy, schedule a fitting),
+   they create an **internal action** linked to the task. The
+   action appears in the relevant team's queue with a
+   "linked to triage #N" reference. The support team marks the
+   action complete; the owner sees that and proceeds with the
+   patient reply.
+
+   This replaces the current "Internal Note for Staff free-text
+   paste" pattern. The internal note becomes the *content* of a
+   structured action, which is queryable, trackable, and learnable
+   from. New table: `task_actions` (or extend `audit_log`) with
+   `triage_id`, `action_type`, `assigned_to_capability`,
+   `description`, `status`, `completed_by`, `completed_at`.
+6. **Reassignment for misclassification.** If the owner sees the AI
+   put the task in the wrong queue (e.g., labeled "Side Effects"
+   but really "Refund Request"), one click reassigns. The task
+   moves to the new category's queue, the owner releases ownership,
+   the new queue's staff can claim. Reassignment also feeds the
+   learning loop (see *Reassignment as a learning signal* below).
+7. **Release back to queue.** An owner who can't complete a task
+   releases it: `claimed_by` returns to NULL. Another staff member
+   in the same queue can claim. UI: a "Release" button next to the
+   "Submit & Send" button.
+8. **Ambiguous / low-confidence cases route conservatively.** When
+   `ai_confidence` is below the review threshold, or when the AI
+   produces a category but flags `review_request`, the task routes
+   to the **highest-capability-required queue** — the gating role.
+   For medical tenants that's the clinical queue; for a tire shop
+   it might be the certified-mechanic queue. Better to over-
+   escalate than under-escalate.
+9. **No accidental merging.** Each inbound message creates exactly
+   one task. Bask retries / duplicate webhooks dedupe by
+   `external_id` (already implemented in `ingest.js`). Manual
+   pastes can theoretically duplicate; admins can merge or delete
+   via the audit_log workflow.
+
+The pattern is vertical-agnostic. For a tire repair shop, substitute
+"certified mechanic" for "clinical" and "service writer" for
+"non-clinical." For property management, substitute "licensed
+property manager" for "clinical" and "leasing agent" for
+"non-clinical." The semantics — gating role, primary owner, claim-
+to-lock, structured handoffs, reassignment, conservative routing on
+ambiguity — don't change. That's what makes the framework portable.
+
+DB additions this section implies (deferred until queue work
+begins, but listed here so they aren't surprises):
+- `query_history.claimed_by uuid references auth.users(id)` and
+  `claimed_at timestamptz` (nullable; null = unclaimed).
+- `task_actions` table for internal handoffs.
+- `task_reassignments` table (or an `audit_log` action type).
+
 #### Reassignment as a learning signal
 
 - One-click reassignment from a task: change category, optionally add
@@ -299,3 +388,4 @@ assumptions at onboarding time:
 | 2026-05-09 | `requires_clinical_authorization` per category in `RELAI_DEFAULTS.categories` | Decouple "what is this message about" (AI's job) from "who can resolve it" (compliance gate). Conservative defaults — vague categories like General Inquiry require clinical auth. AI does NOT read this flag; it's a routing/queue concern. Foundation for replacing the binary Clinical/Non-Clinical role with capability flags in Phase 3. |
 | 2026-05-09 | Channels (not "Bask integration") are the architectural concept | Bask is one of many input sources (email, Healthie, live chat, SMS, web forms, EHR webhooks, manual paste). Each tenant picks their own roster. The framework treats every channel as a small adapter; the rest of Relai (triage, KB, queue, learning) is channel-agnostic. Big Easy uses Bask, but Bask going away tomorrow would just mean swapping adapters — no other system would need to change. Phase 3 retitled from "Bask integration" to "Channel framework + queue + soft routing" to reflect this. Bask gets the same treatment in PLAN, README, AGENTS, and adapter-file lead comments: example, not pillar. |
 | 2026-05-09 | Phase 4 is vertical-agnostic, not "more medical tenants" | The architecture supports any kind of customer-service triage (medical, automotive, property, professional services, retail). A few pieces lean medical because Big Easy is the only tenant — those are catalogued in PLAN's "Vertical-agnostic readiness audit" with a concrete unblock checklist that runs before tenant #2 lands regardless of their vertical. Don't bake more medical assumptions into core code while we have one tenant; keep them at the tenant-config layer. |
+| 2026-05-09 | One task, one primary owner, structured handoffs (the ownership model for Phase 3) | Avoids the questions "who owns?", "who replies?", "what stops two staff working in parallel?" that the queue UI would otherwise have to invent ad-hoc. Single owner via `claimed_by` lock; owner sends the one patient reply; cross-team work happens via structured `task_actions` not free-text pastes; reassignment for misclassification; release-back-to-queue if the owner can't finish; ambiguous cases route conservatively to the gating role. Pattern is vertical-agnostic — substitute "certified mechanic" or "licensed property manager" for "clinical" and the semantics hold. Today's manual-paste flow doesn't exercise any of this; the model only matters once Phase 3 ingest + queue land. Codified in PLAN Phase 3 "Task ownership and handoffs" before the implementation begins. |
