@@ -26,8 +26,9 @@
 const fs   = require('fs');
 const path = require('path');
 
-const { BASE_PROMPT } = require('../data/base-prompt.js');
+const { BASE_PROMPT, BASE_PROMPT_TEMPLATE } = require('../data/base-prompt.js');
 const { DEFAULT_KB }  = require('../data/default-kb.js');
+const { RELAI_DEFAULTS } = require('../data/defaults.js');
 const {
   parseTriageJSON,
   computeTriageCost,
@@ -45,19 +46,13 @@ const endpoint = flag('endpoint', null);
 const model    = flag('model', 'claude-sonnet-4-6');
 
 // ── Build the same KB string the browser sends ────────────────────────
-// Mirrors getFullKB() in app.js so the eval is testing what production
-// triages actually see. If you change the section ordering or labels in
-// app.js, change them here too.
+// Section order + labels come from RELAI_DEFAULTS.kb_sections (single
+// source of truth shared with app.js's getFullKB) so the eval renders
+// the exact same KB layout production sends. The kb_version hash will
+// match production's hash so long as the seed in default-kb.js matches
+// the live tenant KB.
 function buildKBString(kb) {
-  const sections = [
-    { key: 'notes',       label: 'CLINICAL RULES (read first)' },
-    { key: 'routing',     label: 'ROUTING RULES' },
-    { key: 'sideeffects', label: 'SIDE EFFECT GUIDANCE' },
-    { key: 'templates',   label: 'RESPONSE TEMPLATES' },
-    { key: 'protocols',   label: 'PROTOCOLS' },
-    { key: 'urls',        label: 'URLS' }
-  ];
-  return sections.map(s => {
+  return (RELAI_DEFAULTS.kb_sections || []).map(s => {
     const rows = kb[s.key] || [];
     if (!rows.length) return '';
     return '=== ' + s.label + ' ===\n' +
@@ -66,7 +61,10 @@ function buildKBString(kb) {
 }
 
 const KB_STRING       = buildKBString(DEFAULT_KB);
-const PROMPT_VERSION  = simpleHash(BASE_PROMPT);
+// Hash the template (not the rendered prompt). The rendered prompt
+// has today's date substituted in, so hashing it would change every
+// day with no actual prompt change. See data/base-prompt.js comments.
+const PROMPT_VERSION  = simpleHash(BASE_PROMPT_TEMPLATE);
 const KB_VERSION      = simpleHash(KB_STRING);
 
 // ── Load cases ────────────────────────────────────────────────────────

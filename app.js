@@ -85,12 +85,17 @@ function invalidateKBCache(){ kbCache = {}; kbVersionCache = null; }
 // "which prompt/KB produced this?" when looking at quality trends —
 // regressions can then be attributed to a specific version instead of
 // guessed at. simpleHash() is defined in data/triage-lib.js.
+//
+// IMPORTANT: hash BASE_PROMPT_TEMPLATE, NOT BASE_PROMPT. The rendered
+// prompt has today's date substituted in, so hashing it would
+// change the prompt_version every day even with no actual prompt
+// change — defeating the whole point of version stamping.
 var promptVersionCache = null;
 var kbVersionCache = null;
 function getPromptVersion(){
   if(promptVersionCache) return promptVersionCache;
-  if(typeof BASE_PROMPT === 'undefined') return null;
-  promptVersionCache = simpleHash(BASE_PROMPT);
+  if(typeof BASE_PROMPT_TEMPLATE === 'undefined') return null;
+  promptVersionCache = simpleHash(BASE_PROMPT_TEMPLATE);
   return promptVersionCache;
 }
 function getKBVersion(){
@@ -106,17 +111,13 @@ function getKBVersion(){
 
 // Build the full KB string (every section, in stable order). Used as the
 // second cache block in runTriage so Anthropic prompt caching can hit on
-// every warm call. Stable key = stable cache.
+// every warm call. Stable key = stable cache. Section order + labels
+// come from RELAI_DEFAULTS.kb_sections so eval/run.js renders the
+// same shape — drift between the two would make eval kb_version hashes
+// differ from what production stamps on triage rows.
 function getFullKB(){
-  var sections = [
-    {key:'notes',       label:'CLINICAL RULES (read first)'},
-    {key:'routing',     label:'ROUTING RULES'},
-    {key:'sideeffects', label:'SIDE EFFECT GUIDANCE'},
-    {key:'templates',   label:'RESPONSE TEMPLATES'},
-    {key:'protocols',   label:'PROTOCOLS'},
-    {key:'urls',        label:'URLS'}
-  ];
-  return sections.map(function(s){ return getKBSection(s.key, s.label); })
+  return (RELAI_DEFAULTS.kb_sections || [])
+    .map(function(s){ return getKBSection(s.key, s.label); })
     .filter(Boolean).join('\n\n');
 }
 
@@ -654,13 +655,21 @@ currentHistoryId=null;
         : null,
     };
     renderResults(parsed);
-    saveHistoryRecord(parsed,msg,telemetry).then(function(id){
-      currentHistoryId=id;
-      // Save review request if AI flagged low confidence
-      if(parsed.review_request && parsed.review_request.question){
-        saveReviewRequest(parsed.review_request, msg, parsed.draft_response, id);
-      }
-    });
+    // Await the history save (instead of fire-and-forget) so that
+    // currentHistoryId is guaranteed set before setLoading(false) lets
+    // the user interact again. Two rapid consecutive triages with
+    // fire-and-forget saves can resolve out-of-order, leaving
+    // currentHistoryId pointing at the older triage — meaning every
+    // subsequent Save Categories / Save Timeframe / Submit & Learn
+    // would patch the wrong row. The added wait is ~100-200ms (a DB
+    // insert), imperceptible after the ~8s the AI just took. The
+    // saveReviewRequest follow-up stays fire-and-forget — it doesn't
+    // update any global state.
+    var newId = await saveHistoryRecord(parsed, msg, telemetry);
+    currentHistoryId = newId;
+    if (newId && parsed.review_request && parsed.review_request.question) {
+      saveReviewRequest(parsed.review_request, msg, parsed.draft_response, newId);
+    }
   }catch(err){
     var msg = err.message||'Unknown error';
     var isJson = msg.includes('JSON') || msg.includes('Unexpected token') || msg.includes('SyntaxError');

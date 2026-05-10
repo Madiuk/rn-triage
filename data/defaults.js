@@ -26,6 +26,24 @@ const RELAI_DEFAULTS = {
   // dips below this threshold.
   reviewConfidenceThreshold: 0.75,
 
+  // KB section render order + labels. Single source of truth used by
+  // both app.js's getFullKB() (browser, what the live triage call
+  // sends) and eval/run.js's buildKBString (the eval harness). Keeping
+  // them in lockstep means the eval's kb_version hash matches what
+  // production stamps on rows; if it ever doesn't, that's the signal
+  // that someone changed one and forgot the other. Tenants will
+  // override this list in Phase 4 when KBs become per-tenant
+  // structurally (e.g., a non-medical tenant won't have a "Side
+  // Effect Guidance" section).
+  kb_sections: [
+    { key: 'notes',       label: 'CLINICAL RULES (read first)' },
+    { key: 'routing',     label: 'ROUTING RULES' },
+    { key: 'sideeffects', label: 'SIDE EFFECT GUIDANCE' },
+    { key: 'templates',   label: 'RESPONSE TEMPLATES' },
+    { key: 'protocols',   label: 'PROTOCOLS' },
+    { key: 'urls',        label: 'URLS' }
+  ],
+
   // Per-category metadata. The flag we care about today is
   // `requires_clinical_authorization` — whether a staff member needs
   // licensed-clinician status to resolve a task in this category.

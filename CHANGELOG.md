@@ -6,6 +6,98 @@ bumps cover meaningful capability additions, patch bumps cover fixes).
 
 ---
 
+## v0.3.3 — 2026-05-10
+
+Final patch on Juno before going hands-off through real-triage data
+collection. Fourth-pass audit found two genuine bugs that the prior
+three passes missed, plus one duplication smell that would have made
+future drift between eval and production hard to spot.
+
+This is the **last planned change** until Phase 3 work begins, unless
+real production triages surface something major.
+
+### Fixed (real bugs)
+
+- **`prompt_version` was changing every day with no actual prompt
+  change.** `BASE_PROMPT` includes a `Today: {{date}}` line whose value
+  was interpolated at module load. The version-stamp hash was
+  computed against the rendered prompt, so each day's date produced
+  a different hash. This broke every downstream use of
+  `prompt_version`:
+  - The per-prompt-version breakdown in `/history/quality` would
+    bucket by day rather than by actual prompt revision.
+  - Eval baseline comparisons would always show a "different version"
+    even when the prompt hadn't been touched.
+  - The "did this regression follow a prompt change?" attribution
+    question became unanswerable from production data alone.
+
+  Fix: split `BASE_PROMPT_TEMPLATE` (structural, what we hash) from
+  `BASE_PROMPT` (rendered, with today's date substituted in — what
+  the AI sees). `getPromptVersion()` now hashes the template; the
+  AI still sees the date. Eval and `app.js` both updated. Stable
+  prompt_version going forward: `a615b5ad`. Existing rows in
+  `query_history` keep their date-dependent stamps; no backfill —
+  they're just legacy noise that aggregations can ignore.
+
+- **Race condition in consecutive triages.** `runTriage` was
+  fire-and-forget calling `saveHistoryRecord(...).then(id =>
+  currentHistoryId = id)` — meaning two rapid triages could resolve
+  out-of-order, leaving `currentHistoryId` pointing at the older
+  triage. Every subsequent Save Categories / Save Timeframe / Submit
+  & Learn would then patch the wrong row silently. Fixed by
+  awaiting the save inside the try block before `setLoading(false)`
+  releases the UI. Adds ~100-200ms of imperceptible wait after the
+  ~8s the AI just took.
+
+### Changed
+
+- **KB section list extracted to `RELAI_DEFAULTS.kb_sections`.**
+  `app.js`'s `getFullKB` and `eval/run.js`'s `buildKBString` had
+  identical 6-row `[{key, label}, ...]` arrays inline. If they ever
+  drifted, the eval's `kb_version` hash wouldn't match production —
+  silent drift. Now both consume the shared constant. Tenants in
+  Phase 4 will override per tenant.
+
+### Audit method (this pass)
+
+Fourth pass focused on the gaps in earlier passes:
+- `login.html` end-to-end + race-condition reading of `app.js` async
+  flows → caught the runTriage race.
+- KB section list parity check between eval and app → caught the
+  duplication.
+- Eval re-run with side-by-side hash comparison vs prior baseline →
+  caught the date-in-prompt-hash bug (prompt_version had drifted
+  yesterday's `bb5ef312` → today's `23ac525a` without any prompt
+  edit).
+
+### Eval baseline at v0.3.3
+
+| Metric | Value |
+|---|---|
+| Pass rate | 7/7 |
+| `prompt_version` | `a615b5ad` (now stable across days) |
+| `kb_version` | `366cb3f1` |
+| Per-case cost (warm cache) | ~$0.009 |
+| Mean latency | ~9.1s |
+| Cache hit rate (warm) | ~99% |
+
+### Tests
+
+91 passing across 7 files. No new tests — affected paths
+(prompt-version split, async race, KB section sharing) all rely on
+fetch/DOM and aren't isolated enough to test in the current pure-Node
+harness.
+
+### Going forward
+
+This concludes the audit cycle on Juno. Patch tags v0.3.1 / v0.3.2 /
+v0.3.3 sit on top of v0.3.0. Next planned release is v0.4.0 when
+Phase 3 (channel framework + queue + soft routing) lands. Between
+now and then: real triage data collection. Bug reports surfaced by
+real use will be patched; speculative audits won't add more.
+
+---
+
 ## v0.3.2 — 2026-05-10
 
 Patch on Juno (v0.3.0). Third-pass quality audit covering the

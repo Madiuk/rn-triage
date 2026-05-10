@@ -1,8 +1,17 @@
 // Triage system prompt. Loaded as a global before app.js.
+//
+// The prompt is split into a TEMPLATE (the structural prompt — what
+// we hash for prompt_version) and the rendered BASE_PROMPT (template
+// with `{{TODAY}}` substituted with today's date — what the AI
+// actually sees). Splitting them is what makes prompt_version stable
+// across days. If we hashed BASE_PROMPT directly, the hash would
+// change every day from the date interpolation alone — breaking the
+// per-prompt-version breakdowns in /history/quality, the eval
+// baseline comparisons, and any "did the prompt change?" analysis.
 
 const TODAY = new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
 
-const BASE_PROMPT = `Clinical telehealth triage. Today: ${TODAY}. Output ONLY valid JSON.
+const BASE_PROMPT_TEMPLATE = `Clinical telehealth triage. Today: {{TODAY}}. Output ONLY valid JSON.
 
 {"non_clinical_flag":bool,"non_clinical_items":["..."],"routed_to":"string","internal_note":"string","clinical_routing_flag":bool,"clinical_routing_level":"severe|moderate|mild|none","clinical_category":"Injection/Dosing|Side Effects|Severe Side Effects|Medication Management|Stall/Lack of Results|General Inquiry","urgency":"routine|same-day|urgent","follow_up_questions":["..."],"draft_response":"string","review_request":{"question":"string or null","context":"routing|severity|category|kb_gap|protocol|null","confidence":0.0}}
 
@@ -20,8 +29,11 @@ draft_response: ALWAYS populate. Warm RN voice, patient details, prose with line
 
 Knowledge base sections follow. Apply them precisely.`;
 
+// What the AI actually sees — TEMPLATE with today's date substituted in.
+const BASE_PROMPT = BASE_PROMPT_TEMPLATE.replace('{{TODAY}}', TODAY);
+
 // Node export hook — no-op in the browser. Lets the eval harness and
 // any future server-side use require this file directly.
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { BASE_PROMPT };
+  module.exports = { BASE_PROMPT, BASE_PROMPT_TEMPLATE };
 }
