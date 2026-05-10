@@ -1,8 +1,13 @@
 # Relai — Triage and Tasking
 
-AI-assisted clinical triage and task routing for telehealth practices.
-Currently single-tenant (Big Easy Weight Loss) trial; architected to
-become a multi-tenant SaaS.
+AI-assisted customer-service triage and task routing — categorizes
+inbound patient/customer messages, drafts a reply, and surfaces what
+needs to go to which team. Currently single-tenant (Big Easy Weight
+Loss, a clinical telehealth practice); architected to become a
+multi-tenant SaaS that's vertical-agnostic — the next tenant could be
+another medical practice or something completely different (auto
+service, property management, etc.). See `PLAN.md` for the readiness
+audit on what's still vertical-shaped today.
 
 > **Working on this codebase?** Read `AGENTS.md` first. It's the rule
 > book — every AI session should follow it. The strategic roadmap lives
@@ -35,7 +40,9 @@ match. See `PLAN.md` Phase 3 for the channel framework design.
 
 ```
 /                          repo root
-├── index.html             SPA shell + tabs (Triage, KB, Help, History)
+├── index.html             SPA shell. Visible tabs: Triage, Knowledge Base.
+│                          Help & Triage Queue tabs are reached from the
+│                          profile dropdown (top-right chip).
 ├── login.html             magic-link landing
 ├── app.js                 SPA logic (kept monolithic — split deferred)
 ├── styles.css             class-based styles, CSS variables
@@ -87,8 +94,11 @@ There is no build step today. Edit files directly; Netlify auto-deploys
 # Run tests
 npm test
 
-# Run eval harness (stub — see eval/README.md)
-npm run eval
+# Run eval harness against current BASE_PROMPT + DEFAULT_KB. Direct
+# Anthropic call by default (needs ANTHROPIC_API_KEY); add
+# --endpoint <url> to route through a deployed triage proxy instead.
+# See eval/README.md for full options.
+ANTHROPIC_API_KEY=sk-ant-... npm run eval
 ```
 
 ---

@@ -3,16 +3,28 @@
 // BASE_PROMPT and DEFAULT_KB live in data/base-prompt.js and data/default-kb.js
 // (loaded as plain <script> tags before this file in index.html).
 
-const CLINICAL_CATS = [
-  'Injection/Dosing','Side Effects','Severe Side Effects',
-  'Medication Management','Stall/Lack of Results','General Inquiry'
-];
-
-const NON_CLINICAL_CATS = [
-  '-- None --',
-  'Billing/Payment','Shipment/Tracking','Account/Subscription',
-  'Refund Request','General Inquiry','Complaint/Concern'
-];
+// Category lists for the Classification-card pills. Derived from
+// RELAI_DEFAULTS.categories in data/defaults.js so there's one source
+// of truth for category metadata. The dropdown / pill UIs read these;
+// when tenant-specific overrides land in Phase 4 (per the readiness
+// audit in PLAN.md), this derivation switches to the tenant's
+// categories with RELAI_DEFAULTS as fallback.
+//
+// CLINICAL_CATS = categories where kind is 'clinical' or 'mixed'.
+// NON_CLINICAL_CATS = categories where kind is 'non_clinical' or
+// 'mixed'. "General Inquiry" appears in both because it's mixed —
+// staff can correct an AI label to "General Inquiry" from either
+// camp depending on context.
+const CLINICAL_CATS = Object.keys(RELAI_DEFAULTS.categories || {})
+  .filter(function(name){
+    var k = RELAI_DEFAULTS.categories[name].kind;
+    return k === 'clinical' || k === 'mixed';
+  });
+const NON_CLINICAL_CATS = Object.keys(RELAI_DEFAULTS.categories || {})
+  .filter(function(name){
+    var k = RELAI_DEFAULTS.categories[name].kind;
+    return k === 'non_clinical' || k === 'mixed';
+  });
 
 const TIMEFRAMES = [
   {v:'routine',l:'Routine',c:'routine'},
@@ -82,15 +94,14 @@ function getKBVersion(){
   return kbVersionCache;
 }
 
-// classifyMessage / parseTriageJSON / computeUrgencyScore / formatDuration /
-// levenshteinDistance are defined in data/triage-lib.js so they can be
-// unit-tested in Node. Browser sees them as globals.
+// parseTriageJSON / computeUrgencyScore / formatDuration /
+// levenshteinDistance / simpleHash / computeTriageCost are defined
+// in data/triage-lib.js so they can be unit-tested in Node. Browser
+// sees them as globals.
 
 // Build the full KB string (every section, in stable order). Used as the
 // second cache block in runTriage so Anthropic prompt caching can hit on
-// every warm call. Stable key = stable cache. classifyMessage-driven
-// per-message KB selection invalidates the cache and is no longer used
-// for the live triage call.
+// every warm call. Stable key = stable cache.
 function getFullKB(){
   var sections = [
     {key:'notes',       label:'CLINICAL RULES (read first)'},
@@ -103,29 +114,6 @@ function getFullKB(){
   return sections.map(function(s){ return getKBSection(s.key, s.label); })
     .filter(Boolean).join('\n\n');
 }
-
-function getKBPrompt(msg){
-  var types = msg ? classifyMessage(msg) : ['rules','routing','sideeffects','templates','protocols','urls'];
-  var p = [];
-
-  if(types.includes('rules'))
-    p.push(getKBSection('notes','CLINICAL RULES (read first)'));
-  if(types.includes('routing') || types.includes('routing_detail'))
-    p.push(getKBSection('routing','ROUTING RULES'));
-  if(types.includes('sideeffects'))
-    p.push(getKBSection('sideeffects','SIDE EFFECT GUIDANCE'));
-  if(types.includes('templates'))
-    p.push(getKBSection('templates','RESPONSE TEMPLATES'));
-  if(types.includes('protocols'))
-    p.push(getKBSection('protocols','PROTOCOLS'));
-  if(types.includes('urls'))
-    p.push(getKBSection('urls','URLS'));
-
-  return p.filter(Boolean).join('\n\n');
-}
-
-
-
 
 // ── AUTH ──────────────────────────────────────────────────────────────────────
 async function initAuth(){
@@ -793,13 +781,13 @@ function renderResults(d){
   var isClinical=!!(aiClinCat&&aiClinCat!=='General/multiple');
   var taskType=hasNonClin&&isClinical?'Dual Task':hasNonClin?'Non-Clinical':'Clinical';
 
-  // Build pills
-  var ncCats=['Billing/Payment','Shipment/Tracking','Account/Subscription','Refund Request','General Inquiry','Complaint/Concern'];
+  // Build pills. CLINICAL_CATS / NON_CLINICAL_CATS are both derived
+  // from RELAI_DEFAULTS.categories at module load — see top of file.
   var clinPills=CLINICAL_CATS.map(function(c){
     var sel=c===aiClinCat;
     return '<button class="cat-pill'+(sel?' sel-clin':'')+'" data-val="'+esc(c)+'" data-type="clin">'+esc(c)+'</button>';
   }).join(' ');
-  var ncPills=ncCats.map(function(c){
+  var ncPills=NON_CLINICAL_CATS.map(function(c){
     var sel=aiNonClin.includes(c);
     return '<button class="cat-pill'+(sel?' sel-nc':'')+'" data-val="'+esc(c)+'" data-type="nc">'+esc(c)+'</button>';
   }).join(' ');
@@ -867,8 +855,8 @@ function renderResults(d){
         '</div>'+
         '<div class="oc-body">'+
           (_in?
-            '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-700);margin-bottom:5px;">Internal Note &mdash; paste into Bask chat</div>'+
-            '<div style="font-size:var(--fs-xs);color:var(--gray-600);line-height:1.5;margin-bottom:8px;">Copy &rarr; open Bask chat &rarr; submit as internal note &rarr; assign to <strong>'+esc(routedTo)+'</strong></div>'+
+            '<div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-700);margin-bottom:5px;">Internal Note &mdash; share with the support team</div>'+
+            '<div style="font-size:var(--fs-xs);color:var(--gray-600);line-height:1.5;margin-bottom:8px;">Copy &rarr; share via your usual internal handoff (thread comment, internal email, ticket) &rarr; assign to <strong>'+esc(routedTo)+'</strong>. You stay responsible for the patient reply.</div>'+
             '<div style="background:var(--amber-l);border:1.5px solid var(--amber-m);border-radius:8px;padding:13px 16px;font-size:var(--fs-base);color:var(--gray-800);line-height:1.75;position:relative;">'+
               esc(_in)+
               '<button class="copy-inline-btn" data-copy-target="internal" style="position:absolute;top:8px;right:8px;background:var(--white);border:1.5px solid var(--amber-m);border-radius:6px;padding:4px 10px;cursor:pointer;font-size:11px;color:var(--amber);font-weight:600;">Copy</button>'+
@@ -1224,8 +1212,9 @@ async function loadHistory(){
     }
 
       // Triage queue table — sorted by priority score so the most pressing
-    // tasks land at the top, exactly how the queue should behave when EHR
-    // ingest starts pushing tasks in automatically.
+    // tasks land at the top, exactly how the queue should behave when
+    // any inbound channel (Bask, email, Healthie, SMS, etc.) starts
+    // pushing tasks in automatically.
     var tierLabel = {
       'severe-se':   'Severe SE',
       'moderate-se': 'Moderate SE',
@@ -1320,7 +1309,9 @@ async function saveReviewRequest(reviewRequest, patientMsg, aiDraft, triageId){
     });
     // Refresh badge count
     loadReviews();
-  }catch(e){}
+  }catch(e){
+    console.error('saveReviewRequest:', e.message);
+  }
 }
 
 async function loadReviews(){
@@ -1330,7 +1321,9 @@ async function loadReviews(){
     updateReviewBadge(pending.length);
     window._pendingReviews = pending;
     renderReviews(pending);
-  }catch(e){}
+  }catch(e){
+    console.error('loadReviews:', e.message);
+  }
 }
 
 function updateReviewBadge(count){
@@ -1484,7 +1477,9 @@ async function dismissReview(id){
     var card = document.getElementById('review-'+id);
     if(card){ card.style.opacity='0'; card.style.transition='opacity .3s'; }
     setTimeout(function(){ loadReviews(); }, 300);
-  }catch(e){}
+  }catch(e){
+    console.error('dismissReview:', e.message);
+  }
 }
 
 

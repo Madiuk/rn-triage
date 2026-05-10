@@ -10,15 +10,15 @@
 //   3. External cron (GitHub Actions, Inngest) that POSTs to the URL.
 //
 // This is a stub: it dequeues, but it does not yet call the Anthropic
-// API directly. Plumb the real triage call once the EHR side is ready
-// to consume responses. Until then the worker only proves the queue
+// API directly. Plumb the real triage call once the first inbound
+// channel adapter (Bask, email, Healthie, etc.) is ready to feed
+// pending rows in. Until then the worker only proves the queue
 // drains and leaves a triage_skipped audit entry.
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
 const WORKER_BATCH_SIZE = 5;
-const WORKER_LOCK_MINUTES = 5;
 
 function writeHeaders() {
   const key = SUPABASE_SERVICE_KEY || SUPABASE_ANON_KEY;
@@ -46,7 +46,6 @@ exports.handler = async function () {
     return { statusCode: 500, body: 'Supabase not configured' };
   }
 
-  const since = new Date(Date.now() - WORKER_LOCK_MINUTES * 60 * 1000).toISOString();
   const h = writeHeaders();
 
   // Find pending rows older than the lock window. The lock is implicit:
