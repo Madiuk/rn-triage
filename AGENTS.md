@@ -299,6 +299,21 @@ follow this checklist instead of grep-pattern-matching:
     where an array is expected). Without normalization at the
     boundary, AI drift pollutes downstream aggregations forever.
 
+14. **When you add auth to an endpoint, audit every caller in the
+    same commit.** Server-side auth additions are only half the
+    fix; the calling code has to start sending the token. Grep
+    for every `fetch('/.netlify/functions/<that-endpoint>')` (or
+    your routing equivalent) and verify each one attaches a
+    Bearer token. The `api()` helper in `app.js` auto-attaches,
+    but raw fetches (used where the response shape isn't standard
+    PostgREST — e.g. `/triage` and `/analyze`) don't, and those
+    are easy to miss. Symptoms of missing this: the endpoint
+    silently returns 401, the frontend's defensive fallback path
+    runs, and the user sees what looks like a no-op success
+    rather than an auth failure. The original `/triage` and
+    `/analyze` auth additions both shipped without their callers
+    being updated, surfacing days later as data-loss bugs.
+
 ---
 
 ## When in doubt, ask
