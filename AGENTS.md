@@ -166,6 +166,34 @@ Don't repeat them.
 - **Two sources of truth** for one value. Centralize in `data/defaults.js`
   or pass through a single function.
 - **Inline styles for static values.** Refactor to a CSS class.
+- **Inlining UI state into LLM content fields.** Never string-concatenate
+  metadata (selected categories, timeframe, dropdown values, etc.) into
+  the content payload sent to a model. The model can't tell where
+  "content" ends and "metadata" begins, and a comparison-style prompt
+  will describe the metadata as if it were content. Always pass UI
+  state as a clearly labeled separate block (e.g. `Staff metadata
+  (UI selections, NOT response edits): - Timeframe: routine`) and
+  instruct the model in the system prompt that the metadata is not
+  part of the content. See the long comment above `submitCorrection`
+  in `app.js` for the pattern; it's where this rule was learned.
+
+## Auditing LLM call sites
+
+Whenever you touch a place that calls an LLM (`triage.js`, the
+`/analyze` route in `kb.js`, the eval harness, any future call site),
+do this read:
+
+1. **Print the constructed prompt in your head.** What literally
+   reaches the model — system + user content + any extras? Walk
+   through every string-template substitution.
+2. **Read it as the model.** Is any field ambiguous? Could anything
+   in the user content be confused with metadata or instructions?
+3. **Trace metadata vs. content.** UI state should never be in the
+   content payload. Always a labeled separate block.
+4. **Check the no-diff / no-input edge case.** A comparison or
+   summarization prompt with nothing to compare/summarize will
+   confabulate. Either short-circuit with a deterministic note, or
+   instruct the model explicitly to say "no changes" plainly.
 
 ---
 
