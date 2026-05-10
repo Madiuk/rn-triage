@@ -192,6 +192,30 @@ function computeTriageCost(model, usage) {
   return Math.round((fresh + out + cWrite + cRead) * 1e6) / 1e6;
 }
 
+// Decide whether resolving a task in this category requires clinical
+// authorization (i.e. only an RN/PA/MD on the staff can send the
+// reply). The caller passes the per-category metadata object — in the
+// browser, this is `RELAI_DEFAULTS.categories` from data/defaults.js
+// (eventually overridden per tenant). Pure, parameterized, testable.
+//
+// Conservative defaults:
+//   - empty / unknown / unmapped category → return true (require auth)
+//   - explicit `requires_clinical_authorization: false` → return false
+//   - anything else → return true
+//
+// Rationale: an under-gate (a non-clinical staffer accidentally
+// resolves a clinical task) is a worse failure mode than an over-gate
+// (a few extra reassignments by staff who can't take the task).
+function requiresClinicalAuthorization(categoryName, categoryMetadata) {
+  var cat = String(categoryName == null ? '' : categoryName).trim();
+  if (!cat) return true;
+  var meta = categoryMetadata && categoryMetadata[cat];
+  if (meta && typeof meta.requires_clinical_authorization === 'boolean') {
+    return meta.requires_clinical_authorization;
+  }
+  return true;
+}
+
 // Stable, fast 32-bit string hash (djb2 variant). Used to stamp every
 // triage with the prompt_version and kb_version it ran against, so a
 // regression can be attributed to a specific prompt or KB revision
@@ -220,6 +244,7 @@ if (typeof module !== 'undefined' && module.exports) {
     levenshteinDistance,
     computeTriageCost,
     simpleHash,
+    requiresClinicalAuthorization,
     TRIAGE_PRICING,
   };
 }

@@ -24,7 +24,39 @@ const RELAI_DEFAULTS = {
   },
   // Visible to staff when the AI's confidence on a clinical decision
   // dips below this threshold.
-  reviewConfidenceThreshold: 0.75
+  reviewConfidenceThreshold: 0.75,
+
+  // Per-category metadata. The flag we care about today is
+  // `requires_clinical_authorization` — whether a staff member needs
+  // licensed-clinician status to resolve a task in this category.
+  // The future routing/queue layer will use this to gate which
+  // queues a category appears in; the AI does NOT read this — its job
+  // is purely to categorize accurately.
+  //
+  // Defaults are conservative: when in doubt, require clinical
+  // authorization. It's safer to over-gate (a few extra reassignments
+  // by staff) than under-gate (a billing rep accidentally resolving
+  // something that needed a clinician).
+  //
+  // Tenants can override per category via tenants.category_metadata
+  // when that table column lands. Until then, this is the source of
+  // truth for Big Easy Weight Loss.
+  categories: {
+    'Severe Side Effects':   { requires_clinical_authorization: true,  kind: 'clinical' },
+    'Side Effects':          { requires_clinical_authorization: true,  kind: 'clinical' },
+    'Injection/Dosing':      { requires_clinical_authorization: true,  kind: 'clinical' },
+    'Medication Management': { requires_clinical_authorization: true,  kind: 'clinical' },
+    'Stall/Lack of Results': { requires_clinical_authorization: true,  kind: 'clinical' },
+    // Vague / mixed — conservative default. The future gate will also
+    // look at clinical_routing_level so a "General Inquiry" with
+    // routing_level=none routes to non-clinical staff anyway.
+    'General Inquiry':       { requires_clinical_authorization: true,  kind: 'mixed' },
+    'Billing/Payment':       { requires_clinical_authorization: false, kind: 'non_clinical' },
+    'Shipment/Tracking':     { requires_clinical_authorization: false, kind: 'non_clinical' },
+    'Account/Subscription':  { requires_clinical_authorization: false, kind: 'non_clinical' },
+    'Refund Request':        { requires_clinical_authorization: false, kind: 'non_clinical' },
+    'Complaint/Concern':     { requires_clinical_authorization: false, kind: 'non_clinical' }
+  }
 };
 
 // Resolve a tenant value with fallback. Pass an object from the
@@ -39,4 +71,10 @@ function tenantValue(tenant, path) {
     return fromTenant;
   }
   return segments.reduce(function(o, k){ return o ? o[k] : undefined; }, RELAI_DEFAULTS);
+}
+
+// Node export hook — no-op in the browser. Lets tests and the eval
+// harness pull RELAI_DEFAULTS without needing a script-tag bootstrap.
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { RELAI_DEFAULTS, tenantValue };
 }
