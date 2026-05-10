@@ -111,11 +111,12 @@ function priorityTier(parsed) {
 }
 
 // Task shape — orthogonal to priority. A 'dual' task has BOTH clinical
-// and non-clinical components and requires extra routing work (paste an
-// internal note into the EHR for the support team) on top of the
-// clinical reply. 'single' covers everything else. Lets the queue UI
-// flag dual tasks visually so staff know there's a routing step beyond
-// the clinical response.
+// and non-clinical components and requires extra routing work (an
+// internal handoff to the support team — Bask thread comment, internal
+// email, ticket, whatever the channel uses) on top of the clinical
+// reply. 'single' covers everything else. Lets the queue UI flag dual
+// tasks visually so staff know there's a routing step beyond the
+// clinical response.
 function taskShape(parsed) {
   if (!parsed) return 'single';
   var lvl = (parsed.clinical_routing_level || 'none').toLowerCase();

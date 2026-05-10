@@ -271,15 +271,15 @@
           <div class="help-section-title">Triage Queue &amp; Stats</div>
           <div class="help-faq">
             <button class="help-faq-q" onclick="toggleFaq(this)"><span>Where do I see what I've been doing?</span><span class="help-arrow">&#9660;</span></button>
-            <div class="help-faq-a">Open your profile (click the chip in the top-right corner). The <strong>Activity</strong> section gives a quick personal summary — your triages today, in the last 7 days, and all-time. For the team-wide view, click <strong>Pending Review Items</strong> in the same dropdown. That opens the Triage Queue page, which has three parts in order: AI-flagged review items at the top (clarifications waiting on a clinical answer), then aggregate stats and a per-staff breakdown (total triages, average priority score, escalation rate, correction rate, average time per triage), then the full record list.</div>
+            <div class="help-faq-a">Open your profile (click the chip in the top-right corner). The <strong>Activity</strong> section gives a quick personal summary — your triages today, in the last 7 days, and all-time. For the team-wide view, click <strong>Pending Review Items</strong> in the same dropdown. That opens the Triage Queue page, which has three parts in order: AI-flagged review items at the top (clarifications waiting on a clinical answer), then aggregate stats and a per-staff breakdown (total triages, average priority score, escalation rate, edit rate, average time per triage), then the full record list.</div>
           </div>
           <div class="help-faq">
             <button class="help-faq-q" onclick="toggleFaq(this)"><span>What does "Escalated" mean in the stats?</span><span class="help-arrow">&#9660;</span></button>
             <div class="help-faq-a">A triage counts as escalated whenever the AI flagged a side effect at any severity level (mild, moderate, or severe). It's the AI's classification, not a staff action.</div>
           </div>
           <div class="help-faq">
-            <button class="help-faq-q" onclick="toggleFaq(this)"><span>What does "Correction Rate" mean?</span><span class="help-arrow">&#9660;</span></button>
-            <div class="help-faq-a">Percent of triages where staff pasted a different response into <strong>What was sent to the patient</strong>. A high rate means staff are editing drafts often — useful signal for what the AI should learn from.</div>
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>What does "Edit Rate" mean?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a">Percent of triages where staff <strong>actually changed the AI's draft</strong> before sending (measured by character-level edit distance). Verbatim sends — where staff copied the AI's draft as-is and clicked Submit &amp; Learn — don't count toward this number; those are positive signal that the AI got it right. A high rate means the AI's draft frequently needs work; that's useful training data for the corrections feed.</div>
           </div>
         </div>
         <div class="help-section">

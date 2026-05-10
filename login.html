@@ -281,7 +281,9 @@ function sendLink() {
   xhr.onload = function() {
     setLoading(false);
     var resp = {};
-    try { resp = JSON.parse(xhr.responseText); } catch(e) {}
+    try { resp = JSON.parse(xhr.responseText); } catch(e) {
+      console.error('login.parseResponse:', e.message);
+    }
 
     if (xhr.status >= 200 && xhr.status < 300) {
       localStorage.setItem('relai_pending_profile', JSON.stringify({

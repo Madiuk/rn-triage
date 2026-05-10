@@ -50,9 +50,15 @@ function getToken(){
   return s ? s.access_token : null;
 }
 function getCompanyId(){
-  if(!currentProfile) return null;
-  var members = currentProfile.company_members;
-  return members&&members[0]?members[0].company_id:null;
+  // currentProfile.company_id comes straight from the `profiles`
+  // table (see auth.js — its `select` includes company_id). The old
+  // implementation looked under `company_members` which is never
+  // populated because auth.js does no joins (joins fail when the
+  // membership row is absent), so getCompanyId() always returned
+  // null and every triage row was written with company_id = NULL.
+  // The cost/quality endpoints' user-id fallback masked the bug
+  // until tenant-scoped aggregations broke.
+  return currentProfile && currentProfile.company_id ? currentProfile.company_id : null;
 }
 function getUserId(){
   return currentUser ? currentUser.id : null;
@@ -62,7 +68,6 @@ function getUserId(){
 
 // Cache for KB section strings -- rebuilt only when KB changes
 var kbCache = {};
-var kbCacheKey = '';
 
 function getKBSection(section, label){
   if(!kb[section]||!kb[section].length) return '';
@@ -161,10 +166,8 @@ async function initAuth(){
     // Update topbar tenant label from tenant config (falls back to defaults).
     var brandTenantEl = document.getElementById('brandTenant');
     if(brandTenantEl){
-      var members = currentProfile&&currentProfile.company_members;
-      var tenantName = (members&&members[0]&&members[0].companies&&members[0].companies.name)
-        || (currentProfile&&currentProfile.company_name)
-        || tenantValue(currentProfile&&currentProfile.tenant, 'brand.name');
+      var tenantName = (currentProfile && currentProfile.company_name)
+        || tenantValue(currentProfile && currentProfile.tenant, 'brand.name');
       brandTenantEl.textContent = tenantName;
     }
     // Store name and department globally
@@ -189,6 +192,7 @@ async function initAuth(){
       }
     }
   }catch(e){
+    console.error('initAuth:', e.message);
     // Network error — don't redirect, allow offline use
     window.currentNurse = 'Staff';
     var chipEl = document.getElementById('staffChipName');
@@ -205,10 +209,8 @@ function openProfile(){
   var role = (currentProfile&&currentProfile.role)||'staff';
   // Format role for display: 'Clinical' or 'Non-Clinical' with department context
   var roleLabel = role==='Clinical'?'Clinical Staff (RN)':role==='Non-Clinical'?'Non-Clinical Staff':role.charAt(0).toUpperCase()+role.slice(1);
-  var members = currentProfile&&currentProfile.company_members;
-  var company = (members&&members[0]&&members[0].companies&&members[0].companies.name)
-    || (currentProfile&&currentProfile.company_name)
-    || tenantValue(currentProfile&&currentProfile.tenant, 'brand.name');
+  var company = (currentProfile && currentProfile.company_name)
+    || tenantValue(currentProfile && currentProfile.tenant, 'brand.name');
   document.getElementById('profileAvatar').textContent = initials;
   document.getElementById('profileName').textContent = name;
   document.getElementById('profileEmail').textContent = email;
@@ -265,7 +267,11 @@ async function signOut(){
         method:'POST',
         headers:{'Authorization':'Bearer '+token}
       });
-    }catch(e){}
+    }catch(e){
+      // Best-effort signout. Network failure is OK — we proceed to
+      // clear the session and redirect regardless. Logged for debug.
+      console.error('signOut.fetch:', e.message);
+    }
   }
   localStorage.removeItem('relai_session');
   window.location.href = '/login.html';
@@ -301,7 +307,11 @@ async function loadKBFromServer(){
       setSyncBar('synced','Knowledge base seeded . '+new Date().toLocaleTimeString());
     }
     renderKB();
-  }catch(e){setSyncBar('error','Could not load -- using local defaults');renderKB();}
+  }catch(e){
+    console.error('loadKBFromServer:', e.message);
+    setSyncBar('error','Could not load -- using local defaults');
+    renderKB();
+  }
 }
 
 function syncKBFromDOM(){
@@ -344,7 +354,10 @@ async function submitEntry(){
     document.getElementById('entryTitle').value='';
     document.getElementById('entryContent').value='';
     renderKB();showToast('Saved and synced');
-  }catch(e){alert('Error: '+e.message);}
+  }catch(e){
+    console.error('submitEntry:', e.message);
+    alert('Error: '+e.message);
+  }
   finally{btn.disabled=false;txt.textContent='Save & Sync to Team';spin.className='spinner';}
 }
 
@@ -356,7 +369,10 @@ async function saveKB(){
     await api('/kb','POST',{entries:buildEntries()}); invalidateKBCache();
     setSyncBar('synced','Synced . '+new Date().toLocaleTimeString());
     showToast('Knowledge base synced');
-  }catch(e){setSyncBar('error','Sync failed');}
+  }catch(e){
+    console.error('saveKB:', e.message);
+    setSyncBar('error','Sync failed');
+  }
   finally{btn.disabled=false;txt.textContent='Save & Sync to Team';spin.className='kb-spinner';}
 }
 
@@ -479,7 +495,11 @@ async function saveEntryInline(section,i,btn){
     setTimeout(function(){btn.textContent='Save';btn.className='btn-xs save';btn.disabled=false;},2000);
     setSyncBar('synced','Synced . '+new Date().toLocaleTimeString());
     renderKB();
-  }catch(e){btn.textContent='Save';btn.disabled=false;}
+  }catch(e){
+    console.error('saveEntryInline:', e.message);
+    btn.textContent='Save';
+    btn.disabled=false;
+  }
 }
 function removeEntry(section,i){if(!confirm('Delete this entry?'))return;kb[section].splice(i,1);renderKB();}
 function exportKB(){
@@ -684,8 +704,6 @@ function buildTimeframeSelect(urgency){
 function onTimeframeChange(sel){
   var v=sel.value;
   sel.className='editable-select '+(v==='urgent'?'urgent':v==='routine'?'routine':'same-day');
-  var btn=document.getElementById('timeframeSaveBtn');
-  // checkmark button — no text change needed
 }
 
 async function saveTimeframe(){
@@ -835,8 +853,19 @@ function renderResults(d){
   var _in=d.internal_note||'';
   var routedTo=d.routed_to||'Support Team';
   var hasNonClin=!!(d.non_clinical_flag&&d.non_clinical_items&&d.non_clinical_items.length);
-  var isClinical=!!(aiClinCat&&aiClinCat!=='General/multiple');
-  var taskType=hasNonClin&&isClinical?'Dual Task':hasNonClin?'Non-Clinical':'Clinical';
+  // Use the shared taskShape/priorityTier helpers so the rendered
+  // task type label matches what loadHistory's queue table and
+  // priorityTier classifier produce. Earlier inline logic treated
+  // "General Inquiry" as real clinical content (because the only
+  // exclusion was the dead "General/multiple" value), which made
+  // 100%-non-clinical messages render as "Dual Task" — the same
+  // bug class flagged in user testing.
+  var shape = taskShape(d);          // 'single' | 'dual'
+  var tier  = priorityTier(d);       // 'severe-se' | 'moderate-se' | 'mild-se' | 'clinical' | 'non-clinical'
+  var taskType =
+    shape === 'dual'         ? 'Dual Task'    :
+    tier  === 'non-clinical' ? 'Non-Clinical' :
+                                'Clinical';
 
   // Build pills. CLINICAL_CATS / NON_CLINICAL_CATS are both derived
   // from RELAI_DEFAULTS.categories at module load — see top of file.
@@ -1087,7 +1116,10 @@ async function loadCorrections(){
 
       list.appendChild(card);
     });
-  }catch(e){list.innerHTML='<div class="empty-state" style="color:var(--red);">Error: '+esc(e.message)+'</div>';}
+  }catch(e){
+    console.error('loadCorrections:', e.message);
+    list.innerHTML='<div class="empty-state" style="color:var(--red);">Error: '+esc(e.message)+'</div>';
+  }
 }
 
 async function deleteCorrection(id,cardEl,btn){
@@ -1119,17 +1151,30 @@ async function saveCategoryTags(){
   if(!currentHistoryId){ showToast('Run a triage first','warn'); return; }
   btn.textContent='Saving...'; btn.disabled=true;
   try{
+    // Collect clinical + non-clinical separately. Persist them in
+    // their proper columns: clinical_category (text) and
+    // non_clinical_items (jsonb array). Earlier code joined both
+    // into one concatenated string and stuffed it into
+    // clinical_category, which corrupted aggregations like
+    // "Top Category" and made history rows hard to filter.
     var clinVals=[],ncVals=[];
     document.querySelectorAll('.cat-pill.sel-clin').forEach(function(p){clinVals.push(p.getAttribute('data-val'));});
     document.querySelectorAll('.cat-pill.sel-nc').forEach(function(p){ncVals.push(p.getAttribute('data-val'));});
     var tfSel=document.getElementById('timeframeSelect');
-    var saves=[api('/history','POST',{action:'update_category',id:currentHistoryId,category:(clinVals.join(', ')||'')+(ncVals.length?' | Non-clinical: '+ncVals.join(', '):'')})];
+    var saves=[api('/history','POST',{
+      action:'update_category',
+      id:currentHistoryId,
+      category: clinVals.join(', '),                                           // clinical_category
+      non_clinical_items: ncVals,                                              // jsonb array
+      non_clinical_flag: ncVals.length > 0
+    })];
     if(tfSel) saves.push(api('/history','POST',{action:'update_urgency',id:currentHistoryId,urgency_override:tfSel.value}));
     await Promise.all(saves);
     btn.textContent='Saved ✓'; btn.className='cat-save-btn saved';
     showToast('Categories saved');
     setTimeout(function(){btn.textContent='Save';btn.className='cat-save-btn';btn.disabled=false;},2000);
   }catch(e){
+    console.error('saveCategoryTags:', e.message);
     showToast('Error saving categories','error');
     btn.textContent='Save'; btn.disabled=false;
   }
@@ -1146,7 +1191,10 @@ async function castVote(type, btn){
     if(dn) dn.classList.remove('active');
     btn.classList.add('active');
     showToast(type==='up'?'Positive feedback saved':'Flagged for review');
-  } catch(e){ showToast('Error saving feedback'); }
+  } catch(e){
+    console.error('castVote:', e.message);
+    showToast('Error saving feedback');
+  }
 }
 
 async function loadHistory(){
@@ -1181,12 +1229,29 @@ async function loadHistory(){
       return true;
     });
 
+    // Predicate: was this triage genuinely *edited* by staff?
+    // "Edit" means edit_distance > 0 (text actually changed). When
+    // edit_distance is null on legacy rows that don't have it
+    // populated, fall back to the older heuristic
+    // (actual_response_sent != null), which conservatively counts
+    // any saved actual-sent as an edit.
+    //
+    // Why this matters: post-d8b6763 the verbatim-send flow ALSO
+    // sets actual_response_sent (so the row carries the confirmed
+    // text), with edit_distance = 0. Counting any non-null
+    // actual_response_sent as an "edit" therefore conflates
+    // verbatim approvals with real edits — the opposite signal.
+    function wasEdited(r){
+      if (r.edit_distance != null) return r.edit_distance > 0;
+      return !!r.actual_response_sent;
+    }
+
     // Aggregate stats
     var total = rows.length;
     var escalated = rows.filter(function(r){return r.clinical_routing_level&&r.clinical_routing_level!=='none';}).length;
-    var corrected = rows.filter(function(r){return r.actual_response_sent;}).length;
+    var edited = rows.filter(wasEdited).length;
     var avgScore = rows.reduce(function(a,r){return a+(r.urgency_score||0);},0)/Math.max(total,1);
-    var corrRate = Math.round((corrected/Math.max(total,1))*100);
+    var editRate = Math.round((edited/Math.max(total,1))*100);
 
     var durRows = rows.filter(function(r){return r.session_duration_seconds && r.session_duration_seconds > 0;});
     var avgDur = durRows.length ? durRows.reduce(function(a,r){return a+r.session_duration_seconds;},0)/durRows.length : 0;
@@ -1202,7 +1267,7 @@ async function loadHistory(){
       {label:'Total Triages', val:total, color:'var(--blue)'},
       {label:'Avg Priority Score', val:avgScore.toFixed(1)+' / 10', color:'var(--gray-700)'},
       {label:'Escalated', val:escalated, color:'var(--amber)'},
-      {label:'Correction Rate', val:corrRate+'%', color:corrRate>40?'var(--amber)':'var(--green)'},
+      {label:'Edit Rate', val:editRate+'%', color:editRate>40?'var(--amber)':'var(--green)'},
       {label:'Avg Time / Triage', val:formatDuration(avgDur), color:'var(--gray-700)'},
       {label:'Top Category', val:topCat, color:'var(--gray-700)', wide:true}
     ].map(function(s){
@@ -1216,10 +1281,10 @@ async function loadHistory(){
     var byStaff = {};
     rows.forEach(function(r){
       var name = r.nurse_name || 'Unknown';
-      var s = byStaff[name] || (byStaff[name] = {count:0, scoreSum:0, corrected:0, escalated:0, durSum:0, durCount:0});
+      var s = byStaff[name] || (byStaff[name] = {count:0, scoreSum:0, edited:0, escalated:0, durSum:0, durCount:0});
       s.count++;
       s.scoreSum += r.urgency_score||0;
-      if(r.actual_response_sent) s.corrected++;
+      if(wasEdited(r)) s.edited++;
       if(r.clinical_routing_level && r.clinical_routing_level !== 'none') s.escalated++;
       if(r.session_duration_seconds && r.session_duration_seconds > 0){
         s.durSum += r.session_duration_seconds;
@@ -1232,7 +1297,7 @@ async function loadHistory(){
         name: name,
         count: s.count,
         avgScore: (s.scoreSum/s.count).toFixed(1),
-        corrRate: Math.round((s.corrected/s.count)*100),
+        editRate: Math.round((s.edited/s.count)*100),
         escalated: s.escalated,
         avgDur: s.durCount ? formatDuration(s.durSum/s.durCount) : '—'
       };
@@ -1248,7 +1313,7 @@ async function loadHistory(){
               '<th>Staff</th>'+
               '<th class="num">Triages</th>'+
               '<th class="num">Avg Score</th>'+
-              '<th class="num">Corrections</th>'+
+              '<th class="num">Edit Rate</th>'+
               '<th class="num">Escalated</th>'+
               '<th class="num">Avg Time</th>'+
             '</tr></thead>'+
@@ -1258,7 +1323,7 @@ async function loadHistory(){
                 '<td class="staff-name">'+esc(s.name)+'</td>'+
                 '<td class="num">'+s.count+'</td>'+
                 '<td class="num">'+s.avgScore+'</td>'+
-                '<td class="num">'+s.corrRate+'%</td>'+
+                '<td class="num">'+s.editRate+'%</td>'+
                 '<td class="num">'+s.escalated+'</td>'+
                 '<td class="num">'+s.avgDur+'</td>'+
               '</tr>';

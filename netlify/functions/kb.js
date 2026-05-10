@@ -375,8 +375,23 @@ exports.handler = async function (event) {
         switch (body.action) {
           case "update_urgency":
             return patchById({ urgency_override: body.urgency_override });
-          case "update_category":
-            return patchById({ clinical_category: body.category });
+          case "update_category": {
+            // Persist clinical + non-clinical category corrections in
+            // their own columns. The frontend used to send a single
+            // concatenated string ("Side Effects | Non-clinical:
+            // Billing/Payment") into clinical_category, which broke
+            // category-based aggregations downstream. Now: clinical
+            // selections go into clinical_category, non-clinical into
+            // non_clinical_items (+ flag), independent.
+            const patch = { clinical_category: body.category || null };
+            if (Array.isArray(body.non_clinical_items)) {
+              patch.non_clinical_items = body.non_clinical_items;
+            }
+            if (typeof body.non_clinical_flag === "boolean") {
+              patch.non_clinical_flag = body.non_clinical_flag;
+            }
+            return patchById(patch);
+          }
           case "downvote":
             return patchById({ downvoted: true, downvote_reason: body.reason || "" });
           case "upvote":

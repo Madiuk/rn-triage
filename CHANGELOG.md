@@ -6,6 +6,98 @@ bumps cover meaningful capability additions, patch bumps cover fixes).
 
 ---
 
+## v0.3.1 — 2026-05-10
+
+Patch release on Juno (v0.3.0). Second-pass quality audit caught a
+cluster of bugs that were causing the user-level statistics to look
+wrong, plus a few mis-shaped data writes and a UI/library
+classification mismatch. No new features. Patch versions on Juno
+don't get separate codenames.
+
+### Fixed
+
+- **`getCompanyId()` always returned `null`.** It looked under
+  `currentProfile.company_members`, but `auth.js` never populates
+  that field (joins were dropped to avoid RLS-policy edge cases).
+  Result: every triage row was being written with `company_id =
+  NULL`, and the Cost/Quality endpoints' user-id fallback was the
+  only thing keeping them returning anything sensible. Now reads
+  `currentProfile.company_id` directly from the `profiles` row.
+  Two duplicated dead `company_members` lookups in `initAuth` and
+  `openProfile` cleaned up at the same time.
+- **`saveCategoryTags` corrupted `clinical_category` with a
+  concatenated string.** Earlier code joined clinical + non-clinical
+  pill selections into one field
+  (`"Side Effects | Non-clinical: Billing/Payment"`), polluting
+  category-based aggregations like "Top Category." Now writes
+  `clinical_category` (text), `non_clinical_items` (jsonb array),
+  and `non_clinical_flag` (boolean) into their own columns.
+  `kb.js`'s `update_category` handler updated to accept the split
+  payload.
+- **`renderResults` task-type label diverged from `priorityTier`
+  / `taskShape`.** The inline logic treated any non-empty
+  `clinical_category` (except a long-removed `'General/multiple'`
+  value) as real clinical content, so messages categorized only as
+  "General Inquiry" with non-clinical items rendered as "Dual Task"
+  in the UI while everything else in the system classified them as
+  non-clinical only. Now uses the shared library helpers; the UI
+  label matches the queue's tier classification and the AI's
+  intent.
+- **"Correction Rate" conflated verbatim approvals with real
+  edits.** Counted every row with a non-null `actual_response_sent`,
+  but post-d8b6763 the verbatim-skip flow also writes
+  `actual_response_sent` (with `edit_distance = 0`). Renamed to
+  **Edit Rate** and computed from `edit_distance > 0`, with a
+  fallback to `actual_response_sent` for legacy rows that don't
+  have edit_distance populated. Help & Guide updated.
+- **Per-staff breakdown column header read "Corrections" but the
+  cell value was a percentage.** Renamed header to "Edit Rate"
+  to match what's actually displayed.
+- **Eight `} catch(e) {}` and toast-only catches across `app.js`
+  and `login.html`** now log via `console.error('<context>:',
+  e.message)` per AGENTS.md hard rule #2. The signOut catch is
+  the only one that's deliberately fire-and-forget; it logs but
+  doesn't surface to the UI.
+
+### Removed
+
+- Dead `kbCacheKey` variable (declared, never read).
+- Dead `btn` lookup in `onTimeframeChange` (assigned, never used).
+- Dead `'General/multiple'` category reference in `renderResults`
+  (the value was retired from the prompt enum in v0.3.0; the check
+  has been a no-op since).
+
+### Changed
+
+- `taskShape` lead comment in `triage-lib.js` reframed from
+  "paste an internal note into the EHR" to channel-agnostic
+  phrasing matching the rest of the codebase.
+
+### Audit notes
+
+The bugs in this patch were caught by re-reading `app.js`
+semantically with adversarial intent — applying the new
+"Auditing LLM call sites" + "watch for inlined UI state in LLM
+content" checklist from AGENTS.md, plus tracing data flow from UI
+state → fetch payload → DB column on every save action. None of
+these were caught in the v0.3.0 quality pass because the audit
+there was pattern-matching for known issue types (Bask refs,
+silent catches, etc.) rather than reading flow.
+
+### Tests
+
+91 passing across 7 files. No new tests added — the affected
+functions all depend on DOM/fetch and aren't testable in the
+current pure-Node harness.
+
+### Eval baseline at v0.3.1
+
+Unchanged from v0.3.0 — none of these patches touched the prompt
+or KB. Last recorded: `eval/results/2026-05-10T03-11-50-232Z.json`,
+`prompt_version: bb5ef312`, `kb_version: 366cb3f1`, 7/7 cases pass.
+
+---
+
 ## v0.3.0 "Juno" — 2026-05-10
 
 **Waypoint release.** Closes out the foundation phase. Single-tenant
