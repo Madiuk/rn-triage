@@ -1728,20 +1728,47 @@ async function submitReview(id, question, context){
     });
 
     var appliedTo = result.applied_to || 'confirmation';
-    var msg = appliedTo==='kb' ? '✓ Answer added to Knowledge Base' :
-              appliedTo==='correction' ? '✓ Saved as correction' :
-              '✓ Saved — confirms existing logic';
+    var msg, color;
+    if (appliedTo === 'kb') {
+      msg = '✓ Answer added to Knowledge Base';
+      color = 'var(--green)';
+    } else if (appliedTo === 'kb_failed') {
+      // The context was kb-eligible (kb_gap or protocol) but the
+      // promotion to kb_entries failed server-side. The review row
+      // IS saved with the answer, but the AI won't see it on the
+      // next triage. Surface this loudly — don't let staff walk
+      // away thinking the AI learned.
+      msg = '⚠ Saved on review row, but failed to add to Knowledge Base. Re-try or add manually under KB → ' + (context === 'protocol' ? 'Protocols' : 'Rules & Notes') + '.';
+      color = 'var(--amber)';
+    } else if (appliedTo === 'correction') {
+      msg = '✓ Saved as correction';
+      color = 'var(--green)';
+    } else {
+      msg = '✓ Saved — confirms existing logic';
+      color = 'var(--green)';
+    }
 
-    if(statusEl){ statusEl.textContent = msg; statusEl.style.color='var(--green)'; }
+    if(statusEl){ statusEl.textContent = msg; statusEl.style.color = color; }
 
-    // Remove from list after short delay
+    // Remove from list after short delay. If the answer DID reach
+    // the KB, refresh the in-memory KB from the server so the next
+    // triage actually uses the new knowledge. Earlier code just
+    // called invalidateKBCache(), which reset the string cache but
+    // left the kb global stale — the AI would keep using the old
+    // KB until the staff member happened to open the KB tab.
+    // Multi-day learning latency on the very loop we're trying to
+    // close. loadKBFromServer is async; we don't await it because
+    // the next triage may not be imminent, but it'll be in place
+    // by the time it is.
     setTimeout(function(){
       var card = document.getElementById('review-'+id);
       if(card){ card.style.opacity='0'; card.style.transition='opacity .3s'; }
       setTimeout(function(){
         loadReviews();
-        // If answer went to KB, refresh the KB if open
-        if(appliedTo==='kb') invalidateKBCache();
+        if(appliedTo === 'kb') {
+          invalidateKBCache();
+          loadKBFromServer();
+        }
       }, 300);
     }, 1500);
 

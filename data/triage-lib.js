@@ -65,6 +65,40 @@ function normalizeTriageOutput(parsed) {
     out.clinical_category = String(parsed.clinical_category).trim();
   }
 
+  // routed_to: 5-value enum from BASE_PROMPT. AI drift here means
+  // routing aggregations split (e.g., "Shipping" and "Shipping &
+  // Fulfillment" become separate buckets). Same canonicalize-or-
+  // preserve pattern as clinical_category.
+  var canonicalRoutedTo = [
+    'Shipping & Fulfillment',
+    'Billing Team',
+    'Account Support',
+    'Pharmacy Team',
+    'General Support',
+  ];
+  if (typeof out.routed_to === 'string' && out.routed_to.trim()) {
+    var rt = normalizeEnum(out.routed_to, canonicalRoutedTo);
+    out.routed_to = rt != null ? rt : String(out.routed_to).trim();
+  }
+
+  // review_request.context: 5-value enum (routing | severity |
+  // category | kb_gap | protocol). The resolve handler in kb.js
+  // does strict equality on this value to decide whether to
+  // promote the answer to KB (ctx === 'kb_gap' || ctx === 'protocol').
+  // If the AI returns 'KB_gap' (uppercase) or 'kbgap' (no underscore),
+  // strict equality misses, promotion doesn't run, the answer
+  // never reaches the KB. The active learning loop fails silently
+  // for that case. Normalize before save so the resolve handler's
+  // strict check works on canonical values.
+  var canonicalContexts = ['routing', 'severity', 'category', 'kb_gap', 'protocol'];
+  if (out.review_request && typeof out.review_request.context === 'string') {
+    var rc = normalizeEnum(out.review_request.context, canonicalContexts);
+    if (rc != null) out.review_request.context = rc;
+    // If unknown, leave as-is — the resolve handler treats unknown
+    // contexts as 'general' (no promotion), which is the safest
+    // fallback.
+  }
+
   // Booleans coerced.
   out.non_clinical_flag = !!out.non_clinical_flag;
   out.clinical_routing_flag = !!out.clinical_routing_flag;

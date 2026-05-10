@@ -85,6 +85,32 @@ describe('normalizeTriageOutput', () => {
     assert.equal(r.urgency, 'urgent');
     assert.equal(r.non_clinical_flag, true);
   });
+
+  it('canonicalizes routed_to enum to its enum form when matched', () => {
+    assert.equal(normalizeTriageOutput({ routed_to: 'shipping & fulfillment' }).routed_to, 'Shipping & Fulfillment');
+    assert.equal(normalizeTriageOutput({ routed_to: 'BILLING TEAM' }).routed_to, 'Billing Team');
+  });
+
+  it('preserves unknown routed_to value trimmed', () => {
+    assert.equal(normalizeTriageOutput({ routed_to: '  Customer Service Team  ' }).routed_to, 'Customer Service Team');
+  });
+
+  it('canonicalizes review_request.context for KB-promotion safety', () => {
+    // The resolve handler in kb.js does strict equality `ctx ===
+    // "kb_gap"` to decide on promotion. If AI returns 'KB_gap'
+    // uppercase, that strict check misses and the answer never
+    // reaches the KB. Normalization makes the equality work.
+    var r = normalizeTriageOutput({ review_request: { context: 'KB_GAP', confidence: 0.5 } });
+    assert.equal(r.review_request.context, 'kb_gap');
+
+    var r2 = normalizeTriageOutput({ review_request: { context: 'Protocol', confidence: 0.6 } });
+    assert.equal(r2.review_request.context, 'protocol');
+  });
+
+  it('leaves unknown review_request.context unchanged (so resolve handler defaults to no-promote)', () => {
+    var r = normalizeTriageOutput({ review_request: { context: 'something_weird', confidence: 0.5 } });
+    assert.equal(r.review_request.context, 'something_weird');
+  });
 });
 
 describe('priorityTier on rows-without-flag (saved-from-DB simulation)', () => {

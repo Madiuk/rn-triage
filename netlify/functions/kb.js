@@ -653,11 +653,38 @@ exports.handler = async function (event) {
             return json(403, { error: "Cross-tenant review resolve refused." });
           }
 
+          // Block double-resolve. The review row already has a
+          // resolved/dismissed state; resolving again would promote
+          // a duplicate kb_entries row, double-write the audit log,
+          // and return a misleading "saved" to the caller. Most
+          // likely cause: rapid double-click or two open tabs both
+          // hitting submit. The frontend disables the button, but
+          // a second tab won't see that.
+          if (review.status && review.status !== "pending") {
+            return json(409, {
+              error: "Review already " + review.status + ". Refusing to re-resolve.",
+              status: review.status,
+            });
+          }
+
           const ctx = body.context || review.context || "general";
           const companyId = review.company_id || callerCompanyId || null;
 
           // Decide what to do with the answer. kb_gap / protocol promote
           // into kb_entries; other contexts are saved on the review row only.
+          //
+          // Three distinct outcomes — DON'T collapse them:
+          //   - 'kb':           context was kb-eligible AND promotion succeeded.
+          //   - 'kb_failed':    context was kb-eligible BUT promotion failed
+          //                     (network blip, schema constraint, etc.).
+          //                     Previously this was silently collapsed into
+          //                     'confirmation', so the staff saw a success
+          //                     message while their answer never reached the
+          //                     KB. The AI would keep producing the same
+          //                     gap, the user would keep answering it,
+          //                     learning loop never closed.
+          //   - 'confirmation': context wasn't kb-eligible (routing,
+          //                     severity, category, general).
           let appliedTo = "confirmation";
           let promotedSection = null;
           if (companyId && (ctx === "kb_gap" || ctx === "protocol")) {
@@ -668,7 +695,12 @@ exports.handler = async function (event) {
               answer: body.answer || "",
               resolvedByName: body.resolved_by_name || null,
             });
-            if (promotedSection) appliedTo = "kb";
+            if (promotedSection) {
+              appliedTo = "kb";
+            } else {
+              appliedTo = "kb_failed";
+              console.error("kb.resolveReview.promotionFailed:", { reviewId: body.id, companyId, context: ctx });
+            }
           }
 
           const patch = {

@@ -6,6 +6,113 @@ bumps cover meaningful capability additions, patch bumps cover fixes).
 
 ---
 
+## v0.3.9 — 2026-05-10
+
+Tenth-pass audit. User's framing: don't go live with webhooks until
+the learning loop itself is bulletproof. Real-time ingest at scale
+amplifies any silent corruption in the loop — every webhook'd
+triage compounds the same bug.
+
+This pass hunted the learning-loop specifically: every link from
+review-create → resolve → KB-insert → next-triage-uses-new-KB.
+Found four real bugs in that chain, all silent, all corrupting
+data quality over time.
+
+### Fixed (learning-loop integrity)
+
+- **KB didn't auto-refresh after a review promoted to KB.** When
+  staff resolved a `kb_gap`/`protocol` review, the backend
+  correctly inserted a new `kb_entries` row, but the frontend's
+  in-memory `kb` global was never reloaded — only
+  `invalidateKBCache()` was called, which resets the cached
+  string but not the underlying data. Result: the **next triage
+  sent stale KB to the AI**. The new knowledge didn't reach the
+  AI until staff manually opened the KB tab and triggered a
+  reload. **Multi-day learning latency on the very loop we're
+  trying to close.** Now `submitReview` calls
+  `loadKBFromServer()` after a successful KB promotion.
+
+- **"Promotion failed" was silently shown as "confirmation."** If
+  the kb_entries INSERT errored (network blip, schema constraint,
+  RLS misconfiguration), `promotedSection` was null and
+  `appliedTo` fell through to `"confirmation"`. The user saw
+  *"✓ Saved — confirms existing logic"* and walked away thinking
+  the AI had learned. **No data actually reached the KB.** The
+  AI would keep producing the same gap, staff would keep
+  answering it, the loop never closed. Now distinguishes a third
+  outcome `'kb_failed'` with an amber warning telling staff to
+  re-try or add the entry manually.
+
+- **Double-resolve wasn't blocked.** The `/reviews POST resolve`
+  handler didn't check the review's current status. A staff
+  double-clicking or two tabs both submitting would **promote a
+  duplicate kb_entries row**, double-write the audit log, and
+  return success. The AI's KB grows fake redundancy that
+  pollutes future triages. Now returns 409 Conflict if the
+  review is already `resolved` or `dismissed`.
+
+- **AI output normalization missed `routed_to` and
+  `review_request.context`.** v0.3.5 normalized urgency, level,
+  and clinical_category, but two fields slipped through. The
+  most consequential: `review_request.context` is checked via
+  strict equality (`ctx === "kb_gap"`) in the resolve handler
+  to decide on KB promotion. If the AI ever returned `'KB_gap'`
+  (uppercase) or `'kbgap'` (no underscore), the strict check
+  missed, no promotion ran, the staff's answer reached the
+  review row but **never reached the KB**. Silent learning-
+  loop failure. Now both fields go through `normalizeEnum` —
+  `routed_to` to one of the 5 canonical departments,
+  `review_request.context` to one of 5 canonical contexts. 4
+  new tests.
+
+### Audit method
+
+User's concern: every pass produces critical findings; going live
+with webhooks would amplify any silent corruption catastrophically.
+The audit method this pass: **trace every link of the active
+learning loop and ask, at each step, what happens when it
+silently fails?**
+
+1. Review created → row exists? Yes, but if the request gets
+   401'd (already hardened in v0.3.4), nothing fails-fast.
+2. Staff sees pending review → /reviews GET works post-v0.3.4.
+3. Staff submits answer → /reviews POST resolve. Found:
+   double-resolve not blocked.
+4. Handler decides to promote → strict equality on `ctx`. Found:
+   case-mismatch silently skips promotion.
+5. promoteReviewToKB inserts kb_entries → could fail. Found:
+   failure silently reported as `confirmation`.
+6. kb_entries inserted → does the front-end see it on next triage?
+   Found: in-memory `kb` is stale, next triage sends old KB.
+
+Each link of the loop had a silent-failure mode. All four fixed.
+
+### Tests
+
+113 passing (was 109). 4 new tests cover routed_to + context
+normalization including the canonicalization-makes-strict-
+equality-work pattern that's foundational for the resolve
+handler's promotion logic.
+
+### What's left
+
+The five raw-fetch callers (verified in v0.3.8) are all auth'd.
+The api() helper throws on non-2xx (v0.3.8). The learning loop is
+now hardened end-to-end (this pass). The next bug categories
+should genuinely be real-data corner cases — staff doing
+unexpected things, AI producing outputs my eval doesn't cover, or
+schema drift I haven't hit yet (the `created_by` situation from
+0008 was one of these).
+
+Webhook ingest specifically: ingest.js validates API key, dedupes
+by external_id (unique constraint as backstop), returns honest
+success/failure, and forces company_id from the API key row. It
+should be safe to enable webhooks against this code. Validate
+the live flow end-to-end with a test webhook before opening it
+to Bask production traffic.
+
+---
+
 ## v0.3.8 — 2026-05-10
 
 Ninth-pass audit. User caught a real bug (the /analyze missing-auth)
