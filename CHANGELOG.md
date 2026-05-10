@@ -6,6 +6,167 @@ bumps cover meaningful capability additions, patch bumps cover fixes).
 
 ---
 
+## v0.3.5 — 2026-05-10
+
+Sixth-pass audit on Juno. Caught more critical-severity bugs than
+the previous five passes combined — the kind that would have either
+silently wiped data, broken queue display, polluted aggregations
+with case-mismatched enum values, or let any unauthenticated caller
+burn the Anthropic budget.
+
+The user pushed back on the audit cadence: "the last 2 revisions
+have shown big big problems." That's correct. Each pass with a
+better method finds harder bugs. This pass deliberately hunted at
+the project-killer severity.
+
+### Fixed (data loss / wipe scenarios)
+
+- **`loadKBFromServer` could wipe the entire KB on a transient
+  server error.** The flow was: `api('/kb')` → if the response
+  isn't a non-empty array, treat as "empty DB" and seed. **Any**
+  non-array response — a 500, a 401, a malformed payload, a
+  transient PostgREST hiccup — would trigger seeding. Seeding
+  calls `saveKBSilent`, which posts the in-memory seed
+  (`DEFAULT_KB`) → backend `DELETE-then-INSERT`s the tenant's KB
+  with the seed. **Total KB loss from a single bad GET.** Now
+  three explicit cases: non-empty array (load), empty array
+  (seed), anything else (show local cache + error banner, do
+  not touch the DB).
+
+- **`/kb POST` with `entries: []` wipes the KB unconditionally.**
+  The handler did `DELETE` first, then checked for empty entries
+  and returned 200. If the frontend's `kb` global was somehow
+  emptied (state corruption, repeated Delete clicks, malformed
+  request), the DELETE ran and **no INSERT followed — the KB was
+  gone with nothing to restore from**. Empty-entries refusal now
+  lives at the top of the handler, before snapshot or DELETE.
+  400 with an explicit message; if a clear-the-KB flow is ever
+  needed it gets its own endpoint.
+
+### Fixed (queue-display silent corruption)
+
+- **`priorityTier` was broken for every saved row.** It required
+  `parsed.clinical_routing_flag` (in addition to
+  `clinical_routing_level !== 'none'`) to classify a row as
+  severe-se / moderate-se / mild-se. But **`clinical_routing_flag`
+  is not a column on `query_history`** — we never persist it. So
+  every row loaded from the DB had `flag === undefined`, which
+  silently demoted severe SE rows to plain "clinical" tier in the
+  queue. **The "Severe Side Effects" filter on the Triage Queue
+  page never matched anything.** The aggregate "Escalated" count
+  still worked because it reads `clinical_routing_level`
+  directly, bypassing priorityTier — but the queue UX was
+  silently lying about its tier breakdown.
+
+  Fix: derive `hasSE` from `clinical_routing_level !== 'none'`
+  alone. The flag is redundant with the level (the AI's prompt
+  requires them coherent) and `taskShape` had the same bug —
+  both fixed. Tests added for the saved-row case.
+
+### Fixed (data-quality)
+
+- **No AI output normalization.** If the AI returned `'URGENT'`
+  (uppercase), `'Side Effect'` (singular), `clinical_routing_level:
+  'SEVERE'`, or `confidence: 1.5`, those values were saved raw.
+  Effects:
+  - "Top Category" aggregation split `'Side Effects'` and `'Side
+    Effect'` into separate buckets, polluting the most-common-
+    category metric.
+  - The pill UI's strict-equality match on `c === aiClinCat`
+    failed for case-mismatched categories — the AI's selected
+    pill wasn't highlighted, staff couldn't tell what the AI had
+    chosen.
+  - `mean_ai_confidence` skewed by clamp violations.
+  - Pre-filter / batch-eval logic that groups by `urgency` would
+    treat `'URGENT'` and `'urgent'` as different.
+
+  New helper `normalizeTriageOutput(parsed)` in `triage-lib.js`
+  canonicalizes urgency / clinical_routing_level / clinical_category
+  case-insensitively, defaults missing values to safe defaults,
+  coerces booleans, ensures arrays, and clamps `confidence` to
+  [0, 1]. Unknown clinical_category values are preserved (trimmed)
+  rather than silently coerced — staff need to see what the AI
+  actually returned. Called from `runTriage` before
+  `saveHistoryRecord` and `renderResults`, and from `eval/run.js`
+  before scoring so the eval matches what production persists.
+  17 new tests.
+
+### Fixed (security / cost-burn)
+
+- **`/triage` had no auth check.** Anyone with the function URL
+  could send any system prompt + max_tokens up to the cap and
+  burn the Anthropic budget. The frontend wasn't even sending an
+  Authorization header to it. Now requires a valid Supabase
+  session JWT, identical to the guard added to `/analyze` in
+  v0.3.4. Frontend updated to send the auth header. Eval harness
+  updated with a `--token` flag (or `RELAI_EVAL_TOKEN` env var)
+  for hitting the proxy via `--endpoint` against a deployed
+  function.
+
+### Fixed (silent data loss in ingest path)
+
+- **`ingest.js` returned `201 Created` with `task_id: null` on
+  insert failure.** The handler didn't check `r.ok` after the
+  PostgREST POST; it just looked for `Array.isArray(result) &&
+  result[0]`. If the insert failed (RLS, schema, connection),
+  `result` was an error object, `taskId` was null, and the
+  response was 201 anyway. **A webhook sender's caller would
+  think the message was queued when it actually got dropped.**
+  Silent data loss for every channel adapter we'll write in
+  Phase 3. Now the response status reflects reality (4xx/5xx
+  on insert failure) and includes a retry hint.
+
+- **`ingest.js` didn't validate `company_id` on the matched API
+  key.** The schema has `api_keys.company_id NOT NULL`, but a
+  defensive check guards against schema drift. Without it, a
+  null company_id would have inserted an orphan row that's
+  invisible to all tenant-scoped queries.
+
+### Audit method
+
+The user pointed out that the previous five passes had each
+found bigger bugs than the one before, suggesting the audit
+method itself was incomplete. This pass tried to compensate by
+explicitly hunting:
+
+1. **Every "empty array" check that gates a destructive operation.**
+   What happens if the response is non-array because of a 5xx?
+   That's how the loadKBFromServer wipe surfaced.
+2. **Every helper function read against a row from the DB.** Does
+   the helper rely on fields the row doesn't have? That's how
+   the priorityTier-without-flag bug surfaced.
+3. **Every endpoint that calls Anthropic.** Auth + model gate +
+   cap, all three. That's how the /triage missing-auth surfaced.
+4. **Every trust boundary where AI output meets persistence.** Are
+   we normalizing? Validating ranges? Coercing types? That's how
+   the no-normalization bug surfaced.
+5. **Every "success" response that doesn't actually verify success.**
+   That's how the ingest.js silent-201 bug surfaced.
+
+Codified as additional checklist items in AGENTS.md.
+
+### Tests
+
+109 passing across 8 files (was 91 across 7). 17 new tests
+covering normalizeTriageOutput edge cases and priorityTier on
+saved-row inputs without the unpersisted flag.
+
+### Eval baseline at v0.3.5
+
+| Metric | Value |
+|---|---|
+| `prompt_version` | `a615b5ad` (unchanged) |
+| `kb_version` | `366cb3f1` (unchanged) |
+
+Eval not re-run live this session because /triage now requires
+auth and the harness needs a `--token` arg. Direct-Anthropic
+mode (the default) works without a token. To validate against
+the deployed proxy: grab a session JWT from the browser
+localStorage (`relai_session.access_token`) and run
+`npm run eval -- --endpoint <url> --token <jwt>`.
+
+---
+
 ## v0.3.4 — 2026-05-10
 
 **Critical data-integrity patch on Juno.** Fifth-pass audit caught

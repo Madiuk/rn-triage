@@ -293,7 +293,21 @@ async function loadKBFromServer(){
   try{
     setSyncBar('','Loading...');
     var rows=await api('/kb');
-    if(Array.isArray(rows)&&rows.length>0){
+    // Three distinct cases — DON'T conflate them, the conflation is
+    // a KB-wipe risk:
+    //   1. rows is a non-empty array → load it.
+    //   2. rows is an empty array → genuinely empty DB → seed.
+    //   3. rows is anything else (an error object, malformed
+    //      response, server hiccup, expired session) → DO NOT seed.
+    //      Earlier code's `if(Array.isArray(rows)&&rows.length>0)
+    //      else` collapsed cases 2 and 3, meaning a transient
+    //      PostgREST 5xx would trigger saveKBSilent — which calls
+    //      POST /kb with the in-memory seed kb and the backend
+    //      DELETE-then-INSERTs it. Result: tenant's KB gets
+    //      overwritten with the default seed. Total KB loss from a
+    //      single hiccup. Now we explicitly check for the empty-
+    //      array case and treat anything else as an error.
+    if (Array.isArray(rows) && rows.length > 0) {
       var nkb={sideeffects:[],templates:[],protocols:[],urls:[],routing:[],notes:[]};
       rows.forEach(function(row){
         var s = nkb[row.section] ? row.section : 'notes';
@@ -301,13 +315,23 @@ async function loadKBFromServer(){
       });
       kb=nkb; invalidateKBCache();
       setSyncBar('synced','Synced . '+new Date().toLocaleTimeString());
-    }else{
-      // Empty DB -- seed with defaults and save so rules are in Supabase
+      renderKB();
+    } else if (Array.isArray(rows) && rows.length === 0) {
+      // Genuinely empty — seed.
       setSyncBar('','First run -- seeding knowledge base...');
       await saveKBSilent();
       setSyncBar('synced','Knowledge base seeded . '+new Date().toLocaleTimeString());
+      renderKB();
+    } else {
+      // Error response or malformed payload. Don't touch the DB —
+      // the user's KB might be intact and the GET might just be
+      // having a moment. Show the locally-cached KB and surface
+      // the issue so the user knows not to trust what they see
+      // until the sync resolves.
+      console.error('loadKBFromServer: non-array response', rows && rows.error);
+      setSyncBar('error','Could not load KB -- showing local cache. Refresh in a moment.');
+      renderKB();
     }
-    renderKB();
   }catch(e){
     console.error('loadKBFromServer:', e.message);
     setSyncBar('error','Could not load -- using local defaults');
@@ -626,8 +650,11 @@ currentHistoryId=null;
       { type:'text', text: getFullKB(), cache_control:{type:'ephemeral'} }
     ];
     var triageStarted = Date.now();
+    var triageHeaders = {'Content-Type':'application/json'};
+    var triageToken = getToken();
+    if(triageToken) triageHeaders['Authorization'] = 'Bearer ' + triageToken;
     var res=await fetch('/.netlify/functions/triage',{
-      method:'POST',headers:{'Content-Type':'application/json'},
+      method:'POST',headers:triageHeaders,
       body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,system:systemBlocks,messages:[{role:'user',content:userContent}]})
     });
     var data=await res.json();
@@ -635,6 +662,13 @@ currentHistoryId=null;
     var raw=(data.content||[]).map(function(b){return b.text||'';}).join('');
     if(!raw)throw new Error('Empty response from API.');
     var parsed = parseTriageJSON(raw);
+    // Normalize enum drift before anything downstream looks at the
+    // parsed output. Without this, an AI returning 'URGENT' instead
+    // of 'urgent' (or "Side Effect" instead of "Side Effects") would
+    // pollute aggregations, misalign pill-UI selection, and split
+    // Top Category counts. Helper lives in data/triage-lib.js so
+    // it's testable in Node and shared with the eval harness.
+    parsed = normalizeTriageOutput(parsed);
     // Telemetry envelope from the proxy. Prefer server-measured latency
     // (excludes the user's own network jitter); fall back to wall-clock
     // here when the proxy is older than this client.

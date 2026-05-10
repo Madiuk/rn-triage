@@ -60,6 +60,15 @@ exports.handler = async function (event) {
       return { statusCode: 401, body: JSON.stringify({ error: 'Invalid API key' }) };
     }
     const { company_id } = keys[0];
+    if (!company_id) {
+      // Defensive: api_keys.company_id is NOT NULL in the schema,
+      // but if a key row somehow exists without one, refuse rather
+      // than insert a query_history row with company_id=null.
+      // company_id=null would orphan the row from tenant scoping —
+      // worker.js would still process it, but it wouldn't appear in
+      // any tenant's queue or aggregations.
+      return { statusCode: 500, body: JSON.stringify({ error: 'API key has no company_id; contact admin.' }) };
+    }
 
     // Update last_used (fire-and-forget — don't block on this)
     fetch(`${SUPABASE_URL}/rest/v1/api_keys?key_hash=eq.${keyHash}`, {
@@ -119,14 +128,31 @@ exports.handler = async function (event) {
       body: JSON.stringify(record),
     });
     const result = await r.json();
-    const taskId = Array.isArray(result) && result[0] ? result[0].id : null;
+
+    // Honest success/failure. Earlier the handler returned 201
+    // unconditionally with task_id=null on insert failure — meaning
+    // a webhook sender's caller thought the message was queued
+    // when it actually got dropped. Silent data loss for every
+    // channel adapter we'll add in Phase 3. Now the response
+    // status reflects what actually happened.
+    if (!r.ok || !Array.isArray(result) || !result[0]) {
+      console.error('ingest.insertFailed:', r.status, JSON.stringify(result).slice(0, 300));
+      return {
+        statusCode: r.ok ? 502 : r.status,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          success: false,
+          error: 'Failed to queue task. Retry safe — external_id dedupes if you do.',
+        }),
+      };
+    }
 
     return {
       statusCode: 201,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         success: true,
-        task_id: taskId,
+        task_id: result[0].id,
         status: 'pending',
         message: 'Task queued. Worker will process shortly.',
       }),

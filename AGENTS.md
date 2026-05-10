@@ -259,6 +259,46 @@ follow this checklist instead of grep-pattern-matching:
    actually traced data flow with adversarial intent on every
    write path.
 
+9. **Every "empty result" check that gates a destructive
+   operation.** Specifically: if the code's behavior on
+   `Array.isArray(x) && x.length > 0` else-branches into a
+   delete-and-restore or seed-and-overwrite, ask what happens
+   when `x` is **not** an array (a 5xx error response, an auth
+   failure object, malformed JSON). If the code treats
+   non-array as "empty" and proceeds with the destructive
+   operation, that's a wipe bug waiting for a transient hiccup
+   to trigger it. Distinguish `[]` from `{error}` explicitly.
+
+10. **Every helper function read against a row from the DB.**
+    Compare what the helper expects on the parsed input vs. what
+    columns actually exist in the schema. Helpers that work on
+    AI output at triage time may quietly break when called on
+    saved rows because the saved rows don't have all the same
+    fields. Particularly: any field that's only in the AI's JSON
+    output but not in `query_history` will be `undefined` on
+    loaded rows.
+
+11. **Every endpoint that calls a paid API.** Auth + model gate +
+    max_tokens cap — all three. A missing one is a budget-burn
+    vector. /analyze missed all three until v0.3.4; /triage
+    missed auth until v0.3.5.
+
+12. **Every "success" response that doesn't verify the operation
+    succeeded.** PostgREST returns JSON whether the call worked
+    or failed; the caller has to check `r.ok` AND inspect the
+    body shape (success returns the inserted row[s] as an array,
+    failure returns `{message, code}` object). Returning HTTP
+    201 from a wrapper handler when the underlying insert
+    actually 4xx'd is silent data loss the upstream caller will
+    never detect.
+
+13. **Every trust boundary where AI output meets persistence.**
+    Normalize, validate, coerce. Case (`'URGENT'` vs `'urgent'`),
+    spelling (`'Side Effect'` vs `'Side Effects'`), range (a
+    `confidence: 1.5` from a misbehaving model), and type (scalar
+    where an array is expected). Without normalization at the
+    boundary, AI drift pollutes downstream aggregations forever.
+
 ---
 
 ## When in doubt, ask

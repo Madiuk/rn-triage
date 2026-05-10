@@ -192,6 +192,21 @@ exports.handler = async function (event) {
         const wHdr = writeHeaders();
         const companyId = await resolveCompanyId(user);
 
+        // Refuse empty saves. The handler's flow is DELETE-then-
+        // INSERT, so an empty entries array would mean DELETE-only:
+        // every KB row for the tenant is wiped with nothing
+        // replacing it. That can happen via state corruption
+        // (frontend `kb` global gets emptied somehow), repeated
+        // Delete clicks in the inline editor, or a malformed
+        // request body. Treat empty as a likely mistake; require
+        // explicit confirmation via a separate clear endpoint if
+        // we ever need that capability. For now: 400.
+        if (!newEntries.length) {
+          return json(400, {
+            error: "Refusing to save an empty KB. If you intended to clear the KB, contact an admin — there is no client-facing path that should produce this.",
+          });
+        }
+
         // Snapshot current entries first so we can restore on failure.
         // CRITICAL: the snapshot must use the service key, not the
         // user JWT. Earlier code used readHeaders(token) here, which
@@ -224,7 +239,9 @@ exports.handler = async function (event) {
           return json(delRes.status, { error: "Failed to clear KB before write." });
         }
 
-        if (!newEntries.length) return json(200, "[]");
+        // (Empty-entries refusal lives at the top of this handler —
+        // pre-snapshot, pre-delete — so we never reach a state where
+        // the KB is deleted with nothing replacing it.)
 
         const insRes = await fetch(base, {
           method: "POST",

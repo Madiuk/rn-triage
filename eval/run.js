@@ -31,6 +31,7 @@ const { DEFAULT_KB }  = require('../data/default-kb.js');
 const { RELAI_DEFAULTS } = require('../data/defaults.js');
 const {
   parseTriageJSON,
+  normalizeTriageOutput,
   computeTriageCost,
   simpleHash,
 } = require('../data/triage-lib.js');
@@ -44,6 +45,12 @@ function flag(name, fallback) {
 const onlyCase = flag('case', null);
 const endpoint = flag('endpoint', null);
 const model    = flag('model', 'claude-sonnet-4-6');
+// Optional Supabase JWT for hitting an auth-gated triage proxy via
+// --endpoint. Grab one from your browser's localStorage (key
+// `relai_session`, then `.access_token`) and pass --token <value>
+// or set RELAI_EVAL_TOKEN. Direct-Anthropic mode (the default) does
+// not need a token.
+const token    = flag('token', process.env.RELAI_EVAL_TOKEN || null);
 
 // ── Build the same KB string the browser sends ────────────────────────
 // Section order + labels come from RELAI_DEFAULTS.kb_sections (single
@@ -102,6 +109,7 @@ async function callTriage(message, priorContext) {
   if (endpoint) {
     url = endpoint;
     headers = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = 'Bearer ' + token;
   } else {
     if (!process.env.ANTHROPIC_API_KEY) {
       throw new Error('ANTHROPIC_API_KEY not set, and no --endpoint given.');
@@ -130,8 +138,13 @@ async function callTriage(message, priorContext) {
   const raw = (body.content || []).map(b => b.text || '').join('');
   const usage = body.usage || (body._relai && body._relai.usage) || null;
   const cost = computeTriageCost(model, usage);
+  // Normalize before scoring — the eval should test what the
+  // production system actually persists, not the raw AI output.
+  // Without this, an AI returning 'URGENT' uppercase would pass
+  // `urgency` matching by accident (both sides lowercased) but a
+  // strict-equality check on the expected enum would fail.
   return {
-    parsed: parseTriageJSON(raw),
+    parsed: normalizeTriageOutput(parseTriageJSON(raw)),
     raw,
     usage,
     cost_usd: cost,

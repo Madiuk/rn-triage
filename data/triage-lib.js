@@ -14,6 +14,89 @@ function parseTriageJSON(raw) {
   throw new Error('Could not parse triage JSON.');
 }
 
+// Normalize the AI's parsed triage output to canonical enum values
+// before persistence and rendering. The AI is instructed to use
+// specific casing/spelling for urgency, clinical_routing_level, and
+// clinical_category, but occasionally drifts:
+//   * Returns 'URGENT' / 'Urgent' / 'urgent ' instead of 'urgent'.
+//   * Returns "Side Effect" or "side effects" instead of "Side Effects".
+//   * Returns confidence > 1.0 (rare but possible).
+//   * Returns scalar where an array is expected (or vice versa).
+//
+// Any of those silently corrupt aggregations (Top Category counts
+// "Side Effect" and "Side Effects" as different buckets), break the
+// pill-selection UI (strict equality miss), or skew confidence-rate
+// metrics. Normalize once, at parse time, and everything downstream
+// gets clean data.
+//
+// Unknown values are kept (trimmed) rather than silently coerced, so
+// staff can see what the AI actually returned and correct it. The
+// helper is pure — given the same input, returns the same output —
+// and operates on a shallow copy.
+function normalizeTriageOutput(parsed) {
+  if (!parsed || typeof parsed !== 'object') return parsed;
+  var out = {};
+  for (var k in parsed) out[k] = parsed[k];
+
+  // urgency: routine | same-day | urgent
+  out.urgency = normalizeEnum(out.urgency, [
+    'routine', 'same-day', 'urgent',
+  ]) || 'routine';
+
+  // clinical_routing_level: severe | moderate | mild | none
+  out.clinical_routing_level = normalizeEnum(out.clinical_routing_level, [
+    'severe', 'moderate', 'mild', 'none',
+  ]) || 'none';
+
+  // clinical_category: 6-value enum (case-sensitive). Match
+  // case-insensitively, return the canonical form. Unknown values
+  // pass through trimmed so we don't mask AI mistakes.
+  var canonicalCategories = [
+    'Injection/Dosing',
+    'Side Effects',
+    'Severe Side Effects',
+    'Medication Management',
+    'Stall/Lack of Results',
+    'General Inquiry',
+  ];
+  out.clinical_category = normalizeEnum(out.clinical_category, canonicalCategories);
+  if (out.clinical_category == null && parsed.clinical_category != null) {
+    // Unknown — preserve trimmed raw value so staff can see + correct.
+    out.clinical_category = String(parsed.clinical_category).trim();
+  }
+
+  // Booleans coerced.
+  out.non_clinical_flag = !!out.non_clinical_flag;
+  out.clinical_routing_flag = !!out.clinical_routing_flag;
+
+  // Arrays coerced.
+  if (!Array.isArray(out.non_clinical_items))     out.non_clinical_items = [];
+  if (!Array.isArray(out.follow_up_questions))    out.follow_up_questions = [];
+
+  // ai_confidence clamped to [0, 1] if present.
+  if (out.review_request && typeof out.review_request.confidence === 'number') {
+    var c = out.review_request.confidence;
+    if (c < 0) c = 0;
+    if (c > 1) c = 1;
+    out.review_request.confidence = c;
+  }
+
+  return out;
+}
+
+// Helper: case-insensitive trim match against a list of canonical
+// values. Returns the canonical value or null if no match. Used by
+// normalizeTriageOutput.
+function normalizeEnum(value, canonicalList) {
+  if (typeof value !== 'string') return null;
+  var trimmed = value.trim();
+  var lower = trimmed.toLowerCase();
+  for (var i = 0; i < canonicalList.length; i++) {
+    if (canonicalList[i].toLowerCase() === lower) return canonicalList[i];
+  }
+  return null;
+}
+
 // Decide which KB sections to include in the system prompt for a given
 // patient message. Runs client-side, zero cost, zero latency.
 function classifyMessage(msg) {
@@ -99,7 +182,18 @@ function computeUrgencyScore(parsedOrUrgency, routingLevel, hasSideEffect) {
 //   'severe-se' | 'moderate-se' | 'mild-se' | 'clinical' | 'non-clinical'
 function priorityTier(parsed) {
   var lvl = (parsed && parsed.clinical_routing_level || 'none').toLowerCase();
-  var hasSE = !!(parsed && parsed.clinical_routing_flag) && lvl !== 'none';
+  // hasSE is derived from clinical_routing_level alone — earlier
+  // versions also required parsed.clinical_routing_flag, but that
+  // flag is NOT a column on query_history (we never persist it).
+  // So when this function ran on a row loaded from the DB,
+  // clinical_routing_flag was always undefined → hasSE was always
+  // false → severe/moderate/mild SE rows were silently classified
+  // as plain "clinical" tier in the queue, breaking the queue
+  // filter for "Severe Side Effects" (it never matched anything).
+  // For triage-time parsed AI output the flag and level are
+  // coherent anyway (the AI's prompt requires it), so dropping
+  // the flag check changes nothing for that path.
+  var hasSE = lvl !== 'none';
   var cat = (parsed && parsed.clinical_category || '').trim();
   var hasClinicalContent = cat && cat !== 'General Inquiry' && cat !== 'General/multiple';
   if (hasSE && lvl === 'severe')   return 'severe-se';
@@ -120,7 +214,12 @@ function priorityTier(parsed) {
 function taskShape(parsed) {
   if (!parsed) return 'single';
   var lvl = (parsed.clinical_routing_level || 'none').toLowerCase();
-  var hasSE = !!parsed.clinical_routing_flag && lvl !== 'none';
+  // Same fix as priorityTier — derive hasSE from level alone, not
+  // from the unpersisted clinical_routing_flag. Saved rows never
+  // had the flag, which made every SE row in the queue silently
+  // classify as 'single' instead of 'dual' if it also had non-
+  // clinical items.
+  var hasSE = lvl !== 'none';
   var cat = (parsed.clinical_category || '').trim();
   var hasClinicalContent = hasSE || (cat && cat !== 'General Inquiry' && cat !== 'General/multiple');
   var items = parsed.non_clinical_items;
@@ -237,6 +336,7 @@ function simpleHash(str) {
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     parseTriageJSON,
+    normalizeTriageOutput,
     classifyMessage,
     computeUrgencyScore,
     priorityTier,

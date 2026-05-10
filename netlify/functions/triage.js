@@ -1,11 +1,15 @@
 // Relai — Anthropic API proxy for clinical triage.
-// Validates the model + max_tokens cap so a misbehaving client can't run up
-// the bill, forwards prompt-cache control to Anthropic, and decorates the
-// response with a `_relai` telemetry envelope (latency, model, cost,
-// usage). The frontend persists that envelope onto the query_history row
-// so we can measure quality / cost / cache-hit-rate over time.
+// Validates the caller's session, the model, and the max_tokens cap so
+// only authenticated staff can drive Anthropic spend. Forwards
+// prompt-cache control to Anthropic and decorates the response with a
+// `_relai` telemetry envelope (latency, model, cost, usage). The
+// frontend persists that envelope onto the query_history row so we can
+// measure quality / cost / cache-hit-rate over time.
 
 const { computeTriageCost } = require("../../data/triage-lib");
+
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
 
 const ALLOWED_MODELS = new Set([
   "claude-sonnet-4-6",
@@ -14,9 +18,38 @@ const ALLOWED_MODELS = new Set([
 ]);
 const MAX_TOKENS_CAP = 4096;
 
+// Verify the caller has a valid Supabase session. Without this guard,
+// anyone with the function URL can hit /triage with arbitrary system
+// prompts and max_tokens — the only constraint was the model
+// allowlist and token cap, both of which were budget-burn vectors on
+// their own (4096 tokens × Opus rate × unlimited concurrent calls).
+async function verifyCaller(token) {
+  if (!token || !SUPABASE_URL || !SUPABASE_ANON_KEY) return null;
+  try {
+    const r = await fetch(SUPABASE_URL + "/auth/v1/user", {
+      headers: {
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": "Bearer " + token,
+      },
+    });
+    if (!r.ok) return null;
+    const u = await r.json();
+    return u && u.id ? u : null;
+  } catch (e) {
+    console.error("triage.verifyCaller:", e.message);
+    return null;
+  }
+}
+
 exports.handler = async function (event) {
   if (event.httpMethod !== "POST") {
     return { statusCode: 405, body: "Method Not Allowed" };
+  }
+
+  const token = (event.headers.authorization || "").replace(/^Bearer\s+/i, "").trim();
+  const user = await verifyCaller(token);
+  if (!user) {
+    return { statusCode: 401, body: JSON.stringify({ error: "Authentication required." }) };
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
