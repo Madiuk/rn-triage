@@ -92,14 +92,15 @@ describe('aggregateQualityRows', () => {
 
   it('counts a row as overridden only when override differs from original', () => {
     // Same value in both columns means staff confirmed the AI; should
-    // NOT count as an override.
+    // NOT count as an override. Rates are rounded to 4 decimals by the
+    // aggregator (so dashboards don't render 16-digit floats).
     const rows = [
       { urgency_original: 'urgent', urgency_override: 'urgent' },
       { urgency_original: 'routine', urgency_override: 'urgent' },
       { urgency_original: 'routine', urgency_override: null },
     ];
     const r = aggregateQualityRows(rows);
-    assert.equal(r.urgency_override_rate, 1 / 3);
+    assert.equal(r.urgency_override_rate, 0.3333);
   });
 
   it('treats either actual_response_sent or correction_note as a correction', () => {
@@ -109,7 +110,7 @@ describe('aggregateQualityRows', () => {
       { actual_response_sent: null, correction_note: null },
     ];
     const r = aggregateQualityRows(rows);
-    assert.equal(r.correction_rate, 2 / 3);
+    assert.equal(r.correction_rate, 0.6667);
   });
 
   it('averages ai_confidence and edit_distance, ignoring nulls', () => {
