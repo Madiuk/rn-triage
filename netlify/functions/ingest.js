@@ -1,10 +1,26 @@
-// Relai Ingest Endpoint — webhook entry from EHR systems (Bask, etc.)
+// Relai Ingest Endpoint — generic inbound webhook for any channel.
 //
-// Validates an API key, dedupes by (company_id, external_id), and
-// creates a query_history row with status='pending'. The background
-// worker (worker.js) picks up pending rows on a schedule and runs the
-// triage. This endpoint never calls Anthropic itself — it must respond
-// quickly so the EHR webhook doesn't time out.
+// Channel-agnostic by design. Callers (channel adapters or any tenant
+// integration) POST a JSON body with at minimum a `message` field and
+// optionally a `channel` (defaults to 'api'), `external_id`,
+// `patient_id`, etc. The handler validates the API key, dedupes by
+// (company_id, external_id), and creates a query_history row with
+// status='pending' and source_channel set to whatever the caller
+// reported. Examples of expected channel ids:
+//   'manual'    — staff paste in the SPA (handled elsewhere, not here)
+//   'api'       — generic / unspecified caller (default)
+//   'bask'      — Bask Health EHR webhook
+//   'healthie'  — Healthie EHR webhook
+//   'email'     — inbound email forwarded by Postmark/Mailgun
+//   'sms'       — Twilio inbound SMS
+//   'live_chat' — Intercom / Drift / similar
+//   'web_form'  — practice's web contact form
+// New channels add a new id; the handler doesn't change.
+//
+// The background worker (worker.js) picks up pending rows on a
+// schedule and runs the triage. This endpoint never calls Anthropic
+// itself — it must respond quickly so the upstream caller's webhook
+// doesn't time out.
 
 exports.handler = async function (event) {
   if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method not allowed' };

@@ -64,24 +64,83 @@ maintainable before adding features.
 - Per-staff metrics page (already started in Triage Queue) extended
   with: agreement rate (% kept AI draft), edit time, severity overrides.
 
-### Phase 3 — Bask integration + queue + soft routing (1–2 months from now, gated on Bask API)
-**Goal:** patient messages flow in and out without copy-paste, AND
-staff have a real per-person queue instead of the single manual Run
-Triage flow.
+### Phase 3 — Channel framework + queue + soft routing (1–2 months from now)
+**Goal:** patient messages flow in and out via any input channel
+(not one specific partner), AND staff have a real per-person queue
+instead of the single manual Run Triage flow.
 
-**Ingest / outbound plumbing**
-- ingest.js receives Bask webhook → `query_history` row with
-  `status: pending`, `source_channel: 'bask'`.
-- worker.js polls pending rows on a schedule (Supabase Edge Function
-  via pg_cron, or Inngest), runs triage, transitions to `triaged`.
-- Approve/edit/send → bask.js POSTs response back to Bask API →
-  status `sent`.
-- Patient reply webhook → new pending row linked to the prior thread
-  via `external_id` or `thread_id`. Prior context auto-included.
-- Failure handling: bask down, AI down, malformed input — each goes to
-  a dead-letter view with retry button.
+#### Channels are the architectural concept, not partners
 
-**Per-staff queue (the thing we don't have yet today)**
+A **channel** is whatever pipe a patient message arrives through. The
+system treats channels as pluggable adapters; the rest of Relai
+(triage, KB, queue, learning loop, dashboards) is channel-agnostic.
+
+A channel adapter is small. Two responsibilities:
+1. **Inbound:** accept messages from a source (webhook handler, IMAP
+   poller, polling job, websocket listener) and normalize them onto
+   the standard `query_history` row shape with `source_channel` set
+   to the channel id.
+2. **Outbound:** post the staff-approved reply back into the same
+   thread on the same channel.
+
+Realistic channel landscape (priority by tenant demand, not build
+order — most tenants will use 2–3 of these):
+
+| Channel id        | Type / transport                         | Inbound             | Outbound       |
+|-------------------|------------------------------------------|---------------------|----------------|
+| `manual`          | Staff paste into the SPA (current)       | already live        | n/a            |
+| `api`             | Generic webhook to `ingest.js`           | already live        | n/a            |
+| `bask`            | Bask Health EHR (compounded meds)        | webhook             | API            |
+| `email`           | Inbound email via Postmark / Mailgun     | webhook             | SMTP / API     |
+| `healthie`        | Healthie EHR (general telehealth)        | webhook             | API            |
+| `live_chat`       | Intercom / Drift / similar               | webhook             | API            |
+| `sms`             | Twilio / Telnyx                          | webhook             | API            |
+| `web_form`        | A practice's website contact form        | webhook             | n/a (or email) |
+| `portal_direct`   | EHR-native patient portal messaging      | depends             | depends        |
+
+This list grows. New channels land per-tenant demand without core
+changes — same triage, same KB, same queue, same learning. The point
+of the framework is that adding `healthie` looks structurally
+identical to adding `bask`.
+
+**Bask Health is one entry in this list.** Big Easy Weight Loss
+happens to use Bask, so a Bask adapter is on the build list. If Bask
+shuts down or Big Easy switches platforms, the migration is an
+adapter swap — KB / triage / queue / learning data all keep working.
+Tenants on a different EHR (or no EHR) get a different adapter
+roster; nothing about the rest of Relai changes.
+
+#### Build plan
+
+**The framework (reusable across every adapter)**
+- Move `netlify/functions/bask.js` (currently a stub) to
+  `netlify/functions/channels/bask.js`. Establish the convention:
+  every channel module under `channels/` exports `ingestHandler` and
+  `sendOutbound`. New channel = new file in that directory.
+- `worker.js` (the background processor) gains channel-aware
+  outbound dispatch: when a triage transitions to `sent`, look up
+  the channel module by `query_history.source_channel` and call its
+  `sendOutbound`.
+- Per-tenant channel config moves into the `tenants` table as a
+  `channels jsonb` column: `{ "bask": { "api_url": "...", ... },
+  "email": { "inbound_address": "...", ... } }`. Defaults in
+  `data/defaults.js` for any channel without tenant-specific config.
+- Shared dead-letter view: every adapter writes failures to one
+  table (`channel_failures` or extend `audit_log`). Operations get
+  one place to retry, regardless of channel.
+
+**First two adapters** (chosen because they unblock Big Easy and are
+likely-universal across future tenants):
+- `bask`: outbound + inbound webhook handler. Build against the
+  contract Bask Health publishes once they're engaged.
+- `email`: inbound via Postmark Inbound (or equivalent) — forwards
+  parsed emails to `ingest.js` with `channel: 'email'`. Outbound via
+  whichever transactional-email provider the tenant uses (often the
+  same one). Catches everything that doesn't have a dedicated EHR
+  integration; useful for almost every tenant.
+
+#### Per-staff queue (the thing we don't have yet today)
+
 - Staff dashboard surfaces triaged-but-unresolved tasks **sorted by
   priority score** (severe SE → moderate → mild → clinical → non-
   clinical). Replaces today's manual Run Triage as the primary work
@@ -96,8 +155,13 @@ Triage flow.
   ∩ `categories where requires_clinical_authorization is satisfied by
   the staffer's capabilities`. Defaults from `RELAI_DEFAULTS.categories`
   in data/defaults.js (already in place as of 2026-05-09).
+- Channel-agnostic: queue items show their `source_channel` as a
+  small badge/icon, but routing decisions don't depend on it. A
+  Bask-sourced clinical question routes the same as an email-sourced
+  one with the same category.
 
-**Reassignment as a learning signal**
+#### Reassignment as a learning signal
+
 - One-click reassignment from a task: change category, optionally add
   a short note. Persisted as a new `task_reassignments` table (or as
   an action row in audit_log) capturing `triage_id`, `from_category`,
@@ -110,13 +174,15 @@ Triage flow.
   `/history/quality` endpoint as a new field (`reassignment_rate`)
   and per-prompt-version breakdown.
 
-**Knowledge Base scope expansion**
-- Once outbound to Bask is live, the KB needs sections for non-
-  clinical content: shipping policies, refund eligibility rules, the
-  exact escalation paths to specific support inboxes, the canonical
-  language for common operational replies. Add new section keys to
-  `default-kb.js` and the `kb_entries.section` enum as needed; the
-  AI already pulls from the full KB so no prompt change is required.
+#### Knowledge Base scope expansion
+
+- Once non-clinical channels (email, support inboxes, web forms) are
+  live, the KB needs sections for non-clinical content: shipping
+  policies, refund eligibility rules, the exact escalation paths to
+  specific support inboxes, the canonical language for common
+  operational replies. Add new section keys to `default-kb.js` and
+  the `kb_entries.section` enum as needed; the AI already pulls from
+  the full KB so no prompt change is required.
 - The KB tab is already renamed to "Knowledge Base" (was "Clinical
   Knowledge Base") to reflect this — completed 2026-05-09.
 
@@ -177,3 +243,4 @@ Triage flow.
 | 2026-05-09 | Per-triage telemetry columns (model, prompt_version, kb_version, tokens, latency, cost, ai_confidence) | Foundation for measuring quality / cost trends and attributing regressions to specific prompt or KB versions |
 | 2026-05-09 | KB tab renamed "Clinical Knowledge Base" → "Knowledge Base" | KB will hold non-clinical content (shipping, refunds, routing) once Bask integration lands; the old label was misleading |
 | 2026-05-09 | `requires_clinical_authorization` per category in `RELAI_DEFAULTS.categories` | Decouple "what is this message about" (AI's job) from "who can resolve it" (compliance gate). Conservative defaults — vague categories like General Inquiry require clinical auth. AI does NOT read this flag; it's a routing/queue concern. Foundation for replacing the binary Clinical/Non-Clinical role with capability flags in Phase 3. |
+| 2026-05-09 | Channels (not "Bask integration") are the architectural concept | Bask is one of many input sources (email, Healthie, live chat, SMS, web forms, EHR webhooks, manual paste). Each tenant picks their own roster. The framework treats every channel as a small adapter; the rest of Relai (triage, KB, queue, learning) is channel-agnostic. Big Easy uses Bask, but Bask going away tomorrow would just mean swapping adapters — no other system would need to change. Phase 3 retitled from "Bask integration" to "Channel framework + queue + soft routing" to reflect this. Bask gets the same treatment in PLAN, README, AGENTS, and adapter-file lead comments: example, not pillar. |

@@ -1,8 +1,23 @@
 // netlify/functions/bask.js
-// Outbound proxy to Bask Health's EHR API. Stub — the real Bask API
-// contract (auth, endpoint shape, payload format) is not yet known. The
-// shape below matches the expected internal call site so the rest of
-// the system can be built around it and swapped in when Bask is ready.
+//
+// Channel adapter: Bask Health (compounded-meds EHR — used by the
+// Big Easy Weight Loss tenant). One of N pluggable channel adapters;
+// see PLAN.md Phase 3 for the framework. Future adapters (email,
+// Healthie, live chat, SMS, etc.) live alongside this one and
+// eventually get reorganized under netlify/functions/channels/.
+//
+// Each channel adapter has two responsibilities:
+//   1. Inbound — accept messages from the source and normalize them
+//      into a query_history row (handled by ingest.js's generic
+//      handler; channel-specific webhook signature verification will
+//      live in this file once Bask publishes their contract).
+//   2. Outbound — post the staff-approved reply back into the same
+//      thread. This file is the outbound side; currently a stub.
+//
+// Stub status: the Bask API contract (auth, endpoint shape, payload
+// format) is not yet known. The shape below matches the expected
+// internal call site so the rest of the system (worker.js, queue UI)
+// can be built against it.
 //
 // Expected invocation (server-side only, same-origin):
 //   POST /.netlify/functions/bask

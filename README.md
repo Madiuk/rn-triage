@@ -19,9 +19,15 @@ information for non-clinical items. Staff approve / edit / send and
 optionally paste back what they actually sent — that becomes a learning
 signal that's stored against the triage record.
 
-When the EHR side (Bask Health) is ready, ingestion will be automatic
-via webhooks → `ingest.js` → `worker.js` → triage → push response back
-through `bask.js`.
+Patient messages can arrive through any number of input **channels** —
+EHR webhooks (Bask Health, Healthie, etc.), forwarded email, live
+chat, SMS, web forms, or just staff-paste. The system treats channels
+as pluggable adapters: inbound flows through `ingest.js` →
+`worker.js` → triage; outbound flows back through whichever channel
+the message came from. Triage, KB, queue, and learning are
+channel-agnostic. Big Easy Weight Loss happens to use Bask, so a
+Bask adapter is on the near-term roadmap; other tenants will mix and
+match. See `PLAN.md` Phase 3 for the channel framework design.
 
 ---
 
@@ -43,9 +49,11 @@ through `bask.js`.
 │       ├── auth.js        profile + tenant config + invite + signout
 │       ├── kb.js          KB / history / reviews / analyze proxy
 │       ├── triage.js      Anthropic /v1/messages proxy with allowlist
-│       ├── ingest.js      EHR webhook intake (idempotent by external_id)
-│       ├── worker.js      background processor for pending rows (stub)
-│       └── bask.js        outbound to Bask EHR (stub)
+│       ├── ingest.js      Generic inbound webhook (any channel — Bask,
+│       │                  email, Healthie, etc.); idempotent by external_id
+│       ├── worker.js      Background processor for pending rows (stub)
+│       └── bask.js        First channel adapter (Bask Health) — stub.
+│                          Future channels under netlify/functions/channels/.
 ├── migrations/            SQL migrations — single source of DB truth
 ├── tests/                 plain-Node unit tests (npm test)
 ├── eval/                  eval harness skeleton for triage regression tests
@@ -93,8 +101,15 @@ npm run eval
 | `SUPABASE_ANON_KEY`    | all functions        | Public client key (RLS-respecting reads)                         |
 | `SUPABASE_SERVICE_KEY` | auth, kb, ingest, worker | Service role key — for writes that bypass RLS where required |
 | `ANTHROPIC_API_KEY`    | triage, kb /analyze  | Anthropic API key                                                |
-| `BASK_API_URL`         | bask                 | Bask EHR API base URL (when integration goes live)               |
-| `BASK_API_KEY`         | bask                 | Bask API token                                                   |
+
+**Channel-specific env vars** (per-tenant config — currently held in
+global env vars while there's only one tenant; will move into the
+`tenants.channels` jsonb column in Phase 3).
+
+| Variable               | Used by              | Purpose                                                          |
+|------------------------|----------------------|------------------------------------------------------------------|
+| `BASK_API_URL`         | bask channel adapter | Bask Health API base URL (Big Easy Weight Loss only)             |
+| `BASK_API_KEY`         | bask channel adapter | Bask Health API token (Big Easy Weight Loss only)                |
 
 ---
 

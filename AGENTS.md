@@ -8,10 +8,16 @@ If a rule prevents an action, ask the user before bypassing it.
 
 ## Project shape
 
-- **Relai** is a clinical triage tool: staff paste a patient message, an
-  Anthropic Claude model classifies it against a per-tenant Knowledge Base
-  and returns a structured JSON triage decision. Currently single-tenant
-  (Big Easy Weight Loss); architected to become a multi-tenant SaaS.
+- **Relai** is a clinical triage tool: a patient message arrives via
+  any input **channel** (staff paste, EHR webhook, forwarded email,
+  live chat, SMS, web form, etc.), an Anthropic Claude model
+  classifies it against a per-tenant Knowledge Base, and returns a
+  structured JSON triage decision. Channels are pluggable adapters —
+  the rest of Relai (triage, KB, queue, learning, dashboards) is
+  channel-agnostic. Currently single-tenant (Big Easy Weight Loss);
+  architected to become a multi-tenant SaaS. **Bask Health is one
+  channel Big Easy uses, not a load-bearing concept** — don't write
+  Bask-specific paths into core code; put them in a channel adapter.
 - **Stack:** vanilla HTML/CSS/JS frontend, Netlify Functions (Node) backend,
   Supabase for auth/DB/RLS, Anthropic API for triage and correction analysis.
 - **Deploy:** Netlify auto-deploys `main`. There is no build step today —
@@ -38,9 +44,11 @@ If a rule prevents an action, ask the user before bypassing it.
 │   │   ├── auth.js        profile, invite, signout
 │   │   ├── kb.js          KB CRUD, history, reviews, /analyze proxy
 │   │   ├── triage.js      Anthropic /v1/messages proxy with model allowlist
-│   │   ├── ingest.js      EHR webhook intake (idempotent by external_id)
+│   │   ├── ingest.js      generic inbound webhook (any channel —
+│   │   │                  EHR, email, Healthie, etc.); idempotent by external_id
 │   │   ├── worker.js      background processor for pending ingests (stub)
-│   │   └── bask.js        outbound to Bask EHR (stub)
+│   │   └── bask.js        first channel adapter (Bask Health) — stub.
+│   │                      future adapters land under channels/ — see PLAN Phase 3
 │   └── (netlify.toml)
 ├── migrations/            SQL files — single source of truth for DB schema.
 │                          Run in numeric order. New schema changes = new file.
