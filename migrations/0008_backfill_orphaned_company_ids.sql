@@ -27,12 +27,16 @@
 --      manually assign tenants for ambiguous cases.
 --   2. Attaches every NULL-company_id profile to the single
 --      company.
---   3. Backfills query_history, kb_entries, and review_requests rows
---      whose user_id (or created_by) maps to one of those profiles.
---      The link is the user, not the row's content — we only attach
---      rows to a tenant if the user owning them belongs to that
---      tenant. (Defensive: don't attribute someone's else's row to
---      a tenant just because the company id is the only one we see.)
+--   3. Backfills query_history rows whose user_id maps to a profile
+--      now in the default company.
+--   4. Same for kb_entries (link via user_id).
+--   5. For review_requests, walks via triage_id → query_history.id →
+--      query_history.user_id → profile.company_id. This avoids any
+--      dependency on review_requests.created_by — the original
+--      version of this migration tried to use created_by directly,
+--      but production schemas may not have that column (it was
+--      defined in 0001_baseline but the column may not exist in
+--      every deployed schema). The triage_id chain works regardless.
 --
 -- Idempotent: running again is a no-op once all rows have company_id
 -- set.
@@ -88,12 +92,18 @@ begin
   )
   select count(*) into affected_kb from updated;
 
-  -- 4. review_requests rows created by profiles now in the default company.
+  -- 4. review_requests via the triage_id chain. We don't reference
+  --    created_by because some deployed schemas don't have that
+  --    column (despite 0001_baseline declaring it). The triage_id
+  --    foreign key into query_history is universal and reliable:
+  --    review.triage_id → query_history.id → query_history.user_id
+  --    → profiles.company_id.
   with updated as (
     update public.review_requests rr
     set company_id = default_company_id
-    from public.profiles p
-    where rr.created_by = p.id
+    from public.query_history qh
+    join public.profiles p on p.id = qh.user_id
+    where rr.triage_id = qh.id
       and rr.company_id is null
       and p.company_id = default_company_id
     returning 1
