@@ -48,6 +48,32 @@ async function verifyUser(token) {
   }
 }
 
+// Look up the verified user's company_id from the profiles table using
+// the service key. Returns null if no company_id is set on the row.
+//
+// This is the keystone for tenant-scoped reads. All read endpoints in
+// this file route through here so they can scope queries by
+// company_id explicitly — independent of whatever RLS policies happen
+// (or don't) to be configured on the tables. The migrations enable RLS
+// on every tenant table but never declare any SELECT policies, which
+// means user-JWT reads return zero rows by default. Service-key +
+// explicit company_id filter is what makes the read path actually
+// work and not depend on Supabase-dashboard configuration drift.
+async function resolveCompanyId(user) {
+  if (!user || !user.id) return null;
+  try {
+    const r = await fetch(
+      `${SUPABASE_URL}/rest/v1/profiles?id=eq.${user.id}&select=company_id`,
+      { headers: writeHeaders() }
+    );
+    const profiles = await r.json();
+    return Array.isArray(profiles) && profiles[0] ? profiles[0].company_id : null;
+  } catch (e) {
+    console.error("kb.resolveCompanyId:", e.message);
+    return null;
+  }
+}
+
 // Best-effort append to public.audit_log. Never throws — audit failures
 // must not block real operations.
 async function writeAuditLog(entry) {
@@ -70,12 +96,15 @@ async function promoteReviewToKB({ companyId, context, question, answer, resolve
   const section = context === "kb_gap" ? "notes" : context === "protocol" ? "protocols" : null;
   if (!section || !answer) return null;
 
-  // Compute a stable position (append to end of section).
+  // Compute a stable position (append to end of section). Service
+  // key — earlier code used readHeaders() with no token (anon
+  // access), which under RLS would return [] and pile every
+  // promoted entry at position 0. Real KB drift over time.
   let position = 0;
   try {
     const posRes = await fetch(
       `${SUPABASE_URL}/rest/v1/kb_entries?company_id=eq.${companyId}&section=eq.${section}&select=position&order=position.desc&limit=1`,
-      { headers: readHeaders() }
+      { headers: writeHeaders() }
     );
     const rows = await posRes.json();
     if (Array.isArray(rows) && rows[0] && typeof rows[0].position === "number") {
@@ -134,7 +163,23 @@ exports.handler = async function (event) {
       const base = SUPABASE_URL + "/rest/v1/kb_entries";
 
       if (method === "GET") {
-        const r = await fetch(base + "?order=section,position", { headers: readHeaders(token) });
+        // Tenant-scope by company_id, service key, RLS-independent.
+        // verifyUser is required so anonymous callers can't read the
+        // KB; the seed gets baked client-side from data/default-kb.js
+        // anyway, so unauthenticated access wouldn't expose anything
+        // sensitive — but treating /kb as auth-gated is the safer
+        // posture for when the KB grows non-clinical operational
+        // content (refund policies, escalation paths, etc.).
+        const user = await verifyUser(token);
+        if (!user) return json(401, { error: "Authentication required." });
+        const companyId = await resolveCompanyId(user);
+        const scope = companyId
+          ? `company_id=eq.${companyId}`
+          : `user_id=eq.${encodeURIComponent(user.id)}`;
+        const r = await fetch(
+          base + `?${scope}&order=section,position`,
+          { headers: writeHeaders() }
+        );
         return json(r.status, await r.text());
       }
 
@@ -145,17 +190,33 @@ exports.handler = async function (event) {
         const body = JSON.parse(event.body || "{}");
         const newEntries = Array.isArray(body.entries) ? body.entries : [];
         const wHdr = writeHeaders();
+        const companyId = await resolveCompanyId(user);
 
         // Snapshot current entries first so we can restore on failure.
+        // CRITICAL: the snapshot must use the service key, not the
+        // user JWT. Earlier code used readHeaders(token) here, which
+        // means RLS could silently return [] — and an empty snapshot
+        // followed by the DELETE-then-INSERT below would mean a failed
+        // INSERT had nothing to restore from. The DELETE always
+        // succeeds because it's service-key. The whole KB could vanish
+        // with no recovery if the AI insert payload had a schema
+        // problem.
+        const snapScope = companyId
+          ? `company_id=eq.${companyId}`
+          : `user_id=eq.${encodeURIComponent(user.id)}`;
         let backup = [];
         try {
-          const cur = await fetch(base + "?select=*", { headers: readHeaders(token) });
+          const cur = await fetch(base + "?" + snapScope + "&select=*", { headers: wHdr });
           if (cur.ok) backup = await cur.json();
         } catch (e) {
           console.error("kb.snapshot:", e.message);
         }
 
-        const delRes = await fetch(base + "?id=neq.00000000-0000-0000-0000-000000000000", {
+        // Tenant-scoped delete — never blow away another tenant's KB.
+        const delScope = companyId
+          ? `company_id=eq.${companyId}`
+          : `user_id=eq.${encodeURIComponent(user.id)}`;
+        const delRes = await fetch(base + "?" + delScope, {
           method: "DELETE",
           headers: wHdr,
         });
@@ -189,6 +250,7 @@ exports.handler = async function (event) {
         }
 
         await writeAuditLog({
+          company_id: companyId,
           actor_id: user.id,
           event_type: "kb.replace",
           entity_type: "kb_entries",
@@ -261,19 +323,7 @@ exports.handler = async function (event) {
         if (!Number.isFinite(days) || days <= 0) days = 14;
         if (days > 90) days = 90;
         const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
-
-        // Resolve tenant via the user's profile. Same pattern auth.js uses.
-        const tenantHdr = writeHeaders();
-        let companyId = null;
-        try {
-          const pr = await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${user.id}&select=company_id`, { headers: tenantHdr });
-          const profiles = await pr.json();
-          companyId = Array.isArray(profiles) && profiles[0] ? profiles[0].company_id : null;
-        } catch (e) { console.error("kb.historyCost.tenant:", e.message); }
-
-        // company_id is optional — single-tenant trial may have NULLs.
-        // When absent, we scope by user_id as a safety fallback rather
-        // than expose all rows.
+        const companyId = await resolveCompanyId(user);
         const scope = companyId
           ? `company_id=eq.${companyId}`
           : `user_id=eq.${encodeURIComponent(user.id)}`;
@@ -281,7 +331,7 @@ exports.handler = async function (event) {
           + `&select=created_at,model,cost_usd,input_tokens,output_tokens,cache_creation_tokens,cache_read_tokens,latency_ms`
           + `&order=created_at.desc&limit=10000`;
         try {
-          const r = await fetch(url, { headers: tenantHdr });
+          const r = await fetch(url, { headers: writeHeaders() });
           const rows = await r.json();
           if (!Array.isArray(rows)) {
             return json(502, { error: "Unexpected response shape from PostgREST." });
@@ -315,15 +365,7 @@ exports.handler = async function (event) {
         if (!Number.isFinite(days) || days <= 0) days = 14;
         if (days > 90) days = 90;
         const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
-
-        const tenantHdr = writeHeaders();
-        let companyId = null;
-        try {
-          const pr = await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${user.id}&select=company_id`, { headers: tenantHdr });
-          const profiles = await pr.json();
-          companyId = Array.isArray(profiles) && profiles[0] ? profiles[0].company_id : null;
-        } catch (e) { console.error("kb.historyQuality.tenant:", e.message); }
-
+        const companyId = await resolveCompanyId(user);
         const scope = companyId
           ? `company_id=eq.${companyId}`
           : `user_id=eq.${encodeURIComponent(user.id)}`;
@@ -331,7 +373,7 @@ exports.handler = async function (event) {
           + `&select=urgency_original,urgency_override,actual_response_sent,correction_note,edit_distance,session_duration_seconds,upvoted,downvoted,ai_confidence,prompt_version,kb_version,clinical_routing_level`
           + `&order=created_at.desc&limit=10000`;
         try {
-          const r = await fetch(url, { headers: tenantHdr });
+          const r = await fetch(url, { headers: writeHeaders() });
           const rows = await r.json();
           if (!Array.isArray(rows)) {
             return json(502, { error: "Unexpected response shape from PostgREST." });
@@ -348,11 +390,21 @@ exports.handler = async function (event) {
       }
 
       if (method === "GET") {
+        // Tenant-scope by company_id, service key, RLS-independent.
+        // /history/all returns up to 200 rows; /history (corrections
+        // list) filters to only rows where staff submitted an actual
+        // response or a correction note (i.e. the learning feed).
+        const user = await verifyUser(token);
+        if (!user) return json(401, { error: "Authentication required." });
+        const companyId = await resolveCompanyId(user);
+        const scope = companyId
+          ? `company_id=eq.${companyId}`
+          : `user_id=eq.${encodeURIComponent(user.id)}`;
         const isAll = path.includes("/history/all");
         const query = isAll
-          ? "?order=created_at.desc&limit=200"
-          : "?or=(actual_response_sent.not.is.null,correction_note.not.is.null)&order=created_at.desc&limit=100";
-        const r = await fetch(base + query, { headers: readHeaders(token) });
+          ? `?${scope}&order=created_at.desc&limit=200`
+          : `?${scope}&or=(actual_response_sent.not.is.null,correction_note.not.is.null)&order=created_at.desc&limit=100`;
+        const r = await fetch(base + query, { headers: writeHeaders() });
         return json(r.status, await r.text());
       }
 
@@ -372,9 +424,25 @@ exports.handler = async function (event) {
           return json(r.status, await r.text());
         };
 
+        // Whitelist of values that urgency_override can be set to.
+        // The dropdown supports a few "sub-routine" intervals
+        // (24h / 24-72h) that the AI itself never produces — those
+        // are staff-only refinements. Anything outside this set is
+        // a client bug or a tampered payload, and we reject it
+        // rather than letting junk strings pollute aggregations
+        // that look up urgency_override later.
+        const URGENCY_OVERRIDE_VALUES = new Set([
+          "routine", "24h", "24-72h", "same-day", "urgent",
+        ]);
+
         switch (body.action) {
-          case "update_urgency":
-            return patchById({ urgency_override: body.urgency_override });
+          case "update_urgency": {
+            const val = body.urgency_override;
+            if (val != null && !URGENCY_OVERRIDE_VALUES.has(val)) {
+              return json(400, { error: "Invalid urgency_override value." });
+            }
+            return patchById({ urgency_override: val });
+          }
           case "update_category": {
             // Persist clinical + non-clinical category corrections in
             // their own columns. The frontend used to send a single
@@ -425,7 +493,23 @@ exports.handler = async function (event) {
       const base = SUPABASE_URL + "/rest/v1/review_requests";
 
       if (method === "GET") {
-        const r = await fetch(base + "?order=created_at.desc&limit=100", { headers: readHeaders(token) });
+        // Tenant-scope by company_id, service key, RLS-independent.
+        // CRITICAL: this endpoint feeds the Pending Review Items
+        // badge AND the active learning loop (resolved reviews →
+        // KB inserts). If RLS denied SELECT here — which is what
+        // would happen on a fresh deploy from migrations alone —
+        // every AI-flagged uncertainty would be invisible to staff
+        // and the KB would never auto-improve from staff answers.
+        const user = await verifyUser(token);
+        if (!user) return json(401, { error: "Authentication required." });
+        const companyId = await resolveCompanyId(user);
+        const scope = companyId
+          ? `company_id=eq.${companyId}`
+          : `created_by=eq.${encodeURIComponent(user.id)}`;
+        const r = await fetch(
+          base + `?${scope}&order=created_at.desc&limit=100`,
+          { headers: writeHeaders() }
+        );
         return json(r.status, await r.text());
       }
 
@@ -454,10 +538,19 @@ exports.handler = async function (event) {
 
         if (body.action === "resolve") {
           // Look up the review row first so we can route the answer
-          // correctly even if the client doesn't send context/triage_id.
+          // correctly even if the client doesn't send context/
+          // company_id. Service key (NOT user JWT) — earlier code
+          // used readHeaders(token) here, which means RLS could
+          // silently return [] and `review` would be null. With
+          // null, companyId falls through to null below, the
+          // kb_gap/protocol branch's `if (companyId && ...)` short-
+          // circuits, and promoteReviewToKB never runs. That broke
+          // the entire active learning loop silently — every staff
+          // answer to an AI-flagged review was being saved on the
+          // review row but never promoted into the KB.
           let review = null;
           try {
-            const lookup = await fetch(base + "?id=eq." + body.id + "&select=*", { headers: readHeaders(token) });
+            const lookup = await fetch(base + "?id=eq." + body.id + "&select=*", { headers: writeHeaders() });
             const arr = await lookup.json();
             if (Array.isArray(arr) && arr[0]) review = arr[0];
           } catch (e) { console.error("kb.reviewLookup:", e.message); }
@@ -526,10 +619,39 @@ exports.handler = async function (event) {
     }
 
     // ── Anthropic proxy for correction analysis ───────────────────────────
+    // Mirrors triage.js's guards: auth required, model allowlist,
+    // max_tokens cap. Earlier this endpoint was an unauthenticated
+    // pass-through that accepted any body — meaning anyone with the
+    // function URL could burn Anthropic budget on Opus calls with
+    // 4096 max_tokens. The /triage proxy had been hardened against
+    // this; /analyze was forgotten.
     if (path.includes("/analyze")) {
+      const user = await verifyUser(token);
+      if (!user) return json(401, { error: "Authentication required." });
+
       const apiKey = process.env.ANTHROPIC_API_KEY;
       if (!apiKey) return json(500, { error: "API key not configured." });
-      const body = JSON.parse(event.body || "{}");
+
+      const ALLOWED_ANALYZE_MODELS = new Set([
+        "claude-haiku-4-5",
+        "claude-sonnet-4-6",
+      ]);
+      const ANALYZE_MAX_TOKENS_CAP = 1024;
+
+      let body;
+      try { body = JSON.parse(event.body || "{}"); }
+      catch (e) { return json(400, { error: "Invalid JSON body." }); }
+
+      if (!body.model || !ALLOWED_ANALYZE_MODELS.has(body.model)) {
+        return json(400, { error: "Unsupported model for /analyze." });
+      }
+      if (typeof body.max_tokens !== "number" || body.max_tokens <= 0) {
+        body.max_tokens = 200;
+      }
+      if (body.max_tokens > ANALYZE_MAX_TOKENS_CAP) {
+        body.max_tokens = ANALYZE_MAX_TOKENS_CAP;
+      }
+
       const r = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: {

@@ -393,7 +393,15 @@ async function saveHistoryRecord(parsed,msg,telemetry){
       routed_to:parsed.routed_to||null,
       non_clinical_flag:parsed.non_clinical_flag,non_clinical_items:parsed.non_clinical_items||[],
       follow_up_questions:parsed.follow_up_questions||[],
-      draft_response:parsed.draft_response||''
+      draft_response:parsed.draft_response||'',
+      // Persist the AI's routing recommendation. Without this, the
+      // recommendation disappears the moment the staff navigates
+      // away — we lose the ability to audit, eval, or learn from
+      // it. Migration 0007 adds the column. Schema-tolerant: if
+      // 0007 hasn't been applied yet, PostgREST drops the
+      // unrecognized field rather than failing the insert (the rest
+      // of the row still saves).
+      internal_note: parsed.internal_note || null
     };
     if(userId) payload.user_id=userId;
     if(companyId) payload.company_id=companyId;
@@ -668,7 +676,17 @@ currentHistoryId=null;
     var newId = await saveHistoryRecord(parsed, msg, telemetry);
     currentHistoryId = newId;
     if (newId && parsed.review_request && parsed.review_request.question) {
-      saveReviewRequest(parsed.review_request, msg, parsed.draft_response, newId);
+      // Awaited — earlier this was fire-and-forget, which meant if
+      // the network blipped or the call errored, the AI's flagged
+      // review request was silently lost. The triage row would
+      // exist but no review_request linked to it; staff would never
+      // see the AI's flagged uncertainty in the Pending Review Items
+      // queue, the answer would never feed back into the KB via
+      // promoteReviewToKB, and the active learning loop would fail
+      // to close on that case. The triage row is the patient-facing
+      // outcome (already saved); the review is the learning signal.
+      // Both need to land for the loop to work — so both are awaited.
+      await saveReviewRequest(parsed.review_request, msg, parsed.draft_response, newId);
     }
   }catch(err){
     var msg = err.message||'Unknown error';

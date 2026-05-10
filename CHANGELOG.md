@@ -6,6 +6,173 @@ bumps cover meaningful capability additions, patch bumps cover fixes).
 
 ---
 
+## v0.3.4 — 2026-05-10
+
+**Critical data-integrity patch on Juno.** Fifth-pass audit caught
+several issues that would have either silently broken the active
+learning loop, or only surfaced as catastrophic data loss under
+specific conditions. Migration 0007 required.
+
+### ⚠️ DEPLOYMENT ORDER MATTERS
+
+**Apply `migrations/0007_query_history_internal_note.sql` in Supabase
+SQL Editor BEFORE the Netlify deploy completes.** This release
+includes a frontend change that sends `internal_note` in the triage
+insert payload. PostgREST will reject inserts referencing an unknown
+column with a 400, which means **every triage save would fail until
+the migration is applied**. The migration takes ~1 second; do it
+first, then the deploy is safe.
+
+### Fixed (data-integrity critical)
+
+- **Read endpoints depended on RLS policies that don't exist in any
+  migration.** `kb.js`'s `/kb GET`, `/history GET`, `/history/all
+  GET`, `/reviews GET` all used `readHeaders(token)` (user JWT
+  auth). Every tenant table has `enable row level security` set in
+  baseline migrations but **zero `create policy` statements anywhere
+  in the migration history**. The production system only worked
+  because policies had been set ad-hoc in the Supabase dashboard —
+  invisible to source control. A fresh deploy from migrations alone
+  would have silently returned `[]` from every read endpoint:
+  - The KB tab would show no entries → frontend fall-through would
+    re-seed the KB on every page load.
+  - The Triage Queue would show "No records yet" forever.
+  - The Pending Review Items badge would always show 0.
+  - The active learning loop's `promoteReviewToKB` would silently
+    skip every staff answer (because the review-row lookup
+    returned null → companyId null → kb_gap/protocol branch
+    short-circuits).
+
+  Fix: every read endpoint now uses the service key with an
+  explicit `company_id=eq.<verified-user's-company>` filter, with a
+  `user_id` fallback for users not yet attached to a company. The
+  read path is now RLS-independent. Behavior no longer depends on
+  Supabase-dashboard configuration drift. New helper
+  `resolveCompanyId(user)` consolidates the lookup pattern that
+  was duplicated across three different endpoints.
+
+- **`/kb POST` could silently wipe the entire KB** if the snapshot
+  read failed under RLS. The flow was: snapshot via user JWT →
+  delete-all via service key → insert-new via service key. If
+  insert failed, restore from the snapshot. With RLS denying the
+  snapshot, `backup = []`, the delete still ran (service-key
+  bypass), and any insert error meant total KB loss with nothing
+  to restore from. Snapshot now uses service key so it sees what
+  it's actually backing up.
+
+- **`/kb POST`'s `DELETE` was untargeted across all tenants.** The
+  query was `?id=neq.<all-zeros-uuid>` — i.e. delete every row
+  whose id isn't all zeros, i.e. every row in the table, period.
+  In single-tenant trial this is invisible. The moment a second
+  tenant signs up, the first tenant pressing "Save & Sync" would
+  wipe out every other tenant's KB. Now scoped to
+  `company_id=eq.<theirs>`.
+
+- **`saveReviewRequest` was fire-and-forget from `runTriage`.** If
+  the call errored or the network blipped, the AI's flagged review
+  request was silently lost — the triage row would exist but no
+  `review_request` row linked to it. Staff would never see the
+  AI's flagged uncertainty in Pending Review Items, the answer
+  would never feed back into the KB via `promoteReviewToKB`, and
+  the active learning loop would fail to close on those cases.
+  Now awaited inside `runTriage` after `saveHistoryRecord`, with
+  error handling that surfaces to the user.
+
+- **AI's `internal_note` was never persisted.** Every other AI
+  output field (`draft_response`, `follow_up_questions`,
+  `non_clinical_items`, `clinical_category`, etc.) was saved on
+  the triage row; `internal_note` was rendered in the UI and
+  thrown away. That meant we couldn't audit "did staff act on the
+  AI's routing recommendation?", couldn't analyze internal_note
+  quality over time, couldn't eval against ground-truth
+  comparisons, and couldn't feed it as a learning signal. New
+  migration 0007 adds the column; saveHistoryRecord includes it
+  in the payload.
+
+- **`/analyze` endpoint had no auth, no model allowlist, no
+  max_tokens cap.** Anyone with the function URL could burn
+  Anthropic budget on Opus calls with 4096 max_tokens. The
+  `/triage` proxy had been hardened against exactly this; `/analyze`
+  was forgotten. Now mirrors `/triage`'s guards: auth required,
+  haiku/sonnet only, 1024-token cap.
+
+- **`update_urgency` accepted any string for `urgency_override`.**
+  The TIMEFRAMES dropdown sends `routine | 24h | 24-72h | same-day
+  | urgent`. The backend just patched whatever the client sent,
+  with no validation. A misbehaving client could pollute the
+  column with arbitrary strings, breaking aggregations that filter
+  or group by urgency. Now the handler whitelists the five
+  allowed values and rejects anything else with 400.
+
+- **`kb.replace` audit-log entries were missing `company_id`.**
+  Every audit row from a "Save & Sync" was written with
+  `company_id=null`, making per-tenant audit queries miss them.
+  Now passes `companyId` through.
+
+### Added
+
+- `migrations/0007_query_history_internal_note.sql` — adds the
+  `internal_note text` column to `query_history`. Idempotent, safe
+  to re-run.
+
+### Audit method (this pass)
+
+The user pointed out that the runTriage race condition (caught in
+v0.3.3) was a project-killing class of bug — the kind that
+silently corrupts learning data and makes you blame the AI for
+problems the code created. This pass deliberately hunted at that
+severity:
+
+1. Trace every data-write end-to-end and ask "what happens when
+   this fails silently?"
+2. Look for places where AI output gets attached to the wrong
+   record or where staff answers fail to reach where they need to
+   go.
+3. Audit the active learning loop specifically (review create →
+   resolve → KB insert) for any link that could silently break.
+4. Look for state inconsistencies where the same row would render
+   differently in different views.
+5. Check whether the data we're banking on for learning is
+   actually being captured at all.
+
+The RLS issue surfaced from check #1 (trace every write/read end-
+to-end). The DELETE-all-tenants bug surfaced from #2 while
+verifying tenant isolation. The internal_note loss surfaced from
+#5 — auditing what data we're actually capturing.
+
+### Tests
+
+91 passing. No new tests — the affected paths are all PostgREST/
+fetch-mediated and don't isolate cleanly in the pure-Node test
+harness. End-to-end coverage now lives in the eval harness and
+real-traffic behavior.
+
+### Eval baseline at v0.3.4
+
+| Metric | Value |
+|---|---|
+| Pass rate | 7/7 |
+| `prompt_version` | `a615b5ad` (unchanged from v0.3.3) |
+| `kb_version` | `366cb3f1` (unchanged) |
+| Per-case cost (cold cache) | ~$0.013 |
+| Mean latency | ~8.2s |
+| Cache hit rate | ~85% (cold-then-warm pattern) |
+
+### Going forward
+
+This concludes the deep-audit cycle on Juno. Patch tags v0.3.1 →
+v0.3.4 sit on top of v0.3.0. Bug count by pass: 8, 6, 9, 3, 8.
+Total real bugs caught and fixed: **34**. The bug-finding rate
+hasn't dropped to zero yet, but the remaining issues are likely
+edge-case or speculative-design at this point. From here:
+
+1. Apply migration 0007.
+2. Use the app to generate real triage data.
+3. Real-use bugs will be patched as they surface; further audits
+   reach diminishing returns.
+
+---
+
 ## v0.3.3 — 2026-05-10
 
 Final patch on Juno before going hands-off through real-triage data
