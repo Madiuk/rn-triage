@@ -707,6 +707,22 @@ async function saveTimeframe(){
 
 
 // CORRECTION
+//
+// Submission flow:
+//   1. Compute edit_distance between AI draft and what staff actually sent.
+//   2. Collect staff UI selections (categories, timeframe) as STRUCTURED
+//      metadata — never inline them into the response text. This was the
+//      root cause of an early bug where Haiku read appended metadata as
+//      "the nurse edited the response" and confabulated learning notes
+//      that weren't true.
+//   3. If edit_distance === 0 (staff sent the AI draft verbatim), skip
+//      the Haiku analyze call entirely. The signal is "AI nailed it";
+//      we write a deterministic note and save the metadata. No reason to
+//      pay for an analysis that has no diff to summarize, and asking
+//      Haiku to find changes that don't exist invites confabulation.
+//   4. If edit_distance > 0, send Haiku the draft, the actual response,
+//      AND the metadata as a clearly separated block — with system-prompt
+//      instructions that the metadata is UI selections, not edits.
 async function submitCorrection(){
   var actual=document.getElementById('correctionInput').value.trim();
   if(!actual){alert('Please paste the response you actually sent.');return;}
@@ -716,28 +732,65 @@ async function submitCorrection(){
   status.textContent='';status.className='learn-status';
   try{
     var aiDraft=document.getElementById('aiDraftText')?document.getElementById('aiDraftText').innerText:'';
-    // Collect category corrections as additional context for the learning note
-    var catPills=document.querySelectorAll('.cat-pill.sel-clin');
-    var catNote='';
-    if(catPills.length){
-      var catVals=[].map.call(catPills,function(p){return p.getAttribute('data-val');}).join(', ');
-      if(catVals) catNote='\n\nCategory selected by staff: '+catVals+'.';
-    }
-    var tfEl=document.getElementById('timeframeSelect');
-    if(tfEl) catNote+=' Timeframe: '+tfEl.value+'.';
-    var analyzeRes=await fetch('/.netlify/functions/kb/analyze',{
-      method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        model:'claude-haiku-4-5',max_tokens:200,
-        system:'Compare an AI draft clinical response with what the nurse actually sent. Output 2-3 sentences: what changed, what this reveals about the AI gap, one improvement suggestion. Plain text only.',
-        messages:[{role:'user',content:'AI draft:\n'+aiDraft+'\n\nActual sent:\n'+actual+catNote}]
-      })
-    });
-    var analyzeData=await analyzeRes.json();
-    var note=(analyzeData.content||[]).map(function(b){return b.text||'';}).join('').trim();
-    var duration = triageStartTime ? Math.round((Date.now()-triageStartTime)/1000) : null;
     var editDist = levenshteinDistance(aiDraft||'', actual||'');
-    if(currentHistoryId)await api('/history','POST',{
+
+    // Final state of the staff's UI selections. Note: these are the
+    // *current* values, not a diff against what the AI originally
+    // proposed — we don't retain the AI's first-pass classification
+    // through this function, so Haiku sees the final selection only.
+    // Staff-vs-AI category disagreement is captured separately by
+    // saveCategoryTags / urgency_override on the row itself.
+    var catVals = [].map.call(
+      document.querySelectorAll('.cat-pill.sel-clin'),
+      function(p){return p.getAttribute('data-val');}
+    );
+    var tfEl = document.getElementById('timeframeSelect');
+    var timeframe = tfEl ? tfEl.value : null;
+
+    var note;
+    if(editDist === 0){
+      // Verbatim send — the AI got it right. Build the note locally
+      // instead of paying Haiku to invent a diff that doesn't exist.
+      note = 'Staff sent the AI draft as-is — no edits.';
+      var metaSummary = [];
+      if(catVals.length) metaSummary.push('final category selection: ' + catVals.join(', '));
+      else                metaSummary.push('no clinical category selected');
+      if(timeframe)       metaSummary.push('timeframe: ' + timeframe);
+      if(metaSummary.length) note += ' (' + metaSummary.join('; ') + ')';
+    } else {
+      // Real diff — ask Haiku to summarize. Metadata goes in a clearly
+      // labeled block that the system prompt explicitly tells Haiku
+      // not to treat as response edits.
+      var systemPrompt =
+        'Compare an AI draft response with what the staff member actually sent. ' +
+        'Output 2-3 sentences: what genuinely changed in the response text, what it reveals about the AI gap, one concrete improvement suggestion. ' +
+        'Plain text only. ' +
+        'IMPORTANT: the "Staff metadata" block (when present) describes UI selections — categories and timeframe the staff chose in the interface. Those are NOT changes to the response text. Never describe metadata fields as additions/edits to the response. ' +
+        'If the only differences from the draft are whitespace or punctuation, say so plainly rather than inventing meaning.';
+      var userMessage = 'AI draft:\n' + aiDraft + '\n\nStaff sent:\n' + actual;
+      var metaLines = [];
+      if(catVals.length) metaLines.push('- Final clinical categories: ' + catVals.join(', '));
+      else               metaLines.push('- No clinical category selected (staff may have cleared the AI\'s suggested category)');
+      if(timeframe)      metaLines.push('- Final timeframe: ' + timeframe);
+      if(metaLines.length){
+        userMessage += '\n\nStaff metadata (UI selections, NOT response edits):\n' + metaLines.join('\n');
+      }
+
+      var analyzeRes=await fetch('/.netlify/functions/kb/analyze',{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          model:'claude-haiku-4-5', max_tokens:200,
+          system: systemPrompt,
+          messages:[{role:'user', content: userMessage}]
+        })
+      });
+      var analyzeData=await analyzeRes.json();
+      note = (analyzeData.content||[]).map(function(b){return b.text||'';}).join('').trim();
+      if(!note) note = '(empty learning note from analyzer)';
+    }
+
+    var duration = triageStartTime ? Math.round((Date.now()-triageStartTime)/1000) : null;
+    if(currentHistoryId) await api('/history','POST',{
       action:'save_actual',
       id:currentHistoryId,
       actual_response:actual,
@@ -745,11 +798,15 @@ async function submitCorrection(){
       session_duration_seconds:duration,
       edit_distance:editDist
     });
-    status.textContent=note?'OK Saved. Learning note: "'+note.substring(0,90)+(note.length>90?'...':'')+'"':'OK Response saved.';
+    status.textContent = note ? ('OK Saved. Learning note: "'+note.substring(0,90)+(note.length>90?'...':'')+'"') : 'OK Response saved.';
     status.className='learn-status success';
     document.getElementById('correctionInput').value='';
-      }catch(e){status.textContent='Error: '+e.message;status.className='learn-status error';}
-  finally{btn.disabled=false;btn.querySelector('span').textContent='Submit & Learn';}
+  }catch(e){
+    console.error('submitCorrection:', e.message);
+    status.textContent='Error: '+e.message;
+    status.className='learn-status error';
+  }
+  finally{ btn.disabled=false; btn.querySelector('span').textContent='Submit & Learn'; }
 }
 
 // RENDER
