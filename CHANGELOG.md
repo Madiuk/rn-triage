@@ -6,12 +6,18 @@ bumps cover meaningful capability additions, patch bumps cover fixes).
 
 ---
 
-## v0.3.0 — 2026-05-09
+## v0.3.0 "Juno" — 2026-05-10
 
 **Waypoint release.** Closes out the foundation phase. Single-tenant
 trial (Big Easy Weight Loss) is fully instrumented for the learning
 work to come. Phase 3 (channel framework + queue + soft routing) is
 designed and documented but not yet implemented.
+
+Codename convention: significant releases get a short codename
+alongside the SemVer number. "Juno" marks the first formally tagged
+waypoint — the foundation everything else gets built on. Future
+codenames continue alphabetically (next: "K…"). The codename is
+informational; tooling and tags use the SemVer (`v0.3.0`).
 
 ### Added
 
