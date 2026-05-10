@@ -279,14 +279,69 @@ async function signOut(){
 }
 
 
-async function api(endpoint,method,body){
-  var token=getToken();
-  var hdrs={'Content-Type':'application/json'};
-  if(token) hdrs['Authorization']='Bearer '+token;
-  var opts={method:method||'GET',headers:hdrs};
-  if(body)opts.body=JSON.stringify(body);
-  var r=await fetch('/.netlify/functions/kb'+endpoint,opts);
-  return r.json().catch(function(){return{};});
+async function api(endpoint, method, body){
+  // Auth-aware wrapper for /.netlify/functions/kb* calls. Throws on
+  // any non-2xx response so callers' existing try/catch blocks
+  // surface real errors instead of silently treating an error body
+  // as a successful response. Earlier this function did
+  //   return r.json().catch(function(){return{};});
+  // which collapsed three different failure modes into "looks like a
+  // success with an empty/error-shaped body":
+  //   - Server returned 4xx/5xx with `{error: "..."}` → callers
+  //     showing "Saved" toasts on the way to data loss.
+  //   - Server returned non-JSON (HTML error page, empty body) →
+  //     callers seeing `{}` and continuing.
+  //   - Network blip → fetch threw, no context.
+  // Now: every non-2xx and every parse-failure-with-error-status
+  // throws a structured Error with `.status` and `.body` attached.
+  // Every existing caller is already wrapped in try/catch (verified
+  // pass v0.3.8); their catch blocks now fire on real failures
+  // instead of having to inspect the response shape.
+  var token = getToken();
+  var hdrs = {'Content-Type':'application/json'};
+  if (token) hdrs['Authorization'] = 'Bearer ' + token;
+  var opts = {method: method || 'GET', headers: hdrs};
+  if (body) opts.body = JSON.stringify(body);
+
+  var r;
+  try {
+    r = await fetch('/.netlify/functions/kb' + endpoint, opts);
+  } catch (networkErr) {
+    var ne = new Error('Network error reaching ' + endpoint + ': ' + networkErr.message);
+    ne.cause = 'network';
+    throw ne;
+  }
+
+  // Parse defensively — a 204 No Content has no body, and some
+  // legitimate responses (DELETE with return=minimal) are empty.
+  var parsedBody = null;
+  var rawText = await r.text();
+  if (rawText) {
+    try { parsedBody = JSON.parse(rawText); }
+    catch (parseErr) {
+      if (!r.ok) {
+        var pe = new Error('API ' + endpoint + ' returned ' + r.status + ' with non-JSON body: ' + rawText.slice(0, 200));
+        pe.status = r.status;
+        throw pe;
+      }
+      // OK with non-JSON body — caller might be intentionally
+      // returning text. Surface as a string wrapped in {raw: ...}.
+      return { raw: rawText };
+    }
+  }
+
+  if (!r.ok) {
+    var serverMsg = parsedBody && (parsedBody.error || parsedBody.message);
+    var msg = serverMsg
+      ? ('API ' + endpoint + ' returned ' + r.status + ': ' + serverMsg)
+      : ('API ' + endpoint + ' returned ' + r.status);
+    var err = new Error(msg);
+    err.status = r.status;
+    err.body = parsedBody;
+    throw err;
+  }
+
+  return parsedBody == null ? {} : parsedBody;
 }
 
 async function loadKBFromServer(){

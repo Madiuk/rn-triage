@@ -6,6 +6,93 @@ bumps cover meaningful capability additions, patch bumps cover fixes).
 
 ---
 
+## v0.3.8 — 2026-05-10
+
+Ninth-pass audit. User caught a real bug (the /analyze missing-auth)
+that prior audits should have surfaced; this pass addressed the
+underlying *class* of bug rather than just patching the one
+instance. The pattern was "defensive fallback that masks the real
+error" — the kind of code that looks safe but actually hides
+problems from both users and audits.
+
+### Fixed (defensive-fallbacks-that-mask-errors class)
+
+- **`api()` helper silently swallowed HTTP errors.** The previous
+  implementation was:
+  ```js
+  var r = await fetch(...);
+  return r.json().catch(function(){return{};});
+  ```
+  Three different failure modes were being collapsed into "looks
+  like a successful response with an empty/error-shaped body":
+  - Server returned 4xx/5xx with `{error: "..."}` body → callers
+    that didn't inspect the response shape showed "Saved" toasts
+    while the operation actually failed.
+  - Server returned non-JSON (HTML error page, empty body, network-
+    layer 502) → callers saw `{}` and treated it as success.
+  - Network blip during fetch → only the fetch throw propagated;
+    no context on what endpoint or operation failed.
+
+  This was the same root pattern as the v0.3.5 `/triage` auth bug
+  and the v0.3.8 `/analyze` auth bug: defensive coding that
+  prevents crashes but doesn't surface that something went wrong.
+
+  Rewritten to throw a structured `Error` on any non-2xx response,
+  with `.status` and `.body` attached. Every caller is already
+  wrapped in try/catch (verified this pass), so their existing
+  error-handling UI now actually fires when something fails
+  instead of looking like a no-op success. Parse failures with
+  error status throw with the raw body included. Network errors
+  are wrapped with the endpoint name for diagnostics.
+
+### Fixed (eval harness UX)
+
+- **Eval's auth-failure message hardcoded "check ANTHROPIC_API_KEY"
+  even when running in `--endpoint` mode.** When the harness hit
+  401 against the auth-gated deployed proxy, the abort message
+  pointed at the wrong env var. Now branches by mode: direct-
+  Anthropic auth failures still mention the API key; endpoint-mode
+  failures explain how to grab a session JWT from localStorage and
+  pass it as `--token`.
+
+### Audit method
+
+The user pointed out, correctly, that the missed /analyze auth
+bug is exactly what audits are supposed to catch. The root failure
+of the audit method was checking *server-side state* ("does
+/analyze require auth?") without asking the *inverse* ("does every
+fetch to /analyze send Auth?"). That's now codified as rule #14 in
+AGENTS.md.
+
+This pass: looked for the class of bug rather than the instance.
+The `api()` helper was the broader version of the same pattern —
+defensive coding that masks real errors. Even if the /analyze
+specific auth bug is now fixed, similar "looks-like-success-
+actually-failed" cases were possible across every other endpoint
+because the helper itself was the masking layer.
+
+### Tests
+
+109 passing.
+
+### Real-data cleanup (optional)
+
+For triages created between v0.3.4 and v0.3.7, edited corrections
+have `correction_note = '(empty learning note from analyzer)'`
+(the masked-auth-failure fallback). Real edits from now on will
+produce real learning notes. To NULL out the placeholder strings:
+
+```sql
+update public.query_history
+set correction_note = null
+where correction_note = '(empty learning note from analyzer)';
+```
+
+The corresponding `actual_response_sent` and `edit_distance` on
+those rows are valid — only the AI-summary was missing.
+
+---
+
 ## v0.3.7 — 2026-05-10
 
 Eighth-pass follow-up to v0.3.6 — testing the new asymmetry surface

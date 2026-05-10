@@ -282,15 +282,24 @@ async function main() {
     if (!outcome.passed) {
       outcome.failures.forEach(f => console.log('      - ' + f));
     }
-    // Bail out on auth errors. The same key won't magically become valid
-    // on the next case, and grinding through 7 failures wastes the user's
-    // time + log noise. Other failures (a single bad triage classification)
-    // shouldn't abort — that's the regression we want to see fully.
-    if (outcome.error && /\(401\)|\(403\)|invalid x-api-key|ANTHROPIC_API_KEY/i.test(outcome.error)) {
+    // Bail out on auth errors. The same key/token won't magically become
+    // valid on the next case, and grinding through 7 failures wastes the
+    // user's time + log noise. Other failures (a single bad triage
+    // classification) shouldn't abort — that's the regression we want
+    // to see fully.
+    if (outcome.error && /\(401\)|\(403\)|invalid x-api-key|ANTHROPIC_API_KEY|Authentication required/i.test(outcome.error)) {
       console.log('');
-      console.log('  Aborting: authentication with Anthropic failed. Check that ANTHROPIC_API_KEY');
-      console.log('  is set to a valid key from https://console.anthropic.com/settings/keys');
-      console.log('  (or pass --endpoint <triage-proxy-url> to skip direct calls entirely).');
+      if (endpoint) {
+        console.log('  Aborting: authentication failed against the triage proxy.');
+        console.log('  /triage and /analyze now require a Supabase session token.');
+        console.log('  Grab one from your browser at the live app:');
+        console.log('    localStorage.relai_session  →  parse JSON  →  .access_token');
+        console.log('  Then re-run with --token <jwt> (or set RELAI_EVAL_TOKEN).');
+      } else {
+        console.log('  Aborting: authentication with Anthropic failed.');
+        console.log('  Check that ANTHROPIC_API_KEY is a valid key from');
+        console.log('  https://console.anthropic.com/settings/keys');
+      }
       break;
     }
   }
