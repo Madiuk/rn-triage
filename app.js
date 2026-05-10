@@ -627,10 +627,15 @@ currentHistoryId=null;
       model: relai.model || 'claude-sonnet-4-6',
       latency_ms: relai.latency_ms != null ? relai.latency_ms : clientLatency,
       cost_usd: relai.cost_usd != null ? relai.cost_usd : null,
-      input_tokens:           relai.usage ? (relai.usage.input_tokens                || null) : null,
-      output_tokens:          relai.usage ? (relai.usage.output_tokens               || null) : null,
-      cache_creation_tokens:  relai.usage ? (relai.usage.cache_creation_input_tokens || null) : null,
-      cache_read_tokens:      relai.usage ? (relai.usage.cache_read_input_tokens     || null) : null,
+      // Use ?? not || here. A real 0 is meaningful (means "no tokens
+      // of this kind"), and `0 || null` would collapse it to null,
+      // making it impossible to distinguish "cache cold, 0 reads" from
+      // "telemetry missing." Aggregations would still be correct, but
+      // we'd lose data fidelity in the row itself.
+      input_tokens:           relai.usage ? (relai.usage.input_tokens                ?? null) : null,
+      output_tokens:          relai.usage ? (relai.usage.output_tokens               ?? null) : null,
+      cache_creation_tokens:  relai.usage ? (relai.usage.cache_creation_input_tokens ?? null) : null,
+      cache_read_tokens:      relai.usage ? (relai.usage.cache_read_input_tokens     ?? null) : null,
       prompt_version: getPromptVersion(),
       kb_version: getKBVersion(),
       // Capture the AI's self-rated confidence on every triage (not
