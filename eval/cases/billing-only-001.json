@@ -1,0 +1,16 @@
+{
+  "id": "billing-only-001",
+  "description": "Pure billing question, no clinical content — should route non-clinical, no severity flag",
+  "input": {
+    "message": "I was charged twice for my last refill — once on the 3rd and once on the 5th. Can someone look into this and refund the duplicate?",
+    "prior_context": ""
+  },
+  "expected": {
+    "urgency": "routine",
+    "clinical_routing_level": "none",
+    "non_clinical_flag": true,
+    "non_clinical_items_includes": ["Billing"],
+    "draft_must_include_any": ["billing", "support team", "refund", "look into", "passed along"],
+    "draft_must_not_include": ["911", "ER", "side effect", "clinical"]
+  }
+}

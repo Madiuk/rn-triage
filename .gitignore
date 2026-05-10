@@ -23,3 +23,8 @@ Thumbs.db
 relai-update*.tar.gz
 relai-update*.zip
 *.patch
+
+# Eval harness run output — timestamped per-run JSONs are local
+# artifacts for trend analysis, not source of truth. The `cases/`
+# directory is tracked; `results/` is not.
+eval/results/

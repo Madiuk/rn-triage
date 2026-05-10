@@ -1,0 +1,15 @@
+{
+  "id": "mild-nausea-001",
+  "description": "Mild nausea, eating normally — education-level response, not severe, not urgent",
+  "input": {
+    "message": "I've had some mild nausea on and off for the past couple of days but I can still eat my regular meals. Is this normal?",
+    "prior_context": ""
+  },
+  "expected": {
+    "urgency": "routine",
+    "clinical_routing_level": "mild",
+    "clinical_category": ["Side Effects"],
+    "draft_must_include_any": ["nausea", "normal", "common", "small", "hydrat", "ginger"],
+    "draft_must_not_include": ["911", "ER", "emergency", "urgent"]
+  }
+}

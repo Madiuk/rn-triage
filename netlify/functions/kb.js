@@ -1,9 +1,19 @@
 // Relai — KB / History / Reviews / Analyze proxy
-// Endpoints: /kb (GET, POST), /history[/all] (GET, POST), /reviews (GET, POST), /analyze (POST)
+// Endpoints:
+//   /kb                  (GET, POST)
+//   /history             (GET, POST)
+//   /history/all         (GET)
+//   /history/stats       (GET) — per-user today/week/total counts
+//   /history/cost        (GET) — last-N-days spend, model split, cache hit rate
+//   /history/quality     (GET) — override / correction / confidence trends
+//   /reviews             (GET, POST)
+//   /analyze             (POST)
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
+
+const { aggregateCostRows, aggregateQualityRows } = require("./_lib/history-aggregations");
 
 // PostgREST-style headers. Uses service key when available so RLS-protected
 // writes go through; reads use the user's bearer token when present so RLS
@@ -230,6 +240,110 @@ exports.handler = async function (event) {
         } catch (e) {
           console.error("kb.historyStats:", e.message);
           return json(500, { error: "Failed to load stats." });
+        }
+      }
+
+      // /history/cost — last-N-days spend, model split, cache hit rate
+      // for the calling user's tenant. Read-only aggregation off the
+      // observability columns added in migration 0005.
+      //
+      // Query params:
+      //   ?days=14   how many days back to summarize (default 14, max 90)
+      //
+      // Service-key read scoped to the verified user's company_id —
+      // RLS-independent, like /history/stats.
+      if (path.includes("/history/cost") && method === "GET") {
+        const user = await verifyUser(token);
+        if (!user || !user.id) return json(401, { error: "Authentication required." });
+
+        const params = event.queryStringParameters || {};
+        let days = parseInt(params.days, 10);
+        if (!Number.isFinite(days) || days <= 0) days = 14;
+        if (days > 90) days = 90;
+        const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+
+        // Resolve tenant via the user's profile. Same pattern auth.js uses.
+        const tenantHdr = writeHeaders();
+        let companyId = null;
+        try {
+          const pr = await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${user.id}&select=company_id`, { headers: tenantHdr });
+          const profiles = await pr.json();
+          companyId = Array.isArray(profiles) && profiles[0] ? profiles[0].company_id : null;
+        } catch (e) { console.error("kb.historyCost.tenant:", e.message); }
+
+        // company_id is optional — single-tenant trial may have NULLs.
+        // When absent, we scope by user_id as a safety fallback rather
+        // than expose all rows.
+        const scope = companyId
+          ? `company_id=eq.${companyId}`
+          : `user_id=eq.${encodeURIComponent(user.id)}`;
+        const url = base + `?${scope}&created_at=gte.${encodeURIComponent(since)}`
+          + `&select=created_at,model,cost_usd,input_tokens,output_tokens,cache_creation_tokens,cache_read_tokens,latency_ms`
+          + `&order=created_at.desc&limit=10000`;
+        try {
+          const r = await fetch(url, { headers: tenantHdr });
+          const rows = await r.json();
+          if (!Array.isArray(rows)) {
+            return json(502, { error: "Unexpected response shape from PostgREST." });
+          }
+          const summary = aggregateCostRows(rows);
+          summary.window_days = days;
+          summary.scope = companyId ? "company" : "user";
+          summary.row_count = rows.length;
+          return json(200, summary);
+        } catch (e) {
+          console.error("kb.historyCost:", e.message);
+          return json(500, { error: "Failed to load cost stats." });
+        }
+      }
+
+      // /history/quality — calibration + correction signals over the
+      // last N days, scoped the same way as /history/cost. Surfaces:
+      //   - urgency_override_rate: how often staff disagreed with the AI's urgency
+      //   - correction_rate: how often staff edited the draft
+      //   - mean edit_distance, mean session_duration_seconds
+      //   - upvote_rate / downvote_rate
+      //   - mean ai_confidence vs override rate (calibration sanity check)
+      // These are the inputs for "is the AI getting better or worse over
+      // time?" — track them per prompt_version to attribute changes.
+      if (path.includes("/history/quality") && method === "GET") {
+        const user = await verifyUser(token);
+        if (!user || !user.id) return json(401, { error: "Authentication required." });
+
+        const params = event.queryStringParameters || {};
+        let days = parseInt(params.days, 10);
+        if (!Number.isFinite(days) || days <= 0) days = 14;
+        if (days > 90) days = 90;
+        const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+
+        const tenantHdr = writeHeaders();
+        let companyId = null;
+        try {
+          const pr = await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${user.id}&select=company_id`, { headers: tenantHdr });
+          const profiles = await pr.json();
+          companyId = Array.isArray(profiles) && profiles[0] ? profiles[0].company_id : null;
+        } catch (e) { console.error("kb.historyQuality.tenant:", e.message); }
+
+        const scope = companyId
+          ? `company_id=eq.${companyId}`
+          : `user_id=eq.${encodeURIComponent(user.id)}`;
+        const url = base + `?${scope}&created_at=gte.${encodeURIComponent(since)}`
+          + `&select=urgency_original,urgency_override,actual_response_sent,correction_note,edit_distance,session_duration_seconds,upvoted,downvoted,ai_confidence,prompt_version,kb_version,clinical_routing_level`
+          + `&order=created_at.desc&limit=10000`;
+        try {
+          const r = await fetch(url, { headers: tenantHdr });
+          const rows = await r.json();
+          if (!Array.isArray(rows)) {
+            return json(502, { error: "Unexpected response shape from PostgREST." });
+          }
+          const summary = aggregateQualityRows(rows);
+          summary.window_days = days;
+          summary.scope = companyId ? "company" : "user";
+          summary.row_count = rows.length;
+          return json(200, summary);
+        } catch (e) {
+          console.error("kb.historyQuality:", e.message);
+          return json(500, { error: "Failed to load quality stats." });
         }
       }
 

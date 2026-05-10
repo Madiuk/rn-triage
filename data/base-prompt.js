@@ -22,3 +22,9 @@ review_request: Only populate when confidence < 0.75 on a clinical decision. que
 draft_response: ALWAYS populate. Warm RN voice, patient details, prose with line breaks, 120 words max. If non_clinical_flag true: include one brief sentence acknowledging the non-clinical item is being handled by the support team, then address the clinical portion. If follow_up_questions present: warm opening then weave questions into flowing prose. Otherwise: complete actionable advice.
 
 Knowledge base sections follow. Apply them precisely.`;
+
+// Node export hook — no-op in the browser. Lets the eval harness and
+// any future server-side use require this file directly.
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { BASE_PROMPT };
+}

@@ -1,0 +1,15 @@
+{
+  "id": "food-noise-001",
+  "description": "Returning hunger / 'food noise' between injections — pharmacokinetics, not a side effect",
+  "input": {
+    "message": "By day 5 or 6 after my injection my hunger is coming back hard and I'm thinking about food constantly until my next dose. Is something wrong?",
+    "prior_context": ""
+  },
+  "expected": {
+    "urgency": "routine",
+    "clinical_routing_level": "none",
+    "clinical_category": ["Stall/Lack of Results", "Medication Management", "General Inquiry"],
+    "draft_must_include_any": ["normal", "expected", "wear off", "half-life", "pharmacokinet", "food noise", "between"],
+    "draft_must_not_include": ["911", "ER", "emergency"]
+  }
+}
