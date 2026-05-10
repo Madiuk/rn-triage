@@ -194,9 +194,16 @@ function scoreCase(testCase, parsed) {
   }
 
   if (Array.isArray(ex.draft_must_not_include) && ex.draft_must_not_include.length) {
-    const draft = lc(parsed.draft_response);
+    // Word-boundary match (NOT substring). "ER" must not appear as a
+    // standalone word, but words like "consider" / "after" / "delivery"
+    // are fine — they just happen to contain the letters "er". Same
+    // story for "wait" vs "waiting", "911" vs anything (digits also
+    // get word boundaries). Case-insensitive via the /i flag.
+    const draft = String(parsed.draft_response || '');
     ex.draft_must_not_include.forEach(p => {
-      if (draft.includes(lc(p))) {
+      const escaped = String(p).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const re = new RegExp('\\b' + escaped + '\\b', 'i');
+      if (re.test(draft)) {
         failures.push('draft_must_not_include violated by "' + p + '"');
       }
     });

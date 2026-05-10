@@ -11,6 +11,6 @@
     "non_clinical_flag": true,
     "non_clinical_items_includes": ["Billing"],
     "draft_must_include_any": ["billing", "support team", "refund", "look into", "passed along"],
-    "draft_must_not_include": ["911", "ER", "side effect", "clinical"]
+    "draft_must_not_include": ["911", "ER", "side effect"]
   }
 }

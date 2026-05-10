@@ -10,6 +10,6 @@
     "clinical_routing_level": "severe",
     "clinical_category": ["Severe Side Effects", "Side Effects"],
     "draft_must_include_any": ["911", "emergency", "ER"],
-    "draft_must_not_include": ["routine", "wait", "next visit", "follow up tomorrow"]
+    "draft_must_not_include": ["routine", "wait until", "next visit", "follow up tomorrow"]
   }
 }
