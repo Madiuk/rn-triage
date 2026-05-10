@@ -8,16 +8,26 @@ If a rule prevents an action, ask the user before bypassing it.
 
 ## Project shape
 
-- **Relai** is a clinical triage tool: a patient message arrives via
+- **Relai** is a customer-service triage tool: a message arrives via
   any input **channel** (staff paste, EHR webhook, forwarded email,
   live chat, SMS, web form, etc.), an Anthropic Claude model
   classifies it against a per-tenant Knowledge Base, and returns a
   structured JSON triage decision. Channels are pluggable adapters —
   the rest of Relai (triage, KB, queue, learning, dashboards) is
-  channel-agnostic. Currently single-tenant (Big Easy Weight Loss);
-  architected to become a multi-tenant SaaS. **Bask Health is one
-  channel Big Easy uses, not a load-bearing concept** — don't write
-  Bask-specific paths into core code; put them in a channel adapter.
+  channel-agnostic. Currently single-tenant (Big Easy Weight Loss, a
+  clinical telehealth practice); architected to become a multi-tenant
+  SaaS that's **vertical-agnostic** at the architecture level — the
+  next tenant could be another medical practice, a tire repair shop,
+  a property management company, or a law firm. The codebase has
+  some medical-shaped pieces today (categories, prompt voice, KB
+  seeds) because Big Easy is the only tenant; those live at the
+  tenant-config layer and are catalogued in PLAN.md's "Vertical-
+  agnostic readiness audit." **Don't add new medical assumptions to
+  core code.** Anything tenant-specific belongs in `data/defaults.js`
+  (fallbacks), the `tenants` table (per-tenant config), or a channel
+  adapter. **Bask Health is one channel Big Easy uses, not a
+  load-bearing concept** — don't write Bask-specific paths into core
+  code; put them in a channel adapter.
 - **Stack:** vanilla HTML/CSS/JS frontend, Netlify Functions (Node) backend,
   Supabase for auth/DB/RLS, Anthropic API for triage and correction analysis.
 - **Deploy:** Netlify auto-deploys `main`. There is no build step today —

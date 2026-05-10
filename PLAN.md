@@ -186,21 +186,75 @@ likely-universal across future tenants):
 - The KB tab is already renamed to "Knowledge Base" (was "Clinical
   Knowledge Base") to reflect this — completed 2026-05-09.
 
-### Phase 4 — Multi-tenant SaaS (3+ months from now)
-**Goal:** a second paying customer running on the same code.
+### Phase 4 — Multi-tenant SaaS, vertical-agnostic (3+ months from now)
+**Goal:** a second paying customer in **any vertical** running on the
+same code — not just another medical practice.
 
-- Tenant onboarding wizard: name, KB template, first user invite.
-- 2–3 starter KB templates (GLP-1 weight loss, primary care,
-  dermatology). Stored as JSON or as seed migrations.
-- Path-based tenant routing (`relai.app/<tenant-slug>/...`). Subdomain
-  routing later.
-- Per-tenant theme: logo, primary color, brand name. All driven from
-  the `tenants` table via defaults.js.
-- Stripe billing — likely seat-based ($X/staff/month) initially.
+#### Vertical-agnostic readiness audit (today's state)
+
+Relai's data model and infrastructure are mostly portable. A few
+pieces are shaped around clinical telehealth because Big Easy is the
+only tenant. They need to become per-tenant config before tenant #2
+lands — especially if tenant #2 isn't medical (e.g., a tire repair
+shop's customer-service inbox, a property-management leasing inbox, a
+veterinary clinic, professional services).
+
+| What's Big-Easy-shaped today                                    | Status         | What it needs to become |
+|-----------------------------------------------------------------|----------------|--------------------------|
+| `CLINICAL_CATS` / `NON_CLINICAL_CATS` hardcoded in `app.js`     | medical-only   | Per-tenant category list, sourced from `tenants.category_metadata` (or equivalent) with `RELAI_DEFAULTS.categories` as fallback for the bootstrap tenant. |
+| `BASE_PROMPT` (clinical telehealth voice + JSON shape)          | medical-only   | Either (a) a vertical-agnostic core prompt with tenant-injected voice/role context, or (b) per-tenant prompt templates seeded from a small library. The JSON output shape can stay generic. |
+| `requires_clinical_authorization` flag in `RELAI_DEFAULTS.categories` | medical-named, structurally generic | Generalize to `required_capabilities: string[]`. A category can require any named capability (`'clinical_response'`, `'certified_mechanic'`, `'licensed_property_manager'`, `'billing_access'`, etc.). Staff capability flags become arbitrary tenant-defined strings, gated against this list. The current shape is the simplest case (`'clinical_response'` either required or not); the rename is mechanical. |
+| `clinical_category` and `clinical_routing_level` columns on `query_history` | medical-named, structurally generic | Either rename to neutral (`primary_category`, `routing_severity`) or accept they're nullable for non-medical tenants. The data they hold is already free text; only the column names lean medical. |
+| KB section keys (`sideeffects`, `protocols`, `notes`)           | medical-flavored | Tenants supply their own section list. Defaults provide a generic set ("Decision Rules", "Templates", "Reference", "URLs") plus a vertical-specific seed pack on onboarding. |
+| Default KB content in `data/default-kb.js`                      | GLP-1-specific | Stays as Big Easy's seed. New tenants pick a different seed pack at onboarding (or start blank). |
+| HIPAA BAA assumption                                            | medical-only   | Treat as one of N compliance regimes. Some verticals need none (auto repair); some need different ones (veterinary may have state-specific data rules; property management may need fair-housing audit trails). The BAA wiring stays a Big-Easy / medical-tenant feature. |
+| `eval/cases/*.json` (medical scenarios)                         | medical-only   | Per-tenant eval set. Each tenant maintains their own. The harness itself is generic. |
+
+**Already vertical-agnostic** (will not need work for tenant #2):
+- DB schema: `kb_entries`, `companies`, `company_members`, `tenants`,
+  `audit_log`, `query_history` (data model — column names aside).
+- Auth, profile, magic-link login.
+- Channel framework (Phase 3).
+- Telemetry / cost / quality endpoints.
+- Eval harness mechanics.
+- Triage / KB / queue / learning loop architecture.
+
+#### Tenant onboarding (vertical-agnostic)
+- Onboarding wizard: name, **vertical** (medical / professional
+  services / retail / property / veterinary / other), KB seed pack
+  (from a small library of starters + "blank"), first user invite.
+- Starter KB seed packs at launch: GLP-1 weight loss (proven via Big
+  Easy), primary care, one **non-medical** seed (e.g., automotive
+  service or property management) to *prove* the framework actually
+  works without medical assumptions baked in.
+- Path-based tenant routing (`relai.app/<tenant-slug>/...`).
+  Subdomain routing later.
+- Per-tenant theme: logo, primary color, brand name, voice register.
+- Stripe billing — seat-based.
 - Usage caps & cost dashboard per tenant (Anthropic spend by tenant).
 - Audit log surfaces in-app for compliance reporting.
-- HIPAA BAA when first paying customer requires it (plan for it; don't
-  prematurely engineer).
+- HIPAA BAA only when a tenant's vertical requires it. Don't presume
+  every tenant is medical.
+
+#### When tenant #2 is in sight (the unblock checklist)
+This list runs before any second tenant is provisioned, regardless
+of their vertical. It exists so we don't discover the medical
+assumptions at onboarding time:
+
+1. Move category list from `app.js` constants to per-tenant config.
+   Big Easy's existing categories become the tenant's row; UI reads
+   from there.
+2. Rename `requires_clinical_authorization` → `required_capabilities:
+   string[]`. Big Easy's clinical categories migrate to
+   `['clinical_response']`. Mechanical change; tests already cover the
+   helper's behavior so the rename is safe.
+3. Decide on `clinical_category` / `clinical_routing_level` — rename
+   to neutral terms or document them as "free-text, optional, used by
+   medical tenants." Either is fine; pick one and move on.
+4. Audit `BASE_PROMPT` and produce a vertical-neutral version (or a
+   parametrizable template). Keep Big Easy's prompt as the seed.
+5. Add `tenant.category_metadata` and `tenant.kb_seed_pack` columns
+   if not already present. The `tenants` table is already in place.
 
 ### Phase 5 — Advanced learning (6+ months)
 **Goal:** model quality improves materially without manual KB editing.
@@ -244,3 +298,4 @@ likely-universal across future tenants):
 | 2026-05-09 | KB tab renamed "Clinical Knowledge Base" → "Knowledge Base" | KB will hold non-clinical content (shipping, refunds, routing) once Bask integration lands; the old label was misleading |
 | 2026-05-09 | `requires_clinical_authorization` per category in `RELAI_DEFAULTS.categories` | Decouple "what is this message about" (AI's job) from "who can resolve it" (compliance gate). Conservative defaults — vague categories like General Inquiry require clinical auth. AI does NOT read this flag; it's a routing/queue concern. Foundation for replacing the binary Clinical/Non-Clinical role with capability flags in Phase 3. |
 | 2026-05-09 | Channels (not "Bask integration") are the architectural concept | Bask is one of many input sources (email, Healthie, live chat, SMS, web forms, EHR webhooks, manual paste). Each tenant picks their own roster. The framework treats every channel as a small adapter; the rest of Relai (triage, KB, queue, learning) is channel-agnostic. Big Easy uses Bask, but Bask going away tomorrow would just mean swapping adapters — no other system would need to change. Phase 3 retitled from "Bask integration" to "Channel framework + queue + soft routing" to reflect this. Bask gets the same treatment in PLAN, README, AGENTS, and adapter-file lead comments: example, not pillar. |
+| 2026-05-09 | Phase 4 is vertical-agnostic, not "more medical tenants" | The architecture supports any kind of customer-service triage (medical, automotive, property, professional services, retail). A few pieces lean medical because Big Easy is the only tenant — those are catalogued in PLAN's "Vertical-agnostic readiness audit" with a concrete unblock checklist that runs before tenant #2 lands regardless of their vertical. Don't bake more medical assumptions into core code while we have one tenant; keep them at the tenant-config layer. |
