@@ -1,5 +1,5 @@
 // Relai — Auth & Profile Netlify Function
-// Endpoints: GET/POST /auth/profile, POST /auth/invite, POST /auth/signout
+// Endpoints: GET /auth/profile, POST /auth/invite, POST /auth/signout
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
@@ -122,29 +122,6 @@ exports.handler = async function(event) {
         headers: CORS,
         body: JSON.stringify({ user, profile })
       };
-    }
-
-    // ── POST /auth/profile — update name/role ─────────────────────────────
-    if (path.includes('/profile') && method === 'POST') {
-      if (!token) return { statusCode: 401, headers: CORS, body: JSON.stringify({ error: 'No token' }) };
-
-      const userRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, { headers: userH });
-      const user = await userRes.json();
-      if (!user || !user.id) return { statusCode: 401, headers: CORS, body: JSON.stringify({ error: 'Invalid token' }) };
-
-      const body = JSON.parse(event.body || '{}');
-      const patch = { last_seen: new Date().toISOString() };
-      if (body.full_name) patch.full_name = body.full_name;
-      if (body.role) patch.role = body.role;
-
-      const hdr = serviceH || userH;
-      await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${user.id}`, {
-        method: 'PATCH',
-        headers: { ...hdr, 'Prefer': 'return=minimal' },
-        body: JSON.stringify(patch)
-      });
-
-      return { statusCode: 200, headers: CORS, body: JSON.stringify({ success: true }) };
     }
 
     // ── POST /auth/invite ─────────────────────────────────────────────────

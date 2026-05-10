@@ -159,7 +159,7 @@ select{
     </button>
   </div>
 
-  <div class="footer">Protected by Relai &mdash; Big Easy Weight Loss</div>
+  <div class="footer">Protected by Relai</div>
 </div>
 
 <script>
@@ -286,10 +286,12 @@ function sendLink() {
     }
 
     if (xhr.status >= 200 && xhr.status < 300) {
-      localStorage.setItem('relai_pending_profile', JSON.stringify({
-        full_name: name,
-        department: dept
-      }));
+      // Profile name + department flow through the JWT's user_metadata
+      // (sent in the OTP request body below as `data: { full_name,
+      // department }`); auth.js reads them from there on first profile
+      // creation. No localStorage stash needed — the previous code
+      // wrote one ('relai_pending_profile') that was never read by any
+      // consumer and just accumulated dead data in users' browsers.
       document.getElementById('formView').style.display = 'none';
       document.getElementById('sentMsg').innerHTML =
         'We sent a sign-in link to <strong>' + email + '</strong>. ' +

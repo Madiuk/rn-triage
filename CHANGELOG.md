@@ -6,6 +6,74 @@ bumps cover meaningful capability additions, patch bumps cover fixes).
 
 ---
 
+## v0.3.2 — 2026-05-10
+
+Patch on Juno (v0.3.0). Third-pass quality audit covering the
+sections I'd skimped on previously — `login.html`, `auth.js`,
+`styles.css`, `worker.js` semantics. None of these were causing
+visible bugs in production, but each was either dead code, a
+doubled-style typo with a confusing cascade, or a wrong-tenant
+hardcode that would surface the moment a second tenant landed.
+
+### Fixed / Removed
+
+- **`login.html` was writing dead localStorage** under
+  `relai_pending_profile` — never read by any consumer. The full
+  name + department flow through the JWT's user_metadata via the
+  OTP request body and `auth.js` reads them from there. The
+  localStorage stash had been accumulating dead data in users'
+  browsers since the original implementation. Removed.
+- **Hardcoded "Big Easy Weight Loss" in the login footer.** Login
+  is shared across tenants (we don't know which tenant a user
+  belongs to until after auth). Footer is now generic
+  "Protected by Relai." Tenant brand is shown post-login on
+  the topbar via `currentProfile.company_name` as before.
+- **`POST /auth/profile` handler in `auth.js` had no callers.**
+  Defined to update `full_name` and `role`, but no UI surfaced an
+  edit-profile flow. Removed (and the comment header). When an
+  edit-profile UI lands, this handler can be re-added with the
+  test it warrants.
+- **`worker.js` lead comments were stale or misleading.** Updated
+  the "EHR push-back" TODO to channel-pluggable framing matching
+  the rest of the codebase, and replaced the misleading "lock
+  window" comment (there was no actual lock — only a fast-PATCH
+  race-narrowing) with an honest note about what's there and a
+  pointer to the real claim mechanism for higher concurrency.
+
+### CSS cleanups (no rendering change)
+
+- **Duplicate `.severity-badge` declaration** at the top of the
+  CLASSIFICATION section was being overridden by the later
+  "Severity badge" section's version (different padding,
+  border-radius, font-size). The earlier rule was rendering-dead.
+  Removed.
+- **Three bare `.sev-dot{background:...}` declarations** (red,
+  amber, green) in succession — only the last applied per
+  cascade, and even that was overridden by the later
+  `.sev-dot{...background:currentColor...}`. The
+  severity-specific dot color comes from descendant selectors
+  (`.sev-severe .sev-dot`, etc.). The bare overrides were
+  rendering-dead. Removed.
+- **Duplicate `.history-stats` declaration** at line ~303 with
+  `grid-template-columns:repeat(4,1fr)` was overridden by the
+  later `repeat(auto-fit, minmax(170px, 1fr))` responsive
+  variant. Earlier rule was dead. Removed.
+- **Duplicate `.cat-save-btn.saved` declaration** in the
+  "Restored missing classes" section duplicated the same rule
+  defined alongside `.cat-save-btn` above. Removed the
+  duplicate.
+- **Three doubled-class selector typos** (`.learn-status.learn-status.error`,
+  `.kb-sync-bar.kb-sync-bar.error`, `.btn-xs.btn-xs.save`) — the
+  doubling was unintentional (no specificity competition that
+  would have benefited from it). Collapsed to single class.
+
+### Tests
+
+91 passing, no new tests. Affected sections (login HTML, dead
+auth handler, CSS) aren't testable in the pure-Node harness.
+
+---
+
 ## v0.3.1 — 2026-05-10
 
 Patch release on Juno (v0.3.0). Second-pass quality audit caught a

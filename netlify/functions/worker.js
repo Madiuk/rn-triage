@@ -48,9 +48,14 @@ exports.handler = async function () {
 
   const h = writeHeaders();
 
-  // Find pending rows older than the lock window. The lock is implicit:
-  // we transition to 'triaged' immediately after picking up to avoid
-  // double-processing if two workers race.
+  // Pick up pending rows oldest-first. There's no explicit row lock;
+  // we minimize race risk by transitioning to 'triaged' in the very
+  // next PATCH below. If two workers race on the same row, the second
+  // PATCH is a no-op rewrite of an already-triaged row — wasted work
+  // but not a correctness issue. When real triage calls land here,
+  // add a `for update skip locked`-style claim (or use Postgres
+  // advisory locks via a Supabase RPC) before going to higher
+  // concurrency.
   let pending;
   try {
     const r = await fetch(
@@ -70,9 +75,10 @@ exports.handler = async function () {
   let processed = 0;
   for (const row of pending) {
     try {
-      // TODO: call the triage proxy here once EHR push-back is wired up.
-      // For now, mark as triaged with a placeholder note so the queue
-      // drains and the audit trail records what happened.
+      // TODO: call the triage proxy here once the first inbound
+      // channel adapter (Bask, email, Healthie, ...) is feeding rows
+      // in. For now, mark as triaged with a placeholder note so the
+      // queue drains and the audit trail records what happened.
       const patch = {
         status: 'triaged',
         draft_response: row.draft_response || '[worker stub — triage call not yet wired]',

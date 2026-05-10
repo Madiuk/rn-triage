@@ -76,8 +76,9 @@ textarea::placeholder{color:var(--gray-400);}
 
 /* CLASSIFICATION */
 
-.severity-badge{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:5px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;}
-.severity-badge .sev-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+/* .severity-badge defined further down — see "Severity badge"
+   section. The earlier duplicate had different padding / border-radius
+   that was being overridden via the cascade and rendered dead. */
 .editable-select{width:100%;padding:8px 10px;border:1.5px solid var(--gray-200);border-radius:8px;font-family:var(--sans);font-size:var(--fs-sm);font-weight:600;color:var(--gray-800);background:var(--white);outline:none;cursor:pointer;margin-top:4px;}
 .editable-select:focus{border-color:var(--blue);}
 .editable-select.routine{border-color:var(--green-m);color:var(--green);background:var(--green-l);}
@@ -104,7 +105,7 @@ textarea::placeholder{color:var(--gray-400);}
 .correction-submit-btn:hover{background:#1d4ed8;}
 .correction-submit-btn:disabled{background:var(--gray-300);cursor:not-allowed;}
 .learn-status{font-size:var(--fs-xs);color:var(--gray-500);line-height:1.5;flex:1;}
-.learn-status.learn-status.error{color:var(--red);}
+.learn-status.error{color:var(--red);}
 
 /* ERROR + PLACEHOLDER */
 
@@ -118,7 +119,7 @@ textarea::placeholder{color:var(--gray-400);}
 .kb-header h2{font-size:var(--fs-xl);font-weight:700;margin-bottom:6px;}
 .kb-header p{font-size:var(--fs-base);color:var(--gray-600);line-height:1.6;}
 .kb-sync-bar{display:flex;align-items:center;gap:10px;padding:11px 16px;background:var(--blue-l);border:1.5px solid var(--blue-m);border-radius:10px;margin-bottom:20px;font-size:var(--fs-sm);color:var(--blue);font-weight:500;}
-.kb-sync-bar.kb-sync-bar.error{background:var(--red-l);border-color:var(--red-m);color:var(--red);}
+.kb-sync-bar.error{background:var(--red-l);border-color:var(--red-m);color:var(--red);}
 .entry-add-box{background:var(--white);border-radius:14px;border:1px solid var(--gray-200);box-shadow:0 1px 4px rgba(0,0,0,.05);margin-bottom:20px;overflow:hidden;}
 .entry-add-header{padding:15px 20px;background:var(--blue);}
 .entry-add-header span{font-size:var(--fs-base);font-weight:600;color:white;}
@@ -136,7 +137,7 @@ textarea::placeholder{color:var(--gray-400);}
 
 .btn-xs{padding:5px 11px;font-size:var(--fs-xs);font-weight:600;border-radius:6px;border:1.5px solid var(--gray-200);background:var(--white);color:var(--gray-600);cursor:pointer;font-family:var(--sans);transition:all .15s;}
 .btn-xs:hover{border-color:var(--gray-300);color:var(--gray-800);}
-.btn-xs.btn-xs.save{background:var(--blue);border-color:var(--blue);color:white;}
+.btn-xs.save{background:var(--blue);border-color:var(--blue);color:white;}
 .btn-xs.save:hover{background:#1d4ed8;}
 .btn-xs.saved{background:var(--green);border-color:var(--green);color:white;}
 .kb-actions{display:flex;gap:10px;margin-top:20px;padding-top:20px;border-top:1px solid var(--gray-200);}
@@ -215,9 +216,12 @@ textarea::placeholder{color:var(--gray-400);}
 .sel-clin{border-color:var(--blue);background:var(--blue);color:white;font-weight:600;}
 .sel-nc{border-color:var(--amber);background:var(--amber);color:white;font-weight:600;}
 .feedback-row{display:flex;flex-direction:row;flex-wrap:nowrap;gap:8px;align-items:center;}
-.sev-dot{background:var(--red);}
-.sev-dot{background:var(--amber);}
-.sev-dot{background:var(--green);}
+/* The bare .sev-dot color rules used to be redeclared three times
+   here (red, amber, green) — only the last one ever applied, and
+   even that was overridden by the .sev-dot rule further down which
+   sets background:currentColor. The severity-specific dot color
+   comes from the descendant selectors below (.sev-severe .sev-dot,
+   .sev-medium .sev-dot, .sev-low .sev-dot). */
 .sev-severe{background:var(--red-l);color:var(--red);border:1.5px solid var(--red-m);}
 .sev-severe .sev-dot{background:var(--red);}
 .sev-medium{background:var(--amber-l);color:var(--amber);border:1.5px solid var(--amber-m);}
@@ -232,10 +236,8 @@ textarea::placeholder{color:var(--gray-400);}
 .severity-badge.sev-low{background:#f0fdf4;color:var(--green);border:1.5px solid var(--green-m);}
 .sev-dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex-shrink:0;}
 
-/* Restored missing classes */
-
-/* Saved state for category save button */
-.cat-save-btn.saved{background:var(--green);color:white;border-color:var(--green);}
+/* .cat-save-btn.saved already defined alongside .cat-save-btn above —
+   the duplicate that used to live here was redundant. */
 
 /* Results column layout */
 .results-col{display:flex;flex-direction:column;gap:12px;min-width:0;}
@@ -300,7 +302,8 @@ textarea::placeholder{color:var(--gray-400);}
 .history-controls{display:flex;gap:8px;align-items:center;}
 .history-filter{padding:7px 10px;border:1.5px solid var(--gray-200);border-radius:8px;font-family:var(--sans);font-size:var(--fs-xs);background:var(--white);}
 .history-load{padding:7px 14px;background:var(--blue);border:none;border-radius:8px;color:white;font-family:var(--sans);font-size:var(--fs-xs);font-weight:600;cursor:pointer;}
-.history-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;}
+/* .history-stats grid layout is defined further down (auto-fit
+   responsive variant); the earlier 4-column override was dead. */
 .history-empty{text-align:center;padding:40px;color:var(--gray-400);font-size:var(--fs-sm);}
 
 /* KB Add Entry submit row + corrections panel ————————————————————— */
