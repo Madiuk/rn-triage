@@ -129,15 +129,27 @@ roster; nothing about the rest of Relai changes.
   table (`channel_failures` or extend `audit_log`). Operations get
   one place to retry, regardless of channel.
 
-**First two adapters** (chosen because they unblock Big Easy and are
+**First adapters** (chosen because they unblock Big Easy and are
 likely-universal across future tenants):
-- `bask`: outbound + inbound webhook handler. Build against the
-  contract Bask Health publishes once they're engaged.
+- `intercom`: **inbound webhook real and tested as of 2026-05-10**
+  (see `netlify/functions/intercom.js`). Verifies HMAC signature,
+  strips HTML, dedupes by `intercom:<conv_id>:<part_id>` external_id,
+  inserts pending row tagged `source_channel='intercom'`. Outbound
+  (post reply to conversation API) deferred until worker.js does
+  real triage and staff has a queue UI. Big Easy adopting Intercom
+  as their customer-service platform was the trigger for this
+  being the first adapter built. Phase 3 work brings the
+  outbound side online.
+- `bask`: outbound stub exists (`netlify/functions/bask.js`).
+  Inbound webhook handler will be similar to intercom.js once Bask
+  publishes their webhook contract. Build against the contract
+  when Bask is engaged.
 - `email`: inbound via Postmark Inbound (or equivalent) — forwards
   parsed emails to `ingest.js` with `channel: 'email'`. Outbound via
   whichever transactional-email provider the tenant uses (often the
   same one). Catches everything that doesn't have a dedicated EHR
-  integration; useful for almost every tenant.
+  integration; useful for almost every tenant. Deferred until the
+  first two channel adapters are exercising the framework end-to-end.
 
 #### Per-staff queue (the thing we don't have yet today)
 
@@ -392,3 +404,4 @@ assumptions at onboarding time:
 | 2026-05-09 | Tagged **v0.3.0** as the foundation-phase waypoint | Closes Phase 1 and the foundation work. Single-tenant trial is fully instrumented: per-triage telemetry, real eval harness, cost & quality endpoints, ownership model documented, channel framework designed, vertical-agnostic positioning explicit. CHANGELOG.md added. Future releases get one CHANGELOG entry plus a git tag. v0.4.0 lands when Phase 3 (channel framework + queue + soft routing) ships. |
 | 2026-05-10 | Release codename "Juno" for v0.3.0 | Significant releases get a short codename alongside the SemVer number, in alphabetical order. Juno is the first waypoint — the foundation. Tooling/tags continue to use the SemVer (`v0.3.0`); the codename is for talking-about-it shorthand and CHANGELOG headers. Next release: "K…". |
 | 2026-05-10 | Known schema drift: `review_requests.created_by` declared in 0001 but missing in production | Migration 0008's first attempt failed at the review_requests UPDATE because production schema doesn't have the column despite source declaring it. PostgREST has been silently dropping `created_by` on every review insert (Supabase config tolerates unknown fields). Functionally invisible because the application never reads created_by — the `triage_id` linkage to `query_history.user_id` carries the same information. 0008 was rewritten to use the triage_id chain so the backfill works regardless. The drift is not load-bearing; reconciliation is deferred to whenever something actually consumes `created_by`. If it ever matters, the fix is `alter table public.review_requests add column if not exists created_by uuid` plus a backfill via the same triage_id chain. |
+| 2026-05-10 | Intercom is the first channel adapter built (inbound) — ahead of Bask in priority | Big Easy's owner indicated they want to use Intercom for customer service. That changes the strategic position from "Bask is the first integration" to "Intercom-or-Bask, whichever lands first." Intercom has more public documentation than Bask and is broadly applicable across tenants (most customer-service-platform users in any vertical can adopt Intercom), so the adapter has reusable value beyond Big Easy. Inbound webhook is built and tested; outbound (posting replies back via the Conversations API) is deferred until worker.js does real triage and staff has a queue UI. Bask remains in the roadmap and uses the same channel-pluggable architecture; whenever their webhook contract is published, that adapter slots in alongside intercom.js. |

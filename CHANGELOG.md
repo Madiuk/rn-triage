@@ -6,6 +6,102 @@ bumps cover meaningful capability additions, patch bumps cover fixes).
 
 ---
 
+## v0.3.10 — 2026-05-10
+
+First real channel adapter foundation. Big Easy's owner indicated
+they want to use Intercom for their customer service workflow, so
+Intercom-first (ahead of Bask) is the right priority — bigger
+documentation surface, broader applicability across future tenants
+in any vertical.
+
+This release is **inbound webhook only**. Patient messages from
+Intercom now land in `query_history` as pending rows with
+`source_channel='intercom'`. The worker (still stubbed) will pick
+them up and run triage when wired. Outbound (posting staff-approved
+replies back to Intercom conversations) is deferred until the worker
+and staff queue UI are real — that's Phase 3 territory.
+
+### Added
+
+- **`netlify/functions/intercom.js`** — the channel adapter file.
+  - HMAC signature verification (SHA-1 and SHA-256), timing-safe
+    comparison.
+  - HTML strip that preserves paragraph breaks for the AI's
+    classification context.
+  - Handles two event topics: `conversation.user.created` and
+    `conversation.user.replied`. Other topics are acknowledged
+    with 200 + `ignored: true` so Intercom doesn't retry events
+    we deliberately skip.
+  - Idempotency via `external_id = "intercom:<conv_id>:<part_id>"`
+    so webhook retries dedup via the existing unique index on
+    `query_history` AND replies on the same conversation don't
+    collide.
+  - Honest success/failure response on insert (PostgREST status
+    propagates) so Intercom retries are safe.
+  - Tenant identification via `INTERCOM_TENANT_COMPANY_ID` env
+    var (single-tenant trial). Phase 4 multi-tenant routing will
+    switch to URL-keyed tenants.
+  - Pure helpers (`verifyIntercomSignature`, `stripHtml`,
+    `extractMessage`) are exported and unit-tested.
+
+- **`tests/intercom.test.js`** — 28 new tests covering signature
+  verification (valid, tampered, malformed, wrong-secret,
+  hex-length-mismatch), HTML stripping (paragraph breaks, list
+  items, entities, realistic Intercom payloads), and payload
+  extraction (new conversations, replies-with-admin-parts,
+  unsupported topics, missing/null data). 137 passing total now.
+
+### Env vars (new)
+
+- `INTERCOM_WEBHOOK_SECRET` — shared HMAC secret from Intercom's
+  webhook configuration.
+- `INTERCOM_TENANT_COMPANY_ID` — UUID of the tenant Intercom
+  webhooks attribute messages to. Single-tenant only; Phase 4
+  switches to URL-keyed routing.
+- `INTERCOM_ACCESS_TOKEN` (not used yet) — Intercom API token for
+  the outbound path when worker is wired.
+- `INTERCOM_ADMIN_ID` (not used yet) — which Intercom admin to
+  record as sending the staff-approved reply.
+
+### Setup (when you're ready to enable inbound)
+
+1. In Intercom: Settings → Developer → Webhooks. Create a webhook
+   subscribed to `Conversation user created` and
+   `Conversation user replied`. URL: `https://<your-relai-domain>/.netlify/functions/intercom`.
+2. Copy the webhook signing secret into `INTERCOM_WEBHOOK_SECRET`
+   in Netlify env vars.
+3. Set `INTERCOM_TENANT_COMPANY_ID` to Big Easy's `companies.id`
+   (verify via `select id, name from public.companies;`).
+4. Save env vars; Netlify will redeploy. Send a test message in
+   Intercom — it should land in `query_history` with
+   `source_channel='intercom'` and `status='pending'`.
+
+Until worker.js does real triage, those pending rows just queue.
+The staff workflow for them (queue UI, claim, send back via
+outbound) is Phase 3 work.
+
+### Audit method
+
+Built defensively from the start — applied the AGENTS.md
+checklist:
+- Auth: HMAC signature on every request (not a JWT auth
+  endpoint, but the equivalent for webhooks).
+- Cap / model gate: N/A (no AI call from this adapter).
+- Trust boundary: incoming Intercom payload is parsed defensively
+  with type checks and null guards on every field.
+- Honest success: insert failure returns 5xx so Intercom retries.
+- Idempotency: external_id format prevents double-processing on
+  retries.
+- Tenant scoping: company_id forced from env var, not body.
+- Empty / unsupported payloads: return 200 quietly, no crash.
+
+### Tests
+
+137 passing (was 113). 24 new tests for Intercom helpers + 4 for
+extended normalization from v0.3.9.
+
+---
+
 ## v0.3.9 — 2026-05-10
 
 Tenth-pass audit. User's framing: don't go live with webhooks until

@@ -56,11 +56,12 @@ match. See `PLAN.md` Phase 3 for the channel framework design.
 │       ├── auth.js        profile + tenant config + invite + signout
 │       ├── kb.js          KB / history / reviews / analyze proxy
 │       ├── triage.js      Anthropic /v1/messages proxy with allowlist
-│       ├── ingest.js      Generic inbound webhook (any channel — Bask,
-│       │                  email, Healthie, etc.); idempotent by external_id
+│       ├── ingest.js      Generic inbound webhook (any channel with
+│       │                  an X-Relai-Api-Key); idempotent by external_id
 │       ├── worker.js      Background processor for pending rows (stub)
-│       └── bask.js        First channel adapter (Bask Health) — stub.
-│                          Future channels under netlify/functions/channels/.
+│       ├── bask.js        Bask Health channel adapter (outbound) — stub
+│       └── intercom.js    Intercom channel adapter (inbound webhook —
+│                          real; outbound — deferred until worker is wired)
 ├── migrations/            SQL migrations — single source of DB truth
 ├── tests/                 plain-Node unit tests (npm test)
 ├── eval/                  eval harness skeleton for triage regression tests
@@ -116,10 +117,24 @@ ANTHROPIC_API_KEY=sk-ant-... npm run eval
 global env vars while there's only one tenant; will move into the
 `tenants.channels` jsonb column in Phase 3).
 
-| Variable               | Used by              | Purpose                                                          |
-|------------------------|----------------------|------------------------------------------------------------------|
-| `BASK_API_URL`         | bask channel adapter | Bask Health API base URL (Big Easy Weight Loss only)             |
-| `BASK_API_KEY`         | bask channel adapter | Bask Health API token (Big Easy Weight Loss only)                |
+| Variable                       | Used by                  | Purpose                                                                |
+|--------------------------------|--------------------------|------------------------------------------------------------------------|
+| `BASK_API_URL`                 | bask channel adapter     | Bask Health API base URL (Big Easy Weight Loss only)                   |
+| `BASK_API_KEY`                 | bask channel adapter     | Bask Health API token (Big Easy Weight Loss only)                      |
+| `INTERCOM_WEBHOOK_SECRET`      | intercom channel adapter | Shared secret Intercom signs webhook payloads with (HMAC SHA-1/256)    |
+| `INTERCOM_TENANT_COMPANY_ID`   | intercom channel adapter | Single-tenant: company_id to attribute Intercom-ingested rows to       |
+| `INTERCOM_ACCESS_TOKEN`        | intercom (outbound, TBD) | Intercom API token for posting replies back to conversations           |
+| `INTERCOM_ADMIN_ID`            | intercom (outbound, TBD) | Which Intercom admin is recorded as sending the reply                  |
+
+### Intercom webhook setup
+
+Once Intercom is configured to send webhooks to
+`https://<your-relai-domain>/.netlify/functions/intercom`, the
+adapter accepts the two user-message topics (`conversation.user.created`
+and `conversation.user.replied`) and ignores everything else with a
+quiet 200 so Intercom doesn't retry. The webhook URL is the same per
+tenant in single-tenant mode; multi-tenant routing comes in Phase 4
+when the URL becomes tenant-keyed.
 
 ---
 
