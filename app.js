@@ -62,7 +62,25 @@ function getKBSection(section, label){
   return kbCache[section];
 }
 
-function invalidateKBCache(){ kbCache = {}; }
+function invalidateKBCache(){ kbCache = {}; kbVersionCache = null; }
+
+// Version stamps written onto every triage row. They let us answer
+// "which prompt/KB produced this?" when looking at quality trends —
+// regressions can then be attributed to a specific version instead of
+// guessed at. simpleHash() is defined in data/triage-lib.js.
+var promptVersionCache = null;
+var kbVersionCache = null;
+function getPromptVersion(){
+  if(promptVersionCache) return promptVersionCache;
+  if(typeof BASE_PROMPT === 'undefined') return null;
+  promptVersionCache = simpleHash(BASE_PROMPT);
+  return promptVersionCache;
+}
+function getKBVersion(){
+  if(kbVersionCache) return kbVersionCache;
+  kbVersionCache = simpleHash(getFullKB());
+  return kbVersionCache;
+}
 
 // classifyMessage / parseTriageJSON / computeUrgencyScore / formatDuration /
 // levenshteinDistance are defined in data/triage-lib.js so they can be
@@ -355,7 +373,7 @@ async function saveKB(){
 }
 
 
-async function saveHistoryRecord(parsed,msg){
+async function saveHistoryRecord(parsed,msg,telemetry){
   var userName = (currentProfile&&currentProfile.full_name)||(currentUser&&currentUser.email)||window.currentNurse||'Staff';
   var userId = getUserId();
   var companyId = getCompanyId();
@@ -374,11 +392,29 @@ async function saveHistoryRecord(parsed,msg){
     };
     if(userId) payload.user_id=userId;
     if(companyId) payload.company_id=companyId;
+    // Persist the telemetry envelope onto the row. Only set columns
+    // when we actually have a value — keeps NULLs in the DB instead
+    // of zeros that would skew aggregations later.
+    if(telemetry && typeof telemetry === 'object'){
+      if(telemetry.model)                              payload.model = telemetry.model;
+      if(telemetry.prompt_version)                     payload.prompt_version = telemetry.prompt_version;
+      if(telemetry.kb_version)                         payload.kb_version = telemetry.kb_version;
+      if(telemetry.input_tokens != null)               payload.input_tokens = telemetry.input_tokens;
+      if(telemetry.output_tokens != null)              payload.output_tokens = telemetry.output_tokens;
+      if(telemetry.cache_creation_tokens != null)      payload.cache_creation_tokens = telemetry.cache_creation_tokens;
+      if(telemetry.cache_read_tokens != null)          payload.cache_read_tokens = telemetry.cache_read_tokens;
+      if(telemetry.latency_ms != null)                 payload.latency_ms = telemetry.latency_ms;
+      if(telemetry.cost_usd != null)                   payload.cost_usd = telemetry.cost_usd;
+      if(telemetry.ai_confidence != null)              payload.ai_confidence = telemetry.ai_confidence;
+    }
     var r=await api('/history','POST',payload);
     triageStartTime = Date.now();
     window._sessionTriages = (window._sessionTriages||0) + 1;
     return Array.isArray(r)&&r[0]?r[0].id:null;
-  }catch(e){return null;}
+  }catch(e){
+    console.error('saveHistoryRecord:', e.message);
+    return null;
+  }
 }
 
 // KB UI
@@ -572,6 +608,7 @@ currentHistoryId=null;
       { type:'text', text: BASE_PROMPT, cache_control:{type:'ephemeral'} },
       { type:'text', text: getFullKB(), cache_control:{type:'ephemeral'} }
     ];
+    var triageStarted = Date.now();
     var res=await fetch('/.netlify/functions/triage',{
       method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,system:systemBlocks,messages:[{role:'user',content:userContent}]})
@@ -581,8 +618,30 @@ currentHistoryId=null;
     var raw=(data.content||[]).map(function(b){return b.text||'';}).join('');
     if(!raw)throw new Error('Empty response from API.');
     var parsed = parseTriageJSON(raw);
+    // Telemetry envelope from the proxy. Prefer server-measured latency
+    // (excludes the user's own network jitter); fall back to wall-clock
+    // here when the proxy is older than this client.
+    var relai = data._relai || {};
+    var clientLatency = Date.now() - triageStarted;
+    var telemetry = {
+      model: relai.model || 'claude-sonnet-4-6',
+      latency_ms: relai.latency_ms != null ? relai.latency_ms : clientLatency,
+      cost_usd: relai.cost_usd != null ? relai.cost_usd : null,
+      input_tokens:           relai.usage ? (relai.usage.input_tokens                || null) : null,
+      output_tokens:          relai.usage ? (relai.usage.output_tokens               || null) : null,
+      cache_creation_tokens:  relai.usage ? (relai.usage.cache_creation_input_tokens || null) : null,
+      cache_read_tokens:      relai.usage ? (relai.usage.cache_read_input_tokens     || null) : null,
+      prompt_version: getPromptVersion(),
+      kb_version: getKBVersion(),
+      // Capture the AI's self-rated confidence on every triage (not
+      // only when it crossed the review threshold). Lets us calibrate
+      // the threshold against actual staff overrides later.
+      ai_confidence: (parsed.review_request && typeof parsed.review_request.confidence === 'number')
+        ? parsed.review_request.confidence
+        : null,
+    };
     renderResults(parsed);
-    saveHistoryRecord(parsed,msg).then(function(id){
+    saveHistoryRecord(parsed,msg,telemetry).then(function(id){
       currentHistoryId=id;
       // Save review request if AI flagged low confidence
       if(parsed.review_request && parsed.review_request.question){

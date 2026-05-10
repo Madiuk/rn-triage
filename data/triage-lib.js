@@ -163,6 +163,51 @@ function levenshteinDistance(a, b) {
   return prev[b.length];
 }
 
+// Anthropic list pricing in USD per 1M tokens. Source of truth at
+// https://www.anthropic.com/pricing — keep this table in sync when
+// pricing changes. Used both server-side (triage.js) for per-request
+// cost stamping and client-side for any cost displays.
+//
+// `cache_write_5m` is what Anthropic calls "cache creation" (5-minute
+// TTL, the default we use). `cache_read` is the per-token rate when a
+// request hits a warm cache.
+var TRIAGE_PRICING = {
+  'claude-sonnet-4-6': { input: 3.00,  output: 15.00, cache_write_5m: 3.75,  cache_read: 0.30 },
+  'claude-haiku-4-5':  { input: 1.00,  output:  5.00, cache_write_5m: 1.25,  cache_read: 0.10 },
+  'claude-opus-4-7':   { input: 15.00, output: 75.00, cache_write_5m: 18.75, cache_read: 1.50 },
+};
+
+// Compute USD cost of a single Anthropic /v1/messages response from
+// the model id and the `usage` block Anthropic returns. Returns null
+// when the model is unpriced (so callers can store NULL rather than a
+// wrong number). Rounded to 6 decimals to match the
+// query_history.cost_usd column's numeric(10,6).
+function computeTriageCost(model, usage) {
+  var p = TRIAGE_PRICING[model];
+  if (!p || !usage) return null;
+  var fresh  = (usage.input_tokens                 || 0) * p.input          / 1e6;
+  var out    = (usage.output_tokens                || 0) * p.output         / 1e6;
+  var cWrite = (usage.cache_creation_input_tokens  || 0) * p.cache_write_5m / 1e6;
+  var cRead  = (usage.cache_read_input_tokens      || 0) * p.cache_read     / 1e6;
+  return Math.round((fresh + out + cWrite + cRead) * 1e6) / 1e6;
+}
+
+// Stable, fast 32-bit string hash (djb2 variant). Used to stamp every
+// triage with the prompt_version and kb_version it ran against, so a
+// regression can be attributed to a specific prompt or KB revision
+// instead of guessed at. Not cryptographic — collisions are rare
+// enough at our scale and we only need "did this change since last
+// triage." Returns 8-char lowercase hex.
+function simpleHash(str) {
+  var s = String(str || '');
+  var h = 5381;
+  for (var i = 0; i < s.length; i++) {
+    h = ((h << 5) + h + s.charCodeAt(i)) | 0; // h*33 + c, kept 32-bit
+  }
+  // Convert to unsigned and pad to 8 hex chars.
+  return (h >>> 0).toString(16).padStart(8, '0');
+}
+
 // Node export hook — no-op in the browser.
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
@@ -173,5 +218,8 @@ if (typeof module !== 'undefined' && module.exports) {
     taskShape,
     formatDuration,
     levenshteinDistance,
+    computeTriageCost,
+    simpleHash,
+    TRIAGE_PRICING,
   };
 }
