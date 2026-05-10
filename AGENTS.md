@@ -194,6 +194,70 @@ do this read:
    summarization prompt with nothing to compare/summarize will
    confabulate. Either short-circuit with a deterministic note, or
    instruct the model explicitly to say "no changes" plainly.
+5. **Verify the endpoint has auth, a model allowlist, and a
+   max_tokens cap.** Anything calling Anthropic on the server's API
+   key is a budget-burn vector if those guards are missing.
+
+## Quality-pass audit method (data-integrity focus)
+
+Pattern-matching scans (grep for Bask, dead constants, silent
+catches) catch a lot but miss the project-killing class of bug:
+silent data corruption, broken learning-loop links, fragile RLS
+dependencies. When asked for a "deep" or "real" quality pass,
+follow this checklist instead of grep-pattern-matching:
+
+1. **Trace every data write end-to-end.** From UI button → fetch
+   payload → endpoint handler → DB column. For each step, ask
+   "what happens if this fails silently?" Mark anywhere the failure
+   is invisible to the user. Those are the project-killer-class
+   bugs.
+
+2. **Check whether the data you claim to be capturing is actually
+   being captured.** For every field the AI returns or staff
+   produces, is there a column that holds it? Cross-reference the
+   prompt's documented JSON output against the saveHistoryRecord
+   payload against the schema. Anything missing is a learning
+   signal that disappears after each triage.
+
+3. **Audit the active learning loop specifically, link by link.**
+   review_request created → row exists → staff sees it → staff
+   answers → handler patches review → kb_gap/protocol branch
+   triggers `promoteReviewToKB` → kb_entries INSERT → next triage
+   uses updated KB. If any link silently breaks (RLS denial, fire-
+   and-forget, missing field), the whole loop fails to close. Walk
+   it forward and walk it back.
+
+4. **Verify tenant isolation explicitly.** Every query that touches
+   a tenant table must be scoped — `company_id=eq.<id>` on reads,
+   `id=eq.<row-id>` for individual writes that the user controls,
+   `company_id=eq.<id>` for bulk writes. Anything unscoped (`?id=neq.<zeros>`,
+   no `where` clause, or relying on RLS to scope you) is a Phase-4
+   ship-blocker waiting to happen.
+
+5. **Verify auth guards on every endpoint that writes data or
+   calls a paid API.** Anthropic, Supabase service-key writes,
+   anything that costs money or persists data. Missing auth is a
+   budget-burn or data-tampering vector.
+
+6. **Race conditions in async UI flows.** If `promise.then(x => global = ...)`
+   is used and the user can trigger another flow that also sets
+   the same global, audit whether the resolution order is
+   guaranteed. If not, await the promise instead of fire-and-
+   forget.
+
+7. **Cross-check inconsistent classifications of the same row.**
+   Severity badge logic, priority tier logic, task shape logic —
+   if multiple functions classify a row differently using
+   different field reads, the same row can render differently in
+   different views and confuse staff. Align them.
+
+8. **Don't stop at three.** Each audit pass on Juno (v0.3.0
+   foundation) found bugs the previous pass missed. The pattern
+   is: pattern-matching catches the easy ones, semantic flow
+   catches the next layer, end-to-end data tracing catches the
+   project-killers. Don't declare an audit "done" until you've
+   actually traced data flow with adversarial intent on every
+   write path.
 
 ---
 
