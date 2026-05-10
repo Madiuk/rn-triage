@@ -874,8 +874,19 @@ async function submitCorrection(){
         userMessage += '\n\nStaff metadata (UI selections, NOT response edits):\n' + metaLines.join('\n');
       }
 
+      // /analyze requires a Supabase session token (auth was added in
+      // v0.3.4 to prevent budget burn from anonymous callers).
+      // Earlier this fetch didn't send an Authorization header, so
+      // every analyze call has been returning 401 — analyzeData.content
+      // was undefined, `note` resolved to empty, and the user saw the
+      // "(empty learning note from analyzer)" fallback as if the
+      // analyzer just had nothing to say. The real cause was that
+      // no analyze call was ever reaching Haiku.
+      var analyzeHeaders = {'Content-Type':'application/json'};
+      var analyzeToken = getToken();
+      if (analyzeToken) analyzeHeaders['Authorization'] = 'Bearer ' + analyzeToken;
       var analyzeRes=await fetch('/.netlify/functions/kb/analyze',{
-        method:'POST',headers:{'Content-Type':'application/json'},
+        method:'POST', headers: analyzeHeaders,
         body:JSON.stringify({
           model:'claude-haiku-4-5', max_tokens:200,
           system: systemPrompt,
@@ -884,7 +895,18 @@ async function submitCorrection(){
       });
       var analyzeData=await analyzeRes.json();
       note = (analyzeData.content||[]).map(function(b){return b.text||'';}).join('').trim();
-      if(!note) note = '(empty learning note from analyzer)';
+      // If the analyzer genuinely returned nothing useful (rare —
+      // Haiku is reliable) AND the response had no error, fall
+      // through to a clear placeholder. If analyzeData carried an
+      // error, surface it instead of pretending the analyzer was
+      // just being terse.
+      if (!note) {
+        if (analyzeData && analyzeData.error) {
+          note = 'Analyzer error: ' + (typeof analyzeData.error === 'string' ? analyzeData.error : JSON.stringify(analyzeData.error)).slice(0, 200);
+        } else {
+          note = '(empty learning note from analyzer)';
+        }
+      }
     }
 
     var duration = triageStartTime ? Math.round((Date.now()-triageStartTime)/1000) : null;
