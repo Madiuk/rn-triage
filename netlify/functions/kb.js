@@ -15,9 +15,13 @@ const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
 
 const { aggregateCostRows, aggregateQualityRows } = require("./_lib/history-aggregations");
 
-// PostgREST-style headers. Uses service key when available so RLS-protected
-// writes go through; reads use the user's bearer token when present so RLS
-// company-scoping still applies.
+// User-JWT-authenticated request headers. After v0.3.4 these are
+// only used to call Supabase Auth's /auth/v1/user endpoint to verify
+// a token — they're NOT used for PostgREST reads anymore. Every
+// PostgREST read in this file goes through writeHeaders() (service
+// key) with explicit `company_id=eq.<verified-id>` filtering so the
+// behavior is RLS-independent and not at the mercy of policies that
+// may or may not be configured on the tables.
 function readHeaders(token) {
   return {
     "Content-Type": "application/json",
@@ -205,6 +209,26 @@ exports.handler = async function (event) {
           return json(400, {
             error: "Refusing to save an empty KB. If you intended to clear the KB, contact an admin — there is no client-facing path that should produce this.",
           });
+        }
+
+        // Defense-in-depth: every entry's company_id must match the
+        // verified user's company_id. The frontend now always sends
+        // it (see buildEntries in app.js), but a malicious or
+        // buggy client could send entries with another tenant's
+        // company_id, which would either INSERT into the wrong
+        // tenant (cross-tenant data write) or be silently dropped
+        // by RLS. Forcing it server-side guarantees writes land in
+        // the verified tenant's KB regardless of what the client
+        // sent.
+        for (let i = 0; i < newEntries.length; i++) {
+          if (companyId) {
+            newEntries[i].company_id = companyId;
+          } else if (newEntries[i].company_id) {
+            // No company_id resolved for this user but entry has
+            // one — refuse rather than allow cross-tenant writes
+            // through a profile-without-company_id account.
+            return json(403, { error: "Caller has no resolved company_id; cannot save entries that target a specific tenant." });
+          }
         }
 
         // Snapshot current entries first so we can restore on failure.
@@ -431,9 +455,22 @@ exports.handler = async function (event) {
 
         const body = JSON.parse(event.body || "{}");
         const wHdr = writeHeaders();
+        const callerCompanyId = await resolveCompanyId(user);
 
+        // Tenant-scoped patch. Earlier the WHERE was `id=eq.<body.id>`
+        // alone — meaning a user with a valid JWT could PATCH ANY
+        // query_history row by passing its id. The id is a UUID and
+        // hard to guess, but defense-in-depth: we add
+        // `company_id=eq.<theirs>` to the WHERE so cross-tenant
+        // patches affect zero rows. user_id fallback is for
+        // legacy rows that were inserted with company_id=null
+        // before the v0.3.5 buildEntries fix.
         const patchById = async (patch) => {
-          const r = await fetch(base + "?id=eq." + body.id, {
+          if (!body.id) return json(400, { error: "id required" });
+          const tenantClause = callerCompanyId
+            ? `&company_id=eq.${callerCompanyId}`
+            : `&user_id=eq.${encodeURIComponent(user.id)}`;
+          const r = await fetch(base + "?id=eq." + body.id + tenantClause, {
             method: "PATCH",
             headers: wHdr,
             body: JSON.stringify(patch),
@@ -497,8 +534,18 @@ exports.handler = async function (event) {
           case "delete_correction":
             return patchById({ actual_response_sent: null, correction_note: null });
           default: {
-            // Insert
-            const r = await fetch(base, { method: "POST", headers: wHdr, body: JSON.stringify(body) });
+            // Insert. Force user_id and company_id from the verified
+            // JWT so a malicious client can't insert query_history
+            // rows that look like they came from someone else or
+            // from another tenant. The frontend already sends these
+            // (correctly, from currentUser/currentProfile), so this
+            // is defense-in-depth — but it's the kind of guard
+            // every cross-tenant write should have.
+            const insertBody = Object.assign({}, body, {
+              user_id: user.id,
+              company_id: callerCompanyId || body.company_id || null,
+            });
+            const r = await fetch(base, { method: "POST", headers: wHdr, body: JSON.stringify(insertBody) });
             return json(r.status, await r.text());
           }
         }
@@ -536,12 +583,16 @@ exports.handler = async function (event) {
 
         const body = JSON.parse(event.body || "{}");
         const wHdr = writeHeaders();
+        const callerCompanyId = await resolveCompanyId(user);
 
         if (body.action === "create") {
+          // Force company_id to the verified user's company. Earlier
+          // we trusted whatever the client sent, which would let a
+          // malicious client create review rows in another tenant.
           const record = {
             triage_id: body.triage_id || null,
-            company_id: body.company_id || null,
-            created_by: body.created_by || user.id,
+            company_id: callerCompanyId || body.company_id || null,
+            created_by: user.id,                              // forced from JWT
             question: body.question || "",
             context: body.context || "general",
             confidence: body.confidence != null ? body.confidence : null,
@@ -572,8 +623,18 @@ exports.handler = async function (event) {
             if (Array.isArray(arr) && arr[0]) review = arr[0];
           } catch (e) { console.error("kb.reviewLookup:", e.message); }
 
-          const ctx = body.context || (review && review.context) || "general";
-          const companyId = (review && review.company_id) || body.company_id || null;
+          if (!review) return json(404, { error: "Review not found." });
+
+          // Tenant check: caller's company_id must match the review
+          // row's company_id. Without this, a user with any valid
+          // session could resolve another tenant's reviews —
+          // injecting their answer into the wrong tenant's KB.
+          if (callerCompanyId && review.company_id && review.company_id !== callerCompanyId) {
+            return json(403, { error: "Cross-tenant review resolve refused." });
+          }
+
+          const ctx = body.context || review.context || "general";
+          const companyId = review.company_id || callerCompanyId || null;
 
           // Decide what to do with the answer. kb_gap / protocol promote
           // into kb_entries; other contexts are saved on the review row only.
@@ -594,11 +655,16 @@ exports.handler = async function (event) {
             status: "resolved",
             answer: body.answer || "",
             applied_to: appliedTo,
-            resolved_by: body.resolved_by || user.id,
+            resolved_by: user.id,                              // forced from JWT
             resolved_by_name: body.resolved_by_name || null,
             resolved_at: new Date().toISOString(),
           };
-          const r = await fetch(base + "?id=eq." + body.id, {
+          // Tenant-scope the PATCH WHERE — defense-in-depth on top
+          // of the review-lookup tenant check above.
+          const tenantClauseR = callerCompanyId
+            ? `&company_id=eq.${callerCompanyId}`
+            : `&created_by=eq.${encodeURIComponent(user.id)}`;
+          const r = await fetch(base + "?id=eq." + body.id + tenantClauseR, {
             method: "PATCH",
             headers: { ...wHdr, Prefer: "return=minimal" },
             body: JSON.stringify(patch),
@@ -623,7 +689,13 @@ exports.handler = async function (event) {
         }
 
         if (body.action === "dismiss") {
-          const r = await fetch(base + "?id=eq." + body.id, {
+          if (!body.id) return json(400, { error: "id required" });
+          // Tenant-scoped PATCH so cross-tenant dismissals can't
+          // happen by passing another tenant's review id.
+          const tenantClauseD = callerCompanyId
+            ? `&company_id=eq.${callerCompanyId}`
+            : `&created_by=eq.${encodeURIComponent(user.id)}`;
+          const r = await fetch(base + "?id=eq." + body.id + tenantClauseD, {
             method: "PATCH",
             headers: { ...wHdr, Prefer: "return=minimal" },
             body: JSON.stringify({ status: "dismissed", resolved_at: new Date().toISOString() }),

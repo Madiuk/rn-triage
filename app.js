@@ -351,10 +351,29 @@ function syncKBFromDOM(){
 }
 
 function buildEntries(){
+  // Build the payload the /kb POST handler will INSERT after it
+  // DELETEs the tenant's existing rows. CRITICAL: every entry must
+  // carry company_id, otherwise the inserted rows are orphaned —
+  // the next /kb GET (which scopes by company_id=eq.<theirs>) won't
+  // find them, and the frontend will think the DB is empty and
+  // re-seed. Every Save & Sync was silently writing tenant-orphaned
+  // rows until this was fixed.
+  var companyId = getCompanyId();
+  var userId = getUserId();
   var entries=[],pos=0;
   ['sideeffects','templates','protocols','urls','routing','notes'].forEach(function(section){
     (kb[section]||[]).forEach(function(entry){
-      entries.push({section:section,name:entry.name,content:entry.text,position:pos++,nurse_name:entry.nurse_name||window.currentNurse||'Unknown',user_id:(currentUser&&currentUser.id)||null,updated_at:new Date().toISOString()});
+      var row = {
+        section: section,
+        name: entry.name,
+        content: entry.text,
+        position: pos++,
+        nurse_name: entry.nurse_name || window.currentNurse || 'Unknown',
+        updated_at: new Date().toISOString(),
+      };
+      if (companyId) row.company_id = companyId;
+      if (userId)    row.user_id    = userId;
+      entries.push(row);
     });
   });
   return entries;

@@ -60,16 +60,43 @@ exports.handler = async function(event) {
         profile = Array.isArray(profiles) && profiles.length > 0 ? profiles[0] : null;
       } catch(e) { console.error('auth.fetchProfile:', e.message); }
 
-      // If no profile row exists yet, create one from user metadata
+      // If no profile row exists yet, create one from user metadata.
+      //
+      // company_id auto-attach: when there's exactly ONE company in
+      // the DB (single-tenant trial), attach the new user to it.
+      // Otherwise (multi-tenant), require explicit invitation via
+      // /auth/invite — leave company_id null and let an admin sort
+      // it out. Without this, users created via the Supabase
+      // dashboard (bypassing /auth/invite) would get permanent
+      // company_id=null profiles. Their triages would then have
+      // company_id=null (frontend's getCompanyId reads from this),
+      // making them invisible to company-scoped aggregations and
+      // breaking learning-loop feedback for those users.
       if (!profile) {
         try {
           const name = (user.user_metadata && user.user_metadata.full_name)
             || user.email.split('@')[0];
           const role = (user.user_metadata && user.user_metadata.department) || 'staff';
+
+          let defaultCompanyId = null;
+          try {
+            const compsRes = await fetch(
+              `${SUPABASE_URL}/rest/v1/companies?select=id&limit=2`,
+              { headers: hdr }
+            );
+            const comps = await compsRes.json();
+            if (Array.isArray(comps) && comps.length === 1) {
+              defaultCompanyId = comps[0].id;
+            }
+          } catch(e) { console.error('auth.lookupDefaultCompany:', e.message); }
+
+          const newProfile = { id: user.id, full_name: name, role: role };
+          if (defaultCompanyId) newProfile.company_id = defaultCompanyId;
+
           const insertRes = await fetch(`${SUPABASE_URL}/rest/v1/profiles`, {
             method: 'POST',
             headers: { ...(hdr), 'Prefer': 'return=representation' },
-            body: JSON.stringify({ id: user.id, full_name: name, role: role })
+            body: JSON.stringify(newProfile)
           });
           const inserted = await insertRes.json();
           profile = Array.isArray(inserted) ? inserted[0] : inserted;

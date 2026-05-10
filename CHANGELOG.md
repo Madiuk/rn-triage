@@ -6,6 +6,114 @@ bumps cover meaningful capability additions, patch bumps cover fixes).
 
 ---
 
+## v0.3.6 — 2026-05-10
+
+Seventh-pass audit on Juno. Focused specifically on **integration
+paths between fixes from previous passes** — the user's concern was
+that each pass introduces changes without validating their downstream
+effects. Found 5 more critical-class bugs, several of them caused by
+*combinations* of earlier fixes that left silent gaps.
+
+### Fixed (cross-tenant write vulnerabilities)
+
+The v0.3.4 RLS-independence work made reads service-key + explicit
+company_id-scoped. Writes were not similarly hardened. With the
+read path locked down but write paths still trusting client-
+supplied tenant identifiers, a malicious user with a valid session
+could:
+
+- **Insert query_history rows in another tenant's namespace** (the
+  `/history POST` default insert path forwarded the body to
+  PostgREST verbatim — `user_id` and `company_id` from the body
+  were trusted). Now both fields are forced from the verified JWT.
+- **PATCH query_history rows in any tenant** by passing their id
+  (`patchById` had `id=eq.<bodyid>` with no tenant clause). Now
+  tenant-scoped: `id=eq.<bodyid>&company_id=eq.<theirs>`. A
+  cross-tenant id matches zero rows.
+- **Resolve / dismiss review_requests in any tenant** the same way
+  (no tenant check on `id=eq.<bodyid>`). Now both verifies the
+  looked-up review's `company_id` matches the caller's *and*
+  tenant-scopes the PATCH WHERE.
+- **Create review_requests with arbitrary company_id** (the
+  `create` action trusted `body.company_id`). Now forced from the
+  verified JWT.
+
+### Fixed (data orphaning)
+
+- **`buildEntries` was producing KB save payloads without
+  `company_id`.** The /kb POST handler tenant-scopes the snapshot
+  and DELETE by company_id (correctly), but the new entries
+  inserted afterward had no `company_id` set — so they landed in
+  the DB with `company_id=NULL`. The next /kb GET (which now
+  filters by `company_id=eq.<theirs>` per v0.3.4) would return
+  zero rows. **Frontend would interpret as empty, re-seed, and
+  the cycle would silently keep producing orphaned rows.**
+  Production was masked because the existing KB rows had
+  `company_id` set via dashboard / earlier pre-bug saves; every
+  new save was orphaning entries. Now buildEntries includes
+  company_id, and the backend force-overwrites it from the JWT
+  for defense-in-depth (so a malicious client can't write KB
+  entries into another tenant's space).
+
+### Fixed (user provisioning gap)
+
+- **Auto-create profile in `auth.js` didn't set `company_id`.**
+  The handler creates a profile row when a user signs in for
+  the first time and no row exists. The created row had no
+  `company_id`, meaning every triage that user produced going
+  forward would have `company_id = NULL` (because frontend's
+  `getCompanyId()` reads from the profile). Their data would be
+  invisible to all the company-scoped aggregations introduced
+  in v0.3.4.
+
+  Fix: in single-tenant trial (exactly one row in `companies`),
+  auto-attach the new profile to that company. In multi-tenant
+  scenarios (multiple companies), leave `company_id` null and
+  require explicit invitation via `/auth/invite` — the safer
+  default once tenant boundaries matter.
+
+### Cleaned up
+
+- `readHeaders()` is no longer used for any PostgREST read in
+  `kb.js` after v0.3.4. The only remaining caller is
+  `verifyUser`, which calls Supabase Auth's `/auth/v1/user` —
+  not PostgREST. Updated the function comment to reflect this
+  so future readers don't think it's still part of the read
+  path.
+
+### Audit method (pass 7)
+
+The user's pushback after v0.3.5 was that the cumulative editing
+across passes might have introduced regressions. This pass tested
+that hypothesis explicitly:
+
+1. **Re-read each heavily-edited file end-to-end.** `kb.js` had
+   been edited in 6 of 7 passes, totaling ~700 lines now. The
+   buildEntries / /kb POST orphaning bug surfaced from
+   re-reading the data flow as a single coherent path instead
+   of file-by-file.
+2. **Trace data round-trips: write → read.** Does the row I just
+   wrote get found by the read I'd run next? That's how the
+   buildEntries-no-company_id orphaning surfaced.
+3. **Trust boundaries on every write endpoint, not just paid-API
+   ones.** v0.3.4 hardened the read path but writes still trusted
+   client-supplied tenant identifiers. Walked every write
+   endpoint and verified `user_id` / `company_id` come from the
+   JWT, not the body.
+4. **First-run paths.** The auto-create-profile flow in auth.js
+   surfaced from explicitly tracing "what happens the first time
+   a new user signs in?"
+
+### Tests
+
+109 passing, no new tests this pass — fixes are server-side
+guardrails on write paths that already had test coverage of the
+happy path. End-to-end tenant-isolation tests are out of scope
+for the pure-Node test harness; eval harness covers the
+correctness path.
+
+---
+
 ## v0.3.5 — 2026-05-10
 
 Sixth-pass audit on Juno. Caught more critical-severity bugs than
