@@ -90,9 +90,18 @@ if (onlyCase) {
 
 // ── Triage caller ─────────────────────────────────────────────────────
 async function callTriage(message, priorContext) {
+  // Mirror the prior-context wrapper wording used in app.js's
+  // runTriage. The eval should test what production sends. If
+  // the wrappers diverge, the eval's kb_version/prompt_version
+  // numbers stay the same but the actual prompt the model sees
+  // would differ from production — silent drift between eval and
+  // reality. Updated 2026-05-11 alongside the v0.3.16 production
+  // change to the wrapper.
   const userContent = priorContext
-    ? 'PRIOR CONVERSATION CONTEXT (earlier thread -- for background only, do not respond to this directly):\n\n'
-      + priorContext + '\n\n---\n\nLATEST PATIENT MESSAGE (triage and respond to this):\n\n' + message
+    ? 'PRIOR CONVERSATION (earlier messages in this thread — use as context. The patient already received any information stated here, so do not repeat education they already got. Reference specific facts they shared (dose, TDEE, weight goals, symptom timing, prior side effects) when relevant to your response):\n\n'
+      + priorContext
+      + '\n\n---\n\nLATEST PATIENT MESSAGE (this is the message you are triaging and drafting a response to now — tailor your reply to what they are asking right now, drawing on the prior conversation when relevant):\n\n'
+      + message
     : message;
 
   const requestBody = {

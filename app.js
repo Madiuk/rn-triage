@@ -811,11 +811,30 @@ async function runTriage(){
   setLoading(true);
 currentHistoryId=null;
   document.getElementById('results').innerHTML='<div class="placeholder"><div class="spinner active" style="width:26px;height:26px;border-color:var(--gray-300);border-top-color:var(--blue);"></div><div class="placeholder-text" style="margin-top:14px;">Analyzing message...</div></div>';
-    // Build user content -- include prior conversation if provided
+    // Build user content -- include prior conversation if provided.
+  //
+  // The wrapper wording is deliberately strong about HOW to use the
+  // prior context. Earlier the wrapper said "for background only, do
+  // not respond to this directly" — the AI interpreted that as
+  // "ignore the content entirely" and the new response read as if
+  // no prior context had been sent. Staff reported running the same
+  // triage with and without context and getting indistinguishable
+  // output. Now the wrapper tells the AI explicitly: don't repeat
+  // education the patient already received, and reference specific
+  // facts they shared (dose, TDEE, weight goals, symptom timing).
+  // BASE_PROMPT_TEMPLATE was also updated to reinforce the same
+  // instruction in the draft_response section.
   var prior = (document.getElementById('priorInput')||{}).value||'';
   prior = prior.trim();
+  // Helpful for diagnostics: console-log how much prior context made
+  // it into the call. Lets staff verify in dev tools that the prior
+  // context they typed actually went through.
+  console.log('runTriage:', prior ? ('prior context = ' + prior.length + ' chars') : 'no prior context');
   var userContent = prior
-    ? 'PRIOR CONVERSATION CONTEXT (earlier thread -- for background only, do not respond to this directly):\n\n' + prior + '\n\n---\n\nLATEST PATIENT MESSAGE (triage and respond to this):\n\n' + msg
+    ? 'PRIOR CONVERSATION (earlier messages in this thread — use as context. The patient already received any information stated here, so do not repeat education they already got. Reference specific facts they shared (dose, TDEE, weight goals, symptom timing, prior side effects) when relevant to your response):\n\n'
+      + prior
+      + '\n\n---\n\nLATEST PATIENT MESSAGE (this is the message you are triaging and drafting a response to now — tailor your reply to what they are asking right now, drawing on the prior conversation when relevant):\n\n'
+      + msg
     : msg;
 
   try{

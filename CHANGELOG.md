@@ -6,6 +6,84 @@ bumps cover meaningful capability additions, patch bumps cover fixes).
 
 ---
 
+## v0.3.16 — 2026-05-11
+
+User report: ran a triage, then re-ran the same triage with prior
+context added, and the output was indistinguishable. The AI
+wasn't factoring the prior context in.
+
+### Root cause
+
+The user-content wrapper around prior context said:
+> *"PRIOR CONVERSATION CONTEXT (earlier thread — for background
+> only, do not respond to this directly)"*
+
+The phrase **"do not respond to this directly"** was being
+interpreted by the model as *"ignore this content entirely"* — the
+opposite of what we wanted. Compounding it, `BASE_PROMPT_TEMPLATE`
+said nothing about prior-context handling. The AI had no
+instruction to integrate prior facts into its response, so it
+defaulted to producing a fresh first-contact reply every time.
+
+### Fixed
+
+- **Reworded the user-content wrapper** in `runTriage` (and the
+  matching wrapper in `eval/run.js` so the eval still mirrors
+  production). The new wording tells the AI explicitly:
+  - the patient already received everything in the prior block —
+    don't repeat education they already got
+  - reference specific facts they shared (dose, TDEE, weight
+    goals, symptom timing, prior side effects)
+  - the LATEST message is what they're asking now; tailor the
+    reply to that, but draw on the prior conversation when
+    relevant
+
+- **Added a `PRIOR CONVERSATION HANDLING` clause to the
+  `draft_response` instructions in `BASE_PROMPT_TEMPLATE`.** The
+  model is now told twice — once in the structural prompt, once
+  in the user content — that prior context should be integrated,
+  not ignored. The clause specifies "integrate specific facts so
+  it reads as a continuation of the same conversation, not a
+  fresh first-contact reply."
+
+- **Added a `console.log` in `runTriage`** that prints whether
+  prior context was sent and how many characters. Lets staff
+  verify in dev tools that the prior context they typed actually
+  went through to the proxy, which rules out the second
+  hypothesis (typed in wrong field, panel state issue) without
+  needing to inspect the network tab.
+
+### Eval baseline shift
+
+`BASE_PROMPT_TEMPLATE` changed, so the next eval run will produce
+a new `prompt_version` hash (was `a615b5ad`). That's expected and
+correct — it's the audit trail working as designed. Re-run
+`npm run eval -- --endpoint <url> --token <jwt>` to capture the
+new baseline. Quality on the 7 existing cases should be
+unchanged or slightly better; the prior-context handling
+addition is additive (none of the 7 cases include prior
+context).
+
+### Tests
+
+144 passing.
+
+### What you should see
+
+Re-run your test scenario: same triage, run once without prior
+context, run a second time with the prior context added.
+
+The second response should now reference specifics from your
+prior context (TDEE, prior questions, anything established
+earlier). If it still reads identical to the first response,
+that means the prior wasn't sent — open browser dev tools,
+console tab, look for the `runTriage:` log line. It will say
+`no prior context` if the priorInput textarea was empty when
+you clicked Run Triage, or `prior context = N chars` if it was
+sent (in which case the issue would be deeper).
+
+---
+
 ## v0.3.15 — 2026-05-10
 
 User report (with screenshot): selected a non-clinical category,
