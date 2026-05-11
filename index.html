@@ -329,6 +329,10 @@
           <option value="urgent">Urgent only</option>
           <option value="corrected">Corrected</option>
         </select>
+        <select id="historySort" class="history-filter" onchange="loadHistory()" title="How to order the Recent Triages table">
+          <option value="newest" selected>Newest first</option>
+          <option value="priority">Priority first</option>
+        </select>
         <button class="history-load" onclick="loadHistory()">Load</button>
       </div>
     </div>

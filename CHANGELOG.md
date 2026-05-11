@@ -6,6 +6,53 @@ bumps cover meaningful capability additions, patch bumps cover fixes).
 
 ---
 
+## v0.3.11 — 2026-05-10
+
+Tiny UX fix on the Triage Queue surfaced by real use: the queue was
+priority-sorted (most-urgent-first), which is the right behavior
+for a live queue Phase 3 will bring, but is the wrong default for
+"what did I do today?" — today's lower-priority rows ended up
+buried below older high-urgency rows.
+
+### Added
+
+- **Sort dropdown on the Triage Queue page.** Two options:
+  - **Newest first** (default, new behavior) — pure date sort,
+    descending. Today's triages at the top, scrolling down goes
+    further back in time.
+  - **Priority first** — preserves the older queue-style sort
+    (highest urgency_score first, then newest within a tier).
+    Useful when the queue UI lands in Phase 3 and the surface
+    actually is a live queue.
+
+### Changed
+
+- **Removed the 100-row display cap on the queue table.** Now
+  shows every row the server returns (up to /history/all's 200-row
+  server-side limit), so the user can scroll down to the very
+  first recorded triage. Server-side limit stays at 200; Phase 3's
+  queue UI will replace this surface entirely.
+- Queue-table title updates to reflect the current sort
+  ("sorted newest first" vs "sorted by priority") so the user
+  always knows which order they're looking at.
+
+### Not changed (intentionally)
+
+- Legacy data left as-is. The polluted older rows (old AI enum
+  values, compound categories from the pre-v0.3.1 saveCategoryTags
+  bug) are NOT corrupting the AI — the AI doesn't read
+  query_history; only BASE_PROMPT + kb_entries. The legacy rows
+  are purely historical record. They affect some aggregations
+  (Top Category counts) but don't cause hallucinations. User
+  explicitly opted to keep them.
+
+### Tests
+
+137 passing. No new tests — sort logic is DOM-bound and not
+testable in the current pure-Node harness.
+
+---
+
 ## v0.3.10 — 2026-05-10
 
 First real channel adapter foundation. Big Easy's owner indicated

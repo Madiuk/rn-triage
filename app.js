@@ -1508,14 +1508,34 @@ async function loadHistory(){
       'clinical':    'var(--blue)',
       'non-clinical':'var(--gray-500)'
     };
-    var sortedRows = filtered.slice().sort(function(a,b){
-      var sa = a.urgency_score||0, sb = b.urgency_score||0;
-      if(sb !== sa) return sb - sa;                 // higher score first
-      return new Date(b.created_at) - new Date(a.created_at); // then newer first
-    });
-       var tableHtml =
+    // Honor the sort dropdown ("Newest first" by default; "Priority
+    // first" reproduces the older queue-style ordering for staff
+    // working a live queue who want most-urgent-on-top). Default is
+    // newest because the current workflow is "what did I just do",
+    // not "what's next in the live queue" — the live-queue surface
+    // is Phase 3.
+    var sortVal = (document.getElementById('historySort') || {}).value || 'newest';
+    var sortedRows;
+    if (sortVal === 'priority') {
+      sortedRows = filtered.slice().sort(function(a,b){
+        var sa = a.urgency_score||0, sb = b.urgency_score||0;
+        if(sb !== sa) return sb - sa;                                   // higher score first
+        return new Date(b.created_at) - new Date(a.created_at);         // tiebreak newest
+      });
+    } else {
+      // Newest first. Pure created_at sort. The /history/all endpoint
+      // already returns up to 200 rows ordered newest-first; we
+      // re-sort defensively in case the server changes that, and to
+      // be consistent across both sort modes.
+      sortedRows = filtered.slice().sort(function(a,b){
+        return new Date(b.created_at) - new Date(a.created_at);
+      });
+    }
+
+    var sortLabel = sortVal === 'priority' ? 'sorted by priority' : 'sorted newest first';
+    var tableHtml =
       '<div class="data-table-wrap">'+
-        '<div class="data-table-title">Recent Triages — sorted by priority</div>'+
+        '<div class="data-table-title">Recent Triages — '+sortLabel+'</div>'+
         '<table class="data-table">'+
           '<thead><tr>'+
             '<th class="num">Score</th>'+
@@ -1529,7 +1549,11 @@ async function loadHistory(){
             '<th class="num">Time</th>'+
           '</tr></thead>'+
           '<tbody>'+
-          sortedRows.slice(0,100).map(function(r){
+          // Show every row the server returned (up to /history/all's
+          // 200-row server limit), not an artificial 100-row slice.
+          // The user explicitly asked to see all history "down to the
+          // very first recorded instance."
+          sortedRows.map(function(r){
             var dt = new Date(r.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
             var score = r.urgency_score||'-';
             var scoreColor = score>=9?'var(--red)':score>=6?'var(--amber)':score>=3?'var(--blue)':'var(--gray-500)';
