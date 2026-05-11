@@ -6,6 +6,59 @@ bumps cover meaningful capability additions, patch bumps cover fixes).
 
 ---
 
+## v0.3.24 — 2026-05-11
+
+User report: with the page-size selector (v0.3.21) showing only
+the first N rows, the only way to see older records was to bump
+the size. Wanted prev/next arrows at top and bottom so staff can
+page through without changing the window.
+
+### Added — pagination
+
+- **`← Prev` / `Next →` buttons + "Page X of Y" indicator** in
+  bars rendered both above AND below the table. Top bar lets
+  staff at the top of a list jump pages without scrolling down;
+  bottom bar serves staff who scrolled through a long page.
+- **"Showing M–N of Z" range label** in each bar so it's always
+  clear which slice you're looking at.
+- Prev/Next auto-disable at boundaries (`Page 1`, `Page N`). On
+  filter changes that reduce row count below the current page,
+  the page snaps to the last valid one rather than rendering
+  blank.
+
+### Implementation
+
+- New `historyCurrentPage` module-level state (1-indexed).
+- New `changeHistoryPage(delta)` handler — adjusts the page and
+  calls `loadHistory({resetPage: false})` so the change persists.
+- `loadHistory(opts)` gained a `resetPage` option (default
+  `true`). Plain calls — filter/sort/size change, Load button —
+  land on page 1. Internal callers that should preserve state
+  (`deleteHistoryEntry` after a successful delete) pass
+  `{resetPage: false}` so staff working through a cleanup batch
+  stay on the page they were on.
+- `buildHistoryPageBar(opts)` renders one bar; called twice from
+  `loadHistory` (top + bottom). The bottom bar also embeds the
+  page-size selector — putting it both top-and-bottom would be
+  redundant with the one already in the `.history-controls`
+  header block.
+- Page is clamped to `[1, totalPages]` at render time, so any
+  filter/sort/size change that invalidates the current page
+  snaps to the nearest valid one.
+
+### Removed
+
+- `.history-page-footer` class — superseded by
+  `.history-page-bar` with a `-bottom` modifier. The new bar
+  includes the page-size selector AND the prev/next nav, so the
+  standalone footer wasn't needed.
+
+### Tests
+
+144 passing. No triage-lib or endpoint changes.
+
+---
+
 ## v0.3.23 — 2026-05-11
 
 The Help & Guide drifted out of sync with the UI over the last

@@ -407,12 +407,20 @@ textarea::placeholder{color:var(--gray-400);}
 .history-detail-text{font-size:var(--fs-sm);color:var(--gray-800);white-space:pre-wrap;line-height:1.5;}
 .history-detail-list{margin:0;padding-left:20px;font-size:var(--fs-sm);color:var(--gray-800);line-height:1.5;}
 
-/* Page-size footer (v0.3.21). Sits below the History table so staff
-   working at the bottom of a long list can change the page size
-   without scrolling back to the top. Same .history-filter styling
-   as the controls in the header keeps the aesthetic consistent.
-   Standalone card (not visually merged with the table) so the
-   .data-table-wrap rules stay untouched and the staff-breakdown
-   table above is unaffected. */
-.history-page-footer{display:flex;align-items:center;justify-content:flex-end;gap:12px;padding:10px 14px;margin-top:-8px;margin-bottom:20px;background:var(--white);border:1.5px solid var(--gray-200);border-radius:12px;}
-.history-page-count{font-size:var(--fs-xs);color:var(--gray-500);font-weight:600;letter-spacing:.02em;}
+/* Pagination bars (v0.3.24). Rendered both above and below the
+   History table so staff at either end can jump pages without
+   scrolling. Same standalone-card aesthetic as the table itself
+   (rounded, bordered, white background) so the page composes as
+   a stack of three cards: top bar, table, bottom bar. The bottom
+   bar also embeds the page-size selector — duplicating it both
+   top-and-bottom would feel noisy since the same control already
+   lives in the .history-controls block above. */
+.history-page-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;background:var(--white);border:1.5px solid var(--gray-200);border-radius:12px;}
+.history-page-bar-top{margin-bottom:12px;}
+.history-page-bar-bottom{margin-top:12px;margin-bottom:20px;}
+.history-page-range{font-size:var(--fs-xs);color:var(--gray-500);font-weight:600;letter-spacing:.02em;flex:0 0 auto;}
+.history-page-nav{display:flex;align-items:center;gap:10px;}
+.history-page-btn{background:none;border:1.5px solid var(--gray-200);border-radius:7px;padding:5px 12px;font-family:var(--sans);font-size:var(--fs-xs);font-weight:600;color:var(--gray-700);cursor:pointer;transition:all .15s;}
+.history-page-btn:hover:not(:disabled){background:var(--blue-l);border-color:var(--blue-m);color:var(--blue);}
+.history-page-btn:disabled{opacity:.4;cursor:not-allowed;}
+.history-page-indicator{font-size:var(--fs-xs);color:var(--gray-700);font-weight:600;min-width:90px;text-align:center;letter-spacing:.02em;}

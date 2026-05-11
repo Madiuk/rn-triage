@@ -48,6 +48,14 @@ let triageStartTime = null;
 // rather than re-fetching per-row so expand is instant. Cleared
 // implicitly each loadHistory call.
 let historyRowsById = {};
+// Current page of the History table (v0.3.24). 1-indexed for
+// display. Reset to 1 on filter/sort/page-size change (any
+// user-initiated control re-renders from the top), but preserved
+// across single-row deletes so staff can keep working through
+// the same batch. Clamped to [1, totalPages] at render time —
+// if a filter reduces the row count below the current page,
+// we snap to the last valid page rather than rendering blank.
+let historyCurrentPage = 1;
 
 function getSession(){
   try{ return JSON.parse(localStorage.getItem('relai_session')||'null'); }catch(e){ return null; }
@@ -1712,6 +1720,12 @@ function toggleHistoryRowDetail(id){
 // matters we can swap to a pure client-side re-render of the
 // already-cached historyRowsById, but at current scale this is
 // the simplest correct thing.
+//
+// Page size changes reset to page 1 via loadHistory's default
+// resetPage=true. Otherwise the user might be on page 12 of
+// "Show 10" and switch to "Show 100" — page 12 doesn't exist
+// in the larger window and they'd see the clamp result, which
+// is jarring. Start at top after any size change.
 function onHistoryPageSizeChange(srcSelect){
   var newVal = srcSelect ? srcSelect.value : '25';
   var topSel = document.getElementById('historyPageSize');
@@ -1721,7 +1735,74 @@ function onHistoryPageSizeChange(srcSelect){
   loadHistory();
 }
 
-async function loadHistory(){
+// Pagination: move forward or back by `delta` (typically +1 or -1).
+// Calls loadHistory({resetPage:false}) so the page change persists
+// instead of being immediately snapped back to 1.
+// loadHistory still clamps to [1, totalPages] at render time, so
+// passing a delta that would overshoot just lands on the boundary.
+function changeHistoryPage(delta){
+  historyCurrentPage = historyCurrentPage + delta;
+  loadHistory({ resetPage: false });
+}
+
+// Build one pagination bar (top OR bottom) with prev/next buttons,
+// a "Page X of Y" indicator, and an "Showing M–N of Z" range label.
+// The bottom bar additionally renders the page-size selector — top
+// doesn't, because the same control already lives in the header
+// .history-controls block, and duplicating it three times feels
+// noisy.
+function buildHistoryPageBar(opts){
+  var page = opts.page;
+  var totalPages = opts.totalPages;
+  var startIdx = opts.startIdx;
+  var endIdx = opts.endIdx;
+  var totalRows = opts.totalRows;
+  var isBottom = !!opts.isBottom;
+  var pageSizeRaw = opts.pageSizeRaw;
+  var prevDisabled = page <= 1;
+  var nextDisabled = page >= totalPages;
+  var rangeLabel = totalRows === 0
+    ? 'No records'
+    : 'Showing ' + (startIdx + 1) + '–' + endIdx + ' of ' + totalRows;
+  // Only render the page-size select on the bottom bar.
+  var sizeSelectHtml = '';
+  if (isBottom) {
+    sizeSelectHtml =
+      '<select id="historyPageSizeBottom" class="history-filter" onchange="onHistoryPageSizeChange(this)" title="How many rows to show at once">'+
+        '<option value="10"' +(pageSizeRaw==='10' ?' selected':'')+'>Show 10</option>'+
+        '<option value="25" '+(pageSizeRaw==='25' ?' selected':'')+'>Show 25</option>'+
+        '<option value="50" '+(pageSizeRaw==='50' ?' selected':'')+'>Show 50</option>'+
+        '<option value="100"'+(pageSizeRaw==='100'?' selected':'')+'>Show 100</option>'+
+        '<option value="all"'+(pageSizeRaw==='all'?' selected':'')+'>Show all</option>'+
+      '</select>';
+  }
+  return '<div class="history-page-bar history-page-bar-' + (isBottom ? 'bottom' : 'top') + '">'+
+    '<span class="history-page-range">'+esc(rangeLabel)+'</span>'+
+    '<div class="history-page-nav">'+
+      '<button class="history-page-btn"'+(prevDisabled?' disabled':'')+' onclick="changeHistoryPage(-1)" aria-label="Previous page">&larr; Prev</button>'+
+      '<span class="history-page-indicator">Page '+page+' of '+totalPages+'</span>'+
+      '<button class="history-page-btn"'+(nextDisabled?' disabled':'')+' onclick="changeHistoryPage(1)" aria-label="Next page">Next &rarr;</button>'+
+    '</div>'+
+    sizeSelectHtml+
+  '</div>';
+}
+
+// loadHistory(opts):
+//   opts.resetPage (default true) — reset historyCurrentPage to 1
+//     before rendering. Plain user-initiated calls (filter/sort/
+//     size change, Load button) want this. Internal refreshes
+//     after a delete pass resetPage:false so the staff member
+//     stays on the page they were working through.
+async function loadHistory(opts){
+  // Default resetPage to true. Any plain `loadHistory()` call —
+  // filter/sort/size change, Load button — wants to land on page
+  // 1. Internal callers that should preserve the current page
+  // (deleteHistoryEntry after a successful delete, etc.) pass
+  // {resetPage: false} explicitly.
+  opts = opts || {};
+  if (opts.resetPage !== false) {
+    historyCurrentPage = 1;
+  }
   var filter = document.getElementById('historyFilter');
   var filterVal = filter ? filter.value : 'all';
   var list = document.getElementById('historyList');
@@ -1900,28 +1981,41 @@ async function loadHistory(){
     }
 
     var sortLabel = sortVal === 'priority' ? 'sorted by priority' : 'sorted newest first';
-    // Page-size slice (v0.3.21). Staff asked for 10/25/50/100/all
-    // options so the table doesn't scroll forever once they have
-    // hundreds of historical rows. Server still caps at 200 rows
-    // total; this is purely a client-side display window. Default
-    // is 25 — fast first paint, enough rows to scan a recent shift,
-    // and "all" stays one click away.
+    // Page-size + page-number slice (v0.3.21 + v0.3.24). Staff asked
+    // for both a window-size selector (10/25/50/100/all) AND prev/
+    // next pagination so they don't have to bump the size to see
+    // older rows. Server still caps at 200 rows total; this is
+    // purely a client-side display window.
     var pageSizeSel = document.getElementById('historyPageSize');
     var pageSizeRaw = pageSizeSel ? pageSizeSel.value : '25';
     var pageSizeNum = pageSizeRaw === 'all' ? sortedRows.length : parseInt(pageSizeRaw, 10);
     if (!pageSizeNum || pageSizeNum < 1) pageSizeNum = 25;
-    var displayedRows = sortedRows.slice(0, pageSizeNum);
+    // Compute totalPages and clamp historyCurrentPage. If a filter
+    // reduces the row count below the current page (e.g., user is
+    // on page 5 of "Show 10" with 47 rows = 5 pages, then filters
+    // to "urgent only" with 8 rows = 1 page), snap to the last
+    // valid page rather than rendering blank.
+    var totalPages = sortedRows.length === 0
+      ? 1
+      : Math.max(1, Math.ceil(sortedRows.length / pageSizeNum));
+    if (historyCurrentPage > totalPages) historyCurrentPage = totalPages;
+    if (historyCurrentPage < 1) historyCurrentPage = 1;
+    var startIdx = (historyCurrentPage - 1) * pageSizeNum;
+    var endIdx = Math.min(startIdx + pageSizeNum, sortedRows.length);
+    var displayedRows = sortedRows.slice(startIdx, endIdx);
     // Repopulate the row cache so toggleHistoryRowDetail and the
     // delete-confirm dialog have current data. Cleared+rebuilt on
     // every loadHistory so it never drifts. Cache ALL sortedRows
     // (not just the displayed slice) so users can change page-size
-    // without having to re-fetch when they "Show all" after
-    // browsing "Show 25".
+    // or page number without losing access to a previously expanded
+    // row's data.
     historyRowsById = {};
     sortedRows.forEach(function(r){ historyRowsById[r.id] = r; });
-    var countLabel = displayedRows.length === sortedRows.length
-      ? sortedRows.length + ' record' + (sortedRows.length === 1 ? '' : 's')
-      : 'showing ' + displayedRows.length + ' of ' + sortedRows.length;
+    var countLabel = sortedRows.length === 0
+      ? 'No records'
+      : (totalPages === 1
+          ? sortedRows.length + ' record' + (sortedRows.length === 1 ? '' : 's')
+          : 'showing ' + (startIdx + 1) + '–' + endIdx + ' of ' + sortedRows.length);
     var tableHtml =
       '<div class="data-table-wrap">'+
         '<div class="data-table-title">Recent Triages — '+sortLabel+' &middot; '+countLabel+' &middot; click a row to expand</div>'+
@@ -1986,23 +2080,26 @@ async function loadHistory(){
         '</table>'+
       '</div>';
 
-    // Bottom page-size selector. Mirrors the top one so staff scrolling
-    // through a long list don't have to scroll back up to change the
-    // window. Same options, same handler — onHistoryPageSizeChange
-    // syncs both selects then re-renders.
-    var footerHtml =
-      '<div class="history-page-footer">'+
-        '<span class="history-page-count">'+esc(countLabel)+'</span>'+
-        '<select id="historyPageSizeBottom" class="history-filter" onchange="onHistoryPageSizeChange(this)" title="How many rows to show at once">'+
-          '<option value="10"'  +(pageSizeRaw==='10' ?' selected':'')+'>Show 10</option>'+
-          '<option value="25"'  +(pageSizeRaw==='25' ?' selected':'')+'>Show 25</option>'+
-          '<option value="50"'  +(pageSizeRaw==='50' ?' selected':'')+'>Show 50</option>'+
-          '<option value="100"' +(pageSizeRaw==='100'?' selected':'')+'>Show 100</option>'+
-          '<option value="all"' +(pageSizeRaw==='all'?' selected':'')+'>Show all</option>'+
-        '</select>'+
-      '</div>';
+    // Top + bottom pagination bars. The top bar sits just above the
+    // table (after the per-staff breakdown block) so staff working
+    // at the top of the list can jump pages without scrolling. The
+    // bottom bar adds a page-size selector so staff who scrolled
+    // through a long page have controls within reach. Buttons
+    // auto-disable when there's no next/prev page; "No records"
+    // / "Page 1 of 1" still render so the chrome doesn't pop in
+    // and out as filters change row counts.
+    var barOpts = {
+      page: historyCurrentPage,
+      totalPages: totalPages,
+      startIdx: startIdx,
+      endIdx: endIdx,
+      totalRows: sortedRows.length,
+      pageSizeRaw: pageSizeRaw
+    };
+    var topBarHtml = buildHistoryPageBar(Object.assign({}, barOpts, {isBottom: false}));
+    var bottomBarHtml = buildHistoryPageBar(Object.assign({}, barOpts, {isBottom: true}));
 
-    list.innerHTML = staffHtml + tableHtml + footerHtml;
+    list.innerHTML = staffHtml + topBarHtml + tableHtml + bottomBarHtml;
   }catch(e){
     list.innerHTML = '<div style="color:var(--red);padding:20px;">Error: '+esc(e.message)+'</div>';
   }
@@ -2052,7 +2149,13 @@ async function deleteHistoryEntry(id){
   try{
     await api('/history','POST',{action:'delete_entry', id:id});
     if(currentHistoryId === id) currentHistoryId = null;
-    loadHistory();
+    // Preserve current page after delete (v0.3.24). Staff working
+    // through page 3 of cleanup don't want to be snapped back to
+    // page 1 every time they delete a row. The clamp in
+    // loadHistory still moves them back if their current page no
+    // longer exists (e.g., last row on the last page just got
+    // deleted).
+    loadHistory({ resetPage: false });
   }catch(e){
     alert('Could not delete: ' + (e.message || 'unknown error'));
   }
