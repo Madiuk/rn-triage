@@ -32,6 +32,60 @@
 //     because each gets a unique part id.
 //   - When outbound replies land later, they can parse the
 //     conversation_id back out to know where to post.
+//
+// ─────────────────────────────────────────────────────────────────
+// TODO (when worker auto-triage lands — i.e. when this adapter
+//       moves from "store inbound" to "store inbound + call
+//       triage with full conversation history"):
+//
+//   1. PULL THE FULL THREAD, NOT JUST THE INBOUND PART. The
+//      current handler only persists the new user message. When
+//      the worker calls triage, it must fetch the full
+//      conversation from Intercom (GET /conversations/<id>) and
+//      walk every part chronologically. The patient may have a
+//      long back-and-forth history that the AI needs to see so
+//      it doesn't re-ask questions already answered or re-give
+//      advice already given (the v0.3.16 bug, fixed for manual
+//      entry by the priorInput → priorTurns refactor in
+//      v0.3.17).
+//
+//   2. MAP AUTHOR TYPES → SPEAKER LABELS AND SERIALIZE TO THE
+//      SAME FORMAT THE MANUAL UI PRODUCES. Map
+//      author.type === 'user' → 'Patient',
+//      author.type === 'admin' → 'Nurse' (or 'Other' for bots
+//      / non-clinical staff if we want that resolution).
+//      Emit one line per turn:
+//          Patient: "<plain text>"
+//          Nurse: "<plain text>"
+//      identical to what serializePriorTurns() in app.js
+//      produces. The triage proxy doesn't need any contract
+//      change — it already takes a free-form string in
+//      messages[0].content. One serialization format, two
+//      ingestion paths (manual UI + adapter).
+//
+//   3. TRIM POLICY — DON'T SHIP UNBOUNDED HISTORY. A patient
+//      with a 6-month Intercom thread could ship a 50K-token
+//      prior block on every triage. Token cost is linear in
+//      input size, latency scales with it, and a year-old turn
+//      is mostly noise for triaging today's question.
+//
+//      Default: keep the last 10 turns OR the last ~4000 tokens
+//      (whichever cuts more aggressively). Tunable per tenant
+//      via a column on `companies` when we add it. Implement as
+//      a pure helper `trimPriorTurns(turns, policy)` so it's
+//      testable in isolation.
+//
+//   4. DO NOT PROMOTE PRIOR CONTEXT INTO THE CACHED PREFIX.
+//      Anthropic prompt caching hashes the prefix (the system
+//      messages with cache_control:ephemeral). BASE_PROMPT +
+//      KB sit in that cached region today. Prior context lives
+//      in the user-content block AFTER the cached prefix —
+//      keep it there. Moving prior context into the cached
+//      portion would murder cache hit rates because every
+//      patient has a unique history. If a refactor ever moves
+//      it up the prompt structure, that's a regression.
+//
+// ─────────────────────────────────────────────────────────────────
 
 const crypto = require('crypto');
 
