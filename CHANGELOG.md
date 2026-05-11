@@ -6,6 +6,69 @@ bumps cover meaningful capability additions, patch bumps cover fixes).
 
 ---
 
+## v0.3.17 — 2026-05-11
+
+User feedback after v0.3.16 landed: the prior-context feature was
+now actually being read by the AI, but the free-form textarea
+required staff to remember to type
+`Patient: "..."` / `Nurse: "..."` formatting themselves. Staff
+won't reliably do that ("teaching people to use my formatting
+probably won't work — it's more labor intensive and people won't
+want to use it"), so the structure had to move into the UI.
+
+### Changed
+
+- **Replaced the free-form Prior Context textarea with a stack of
+  structured turn rows.** Each row is: speaker dropdown
+  (`Patient` / `Nurse` / `Other`) + text field + remove (×) button.
+  A "+ Add turn" button appends new rows. The panel opens with one
+  empty row pre-populated, so the feature is discoverable
+  immediately.
+
+- **Order is chronological — oldest turn at the top, newest reply
+  at the bottom.** This matches how Intercom/email threads read
+  and mirrors the AI's top-to-bottom processing of the prior
+  block. The Latest Patient Message textarea sits below the prior
+  block, completing the sequence.
+
+- **`serializePriorTurns()` walks rows top-to-bottom and produces
+  the same `Patient: "..."` / `Nurse: "..."` transcript the AI was
+  already parsing happily in v0.3.16.** Empty rows are skipped, so
+  half-filled lists still produce a clean transcript. If every row
+  is empty, the function returns `''` and `runTriage` takes the
+  no-prior path. No change to the wrapper wording or to
+  `BASE_PROMPT_TEMPLATE` — v0.3.16's prompt-side fix is preserved.
+
+- **`togglePrior` close behavior**: the old "clear the textarea on
+  close" intent now becomes "drop all rows, leave one empty
+  starter row." Closing the panel never deletes the feature from
+  view.
+
+- **Removing the last remaining row auto-restores an empty one**
+  via `removePriorTurn`. Staff can't accidentally hide the feature
+  by deleting every row.
+
+### Why this matters beyond manual triage
+
+The same serialization path will serve channel adapters
+(Intercom, email, Healthie) once those land. When an inbound
+thread arrives with N prior turns already structured, those
+turns can populate the same row list on the manual editor — or
+go straight through `serializePriorTurns`'s equivalent on the
+server. One transcript format, two ingestion paths.
+
+### Cleanup
+
+- Removed the now-dead `.prior-input` CSS rule (no HTML element
+  used it after the swap). Per `AGENTS.md` #15.
+
+### Tests
+
+144 passing. No triage-lib or pure-helper changes; this is a UI
+restructure plus serialization helper.
+
+---
+
 ## v0.3.16 — 2026-05-11
 
 User report: ran a triage, then re-ran the same triage with prior

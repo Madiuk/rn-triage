@@ -742,8 +742,97 @@ function togglePrior(){
   btn.style.borderColor = nowOpen ? 'var(--blue-m)' : 'var(--gray-200)';
   btn.style.color = nowOpen ? 'var(--blue)' : 'var(--gray-500)';
   btn.style.background = nowOpen ? 'var(--blue-l)' : 'none';
-  if(!nowOpen) document.getElementById('priorInput').value = '';
+  // On close, reset the turn list back to a single empty row.
+  // (Same intent as the old textarea-clear behavior — don't carry
+  // stale context into the next triage. Old behavior was
+  // `priorInput.value = ''`; the structured equivalent is "drop
+  // everything, leave one empty starter row" so the feature
+  // stays discoverable when the panel reopens.)
+  if(!nowOpen) resetPriorTurns();
   document.getElementById('msgLabel').textContent = nowOpen ? 'Latest Reply' : 'Current Message';
+}
+
+// ── Prior-context turn helpers (v0.3.17) ──────────────────────────
+//
+// Prior context used to be a free-form textarea where staff would
+// type something like:
+//     Patient: "..."
+//     Nurse: "..."
+// We learned two things from that: (1) staff don't reliably use
+// that format unless told to — and teaching format is friction
+// they'll skip; (2) the AI parses turn-labeled transcripts well
+// when staff DO use it, so the right move is to bake the structure
+// into the UI rather than leave it as a convention.
+//
+// Each turn row is: speaker <select> + text <textarea> + remove
+// button. serializePriorTurns walks rows top-to-bottom (oldest
+// first) and produces a Patient: "..." / Nurse: "..." transcript
+// — the same shape the AI was already happy with. This also sets
+// up channel adapters (Intercom, email, Healthie) where the data
+// arrives already turn-structured: those adapters can populate
+// the same row list, so manual and channel-fed prior context
+// share one serialization path.
+
+// Build one empty <div class="prior-turn"> row. Returns the
+// element so callers can append where needed.
+function buildPriorTurnRow(){
+  var row = document.createElement('div');
+  row.className = 'prior-turn';
+  row.innerHTML = '<select class="prior-turn-speaker" aria-label="Speaker">'
+    + '<option value="Patient">Patient</option>'
+    + '<option value="Nurse">Nurse</option>'
+    + '<option value="Other">Other</option>'
+    + '</select>'
+    + '<textarea class="prior-turn-text" placeholder="What was said..."></textarea>'
+    + '<button type="button" class="prior-turn-remove" onclick="removePriorTurn(this)" aria-label="Remove turn">&times;</button>';
+  return row;
+}
+
+function addPriorTurn(){
+  var list = document.getElementById('priorTurnsList');
+  if(!list) return;
+  list.appendChild(buildPriorTurnRow());
+}
+
+function removePriorTurn(btn){
+  var row = btn && btn.closest ? btn.closest('.prior-turn') : null;
+  if(!row) return;
+  var list = document.getElementById('priorTurnsList');
+  if(!list) return;
+  row.parentNode.removeChild(row);
+  // Never leave the user with zero rows — the feature would
+  // visually disappear and they'd have to click "Add turn" to get
+  // anything back. Auto-restore one empty row if they removed the
+  // last one.
+  if(list.children.length === 0) list.appendChild(buildPriorTurnRow());
+}
+
+function resetPriorTurns(){
+  var list = document.getElementById('priorTurnsList');
+  if(!list) return;
+  list.innerHTML = '';
+  list.appendChild(buildPriorTurnRow());
+}
+
+// Walk turn rows top-to-bottom (chronological — oldest first) and
+// produce the transcript string. Empty rows are skipped, not
+// turned into empty quoted strings, so a half-filled list still
+// produces a clean transcript. Returns '' if every row is empty
+// (which lets runTriage take the no-prior path).
+function serializePriorTurns(){
+  var list = document.getElementById('priorTurnsList');
+  if(!list) return '';
+  var lines = [];
+  var rows = list.querySelectorAll('.prior-turn');
+  for(var i = 0; i < rows.length; i++){
+    var sel = rows[i].querySelector('.prior-turn-speaker');
+    var txt = rows[i].querySelector('.prior-turn-text');
+    var speaker = sel ? sel.value : 'Patient';
+    var content = txt ? (txt.value || '').trim() : '';
+    if(!content) continue;
+    lines.push(speaker + ': "' + content + '"');
+  }
+  return lines.join('\n');
 }
 
 function switchKBTab(section, btn){
@@ -824,8 +913,14 @@ currentHistoryId=null;
   // facts they shared (dose, TDEE, weight goals, symptom timing).
   // BASE_PROMPT_TEMPLATE was also updated to reinforce the same
   // instruction in the draft_response section.
-  var prior = (document.getElementById('priorInput')||{}).value||'';
-  prior = prior.trim();
+  // v0.3.17 — prior context is now a structured list of turns
+  // (speaker dropdown + text per row) rather than a free-form
+  // textarea. serializePriorTurns walks the rows top-to-bottom
+  // (chronological — oldest first) and produces the same
+  // Patient: "..." / Nurse: "..." transcript the AI was already
+  // parsing happily. Empty rows are skipped. If no row has text,
+  // prior = '' and the no-prior path runs.
+  var prior = serializePriorTurns();
   // Helpful for diagnostics: console-log how much prior context made
   // it into the call. Lets staff verify in dev tools that the prior
   // context they typed actually went through.

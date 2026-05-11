@@ -73,9 +73,24 @@
         </div>
         <div class="card-body">
           <div id="priorContextPanel" class="prior-panel">
-            <div class="eyebrow">Previous Patient Messages</div>
-            <textarea id="priorInput" class="prior-input" placeholder="Paste earlier conversation here for context..."></textarea>
-            <div class="prior-hint">&#9432; AI treats the message below as the latest reply in this thread.</div>
+            <div class="eyebrow">Earlier Conversation</div>
+            <div id="priorTurnsList" class="prior-turns">
+              <!-- One row pre-populated. Add Turn appends more. Order is
+                   chronological: top row is the earliest message, bottom
+                   row is the most recent reply before the new patient
+                   message below. -->
+              <div class="prior-turn">
+                <select class="prior-turn-speaker" aria-label="Speaker">
+                  <option value="Patient">Patient</option>
+                  <option value="Nurse">Nurse</option>
+                  <option value="Other">Other</option>
+                </select>
+                <textarea class="prior-turn-text" placeholder="What was said earlier — oldest message first, then add rows for each reply..."></textarea>
+                <button type="button" class="prior-turn-remove" onclick="removePriorTurn(this)" aria-label="Remove turn">&times;</button>
+              </div>
+            </div>
+            <button type="button" class="prior-add-turn" onclick="addPriorTurn()">+ Add turn</button>
+            <div class="prior-hint">&#9432; Add the back-and-forth in order — oldest at the top. The patient message below is the new reply you are triaging now.</div>
           </div>
           <div class="eyebrow" id="msgLabel">Patient Message</div>
           <textarea id="msgInput" placeholder="Paste the patient's message here..."></textarea>
