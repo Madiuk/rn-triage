@@ -6,6 +6,42 @@ bumps cover meaningful capability additions, patch bumps cover fixes).
 
 ---
 
+## v0.3.22 — 2026-05-11
+
+User report after v0.3.20 + v0.3.21: still has to trackpad-scroll
+horizontally to reach the × delete button. v0.3.20's overflow-x:auto
+made the table scrollable but didn't make it visible.
+
+### Root cause
+
+`.history-wrap{max-width:1100px;...}`. The History page was capped
+at 1100px while the 11-column table needs ~1400px. The table
+overflowed the wrap; on a typical desktop the × column was
+off-screen and only accessible via horizontal scroll.
+
+### Fixed
+
+- **`.history-wrap` max-width: 1100px → 1600px**, matching the
+  Triage tab's `max-width:1600px`. At this width the whole 11-
+  column table fits without horizontal scrolling on any normal
+  desktop.
+
+### Why this is fine for narrower screens
+
+- `.history-stats` uses `auto-fit, minmax(170px, 1fr)` so stat
+  cards flow gracefully into the extra width without looking
+  sparse.
+- On laptops narrower than 1600px the wrap shrinks to viewport
+  width automatically. `.data-table-wrap`'s `overflow-x:auto`
+  (from v0.3.20) still works as a fallback there — table scrolls
+  horizontally if it truly can't fit.
+
+### Tests
+
+144 passing. CSS-only.
+
+---
+
 ## v0.3.21 — 2026-05-11
 
 User report: with the History table showing up to 200 rows, the

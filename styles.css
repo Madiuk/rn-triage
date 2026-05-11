@@ -295,7 +295,19 @@ textarea::placeholder{color:var(--gray-400);}
 .prior-add-turn:hover{background:var(--blue-l);}
 
 /* HISTORY tab ——————————————————————————————————————————————————— */
-.history-wrap{max-width:1100px;margin:0 auto;padding:28px 24px;}
+/* History page width — bumped to 1600px (was 1100px, v0.3.22) to
+   make the 11-column table fit without horizontal scroll on
+   typical desktops. The × delete column was getting pushed off
+   the right edge; the data-table-wrap's overflow-x:auto from
+   v0.3.20 was a fallback (scrollable), not a fix (visible). At
+   1600px the whole table fits.
+   - Matches the Triage tab's max-width (line 40) for consistency.
+   - .history-stats uses auto-fit grid so stat cards flow into the
+     extra width gracefully — they don't get sparse-looking.
+   - On laptops narrower than 1600px the wrap shrinks to viewport
+     and overflow-x:auto on the table still scrolls horizontally
+     as a fallback. */
+.history-wrap{max-width:1600px;margin:0 auto;padding:28px 24px;}
 .review-section{margin-bottom:28px;}
 .review-section-row{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
 .review-section h2{font-size:var(--fs-lg);font-weight:700;}
