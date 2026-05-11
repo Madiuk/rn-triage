@@ -314,6 +314,19 @@ follow this checklist instead of grep-pattern-matching:
     `/analyze` auth additions both shipped without their callers
     being updated, surfacing days later as data-loss bugs.
 
+15. **When you remove or rename a local variable, grep the entire
+    file for the name before committing.** Tests can't catch
+    orphan references in DOM-bound code (large parts of `app.js`
+    aren't unit-testable). The cost is one `grep -n <var-name>
+    app.js` per refactor; the alternative is shipping a
+    `ReferenceError` that surfaces as a user-visible failure
+    days later. The v0.3.6 refactor that replaced inline
+    classification with `taskShape`/`priorityTier` shipped TWO
+    of these — one in the severity-badge condition
+    (`isClinical` never re-declared), one in the corrupted
+    `saveCategoryTags` compound string from earlier. Both were
+    one-line bugs that a 5-second grep would have caught.
+
 ---
 
 ## When in doubt, ask
