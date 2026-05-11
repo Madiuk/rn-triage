@@ -348,6 +348,13 @@
           <option value="newest" selected>Newest first</option>
           <option value="priority">Priority first</option>
         </select>
+        <select id="historyPageSize" class="history-filter" onchange="onHistoryPageSizeChange(this)" title="How many rows to show at once">
+          <option value="10">Show 10</option>
+          <option value="25" selected>Show 25</option>
+          <option value="50">Show 50</option>
+          <option value="100">Show 100</option>
+          <option value="all">Show all</option>
+        </select>
         <button class="history-load" onclick="loadHistory()">Load</button>
       </div>
     </div>

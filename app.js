@@ -1700,6 +1700,27 @@ function toggleHistoryRowDetail(id){
   row.classList.add('expanded');
 }
 
+// Sync top + bottom page-size selectors and re-render the table.
+// Both selects fire this handler with `this` set to the one the
+// user changed. We mirror the new value onto the other select
+// (without firing its onchange — assignment to .value doesn't
+// trigger change events) then call loadHistory to re-read the
+// value and re-render. loadHistory re-fetches /history/all,
+// which is fine: the call is cheap (~200 rows, indexed query,
+// no AI cost) and re-fetching keeps the displayed window in
+// sync with whatever's actually in the DB. If the cost ever
+// matters we can swap to a pure client-side re-render of the
+// already-cached historyRowsById, but at current scale this is
+// the simplest correct thing.
+function onHistoryPageSizeChange(srcSelect){
+  var newVal = srcSelect ? srcSelect.value : '25';
+  var topSel = document.getElementById('historyPageSize');
+  var botSel = document.getElementById('historyPageSizeBottom');
+  if (topSel && topSel !== srcSelect) topSel.value = newVal;
+  if (botSel && botSel !== srcSelect) botSel.value = newVal;
+  loadHistory();
+}
+
 async function loadHistory(){
   var filter = document.getElementById('historyFilter');
   var filterVal = filter ? filter.value : 'all';
@@ -1879,14 +1900,31 @@ async function loadHistory(){
     }
 
     var sortLabel = sortVal === 'priority' ? 'sorted by priority' : 'sorted newest first';
+    // Page-size slice (v0.3.21). Staff asked for 10/25/50/100/all
+    // options so the table doesn't scroll forever once they have
+    // hundreds of historical rows. Server still caps at 200 rows
+    // total; this is purely a client-side display window. Default
+    // is 25 — fast first paint, enough rows to scan a recent shift,
+    // and "all" stays one click away.
+    var pageSizeSel = document.getElementById('historyPageSize');
+    var pageSizeRaw = pageSizeSel ? pageSizeSel.value : '25';
+    var pageSizeNum = pageSizeRaw === 'all' ? sortedRows.length : parseInt(pageSizeRaw, 10);
+    if (!pageSizeNum || pageSizeNum < 1) pageSizeNum = 25;
+    var displayedRows = sortedRows.slice(0, pageSizeNum);
     // Repopulate the row cache so toggleHistoryRowDetail and the
     // delete-confirm dialog have current data. Cleared+rebuilt on
-    // every loadHistory so it never drifts.
+    // every loadHistory so it never drifts. Cache ALL sortedRows
+    // (not just the displayed slice) so users can change page-size
+    // without having to re-fetch when they "Show all" after
+    // browsing "Show 25".
     historyRowsById = {};
     sortedRows.forEach(function(r){ historyRowsById[r.id] = r; });
+    var countLabel = displayedRows.length === sortedRows.length
+      ? sortedRows.length + ' record' + (sortedRows.length === 1 ? '' : 's')
+      : 'showing ' + displayedRows.length + ' of ' + sortedRows.length;
     var tableHtml =
       '<div class="data-table-wrap">'+
-        '<div class="data-table-title">Recent Triages — '+sortLabel+' &middot; click a row to expand</div>'+
+        '<div class="data-table-title">Recent Triages — '+sortLabel+' &middot; '+countLabel+' &middot; click a row to expand</div>'+
         '<table class="data-table data-table-clickable">'+
           '<thead><tr>'+
             '<th class="num">Score</th>'+
@@ -1902,11 +1940,10 @@ async function loadHistory(){
             '<th class="num"></th>'+
           '</tr></thead>'+
           '<tbody>'+
-          // Show every row the server returned (up to /history/all's
-          // 200-row server limit), not an artificial 100-row slice.
-          // The user explicitly asked to see all history "down to the
-          // very first recorded instance."
-          sortedRows.map(function(r){
+          // Iterate displayedRows (page-size-sliced). historyRowsById
+          // still indexes ALL sortedRows so changing the page-size
+          // dropdown re-renders without a server fetch.
+          displayedRows.map(function(r){
             var dt = new Date(r.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
             var score = r.urgency_score||'-';
             var scoreColor = score>=9?'var(--red)':score>=6?'var(--amber)':score>=3?'var(--blue)':'var(--gray-500)';
@@ -1949,7 +1986,23 @@ async function loadHistory(){
         '</table>'+
       '</div>';
 
-    list.innerHTML = staffHtml + tableHtml;
+    // Bottom page-size selector. Mirrors the top one so staff scrolling
+    // through a long list don't have to scroll back up to change the
+    // window. Same options, same handler — onHistoryPageSizeChange
+    // syncs both selects then re-renders.
+    var footerHtml =
+      '<div class="history-page-footer">'+
+        '<span class="history-page-count">'+esc(countLabel)+'</span>'+
+        '<select id="historyPageSizeBottom" class="history-filter" onchange="onHistoryPageSizeChange(this)" title="How many rows to show at once">'+
+          '<option value="10"'  +(pageSizeRaw==='10' ?' selected':'')+'>Show 10</option>'+
+          '<option value="25"'  +(pageSizeRaw==='25' ?' selected':'')+'>Show 25</option>'+
+          '<option value="50"'  +(pageSizeRaw==='50' ?' selected':'')+'>Show 50</option>'+
+          '<option value="100"' +(pageSizeRaw==='100'?' selected':'')+'>Show 100</option>'+
+          '<option value="all"' +(pageSizeRaw==='all'?' selected':'')+'>Show all</option>'+
+        '</select>'+
+      '</div>';
+
+    list.innerHTML = staffHtml + tableHtml + footerHtml;
   }catch(e){
     list.innerHTML = '<div style="color:var(--red);padding:20px;">Error: '+esc(e.message)+'</div>';
   }

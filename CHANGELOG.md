@@ -6,6 +6,66 @@ bumps cover meaningful capability additions, patch bumps cover fixes).
 
 ---
 
+## v0.3.21 — 2026-05-11
+
+User report: with the History table showing up to 200 rows, the
+page scrolls forever. Wanted 10/25/50 selectors at top AND bottom
+so staff don't have to scroll back to the header to change the
+window.
+
+### Added
+
+- **Page-size selector** in the History tab header controls.
+  Options: Show 10 / 25 / 50 / 100 / All. Default is 25.
+- **Mirror selector at the bottom of the table** so staff scrolling
+  to the end of the list can change the window without scrolling
+  back up. Both selects stay in sync via `onHistoryPageSizeChange`.
+- **Record count in the table title and footer**: "Recent Triages
+  — sorted newest first · showing 25 of 152 · click a row to
+  expand". Tells staff at a glance how many rows they're seeing
+  vs how many exist in the server's 200-row response window.
+
+### Implementation
+
+- `displayedRows = sortedRows.slice(0, pageSizeNum)`. Pure
+  client-side slice — no server change, no extra fetch.
+- `historyRowsById` still caches ALL `sortedRows` (not just the
+  displayed slice). Changing the dropdown from "Show 25" to "Show
+  all" re-renders without losing the cache; expanded rows still
+  resolve their data.
+- `onHistoryPageSizeChange(srcSelect)` mirrors the new value onto
+  the other select via direct `.value =` assignment (which doesn't
+  re-fire `onchange`, avoiding a sync loop), then calls
+  `loadHistory()` to re-render. `loadHistory` re-fetches from
+  `/history/all`, which is cheap (~200 rows, indexed query, no AI
+  cost) and keeps the displayed window in sync with whatever's
+  actually in the DB.
+
+### Cost note (the question that came with this request)
+
+There's no AI cost on the History view itself — the only Anthropic
+spend happens during a triage. The fetch is one PostgREST query
+(indexed, capped at 200), ~600KB transferred, ~50ms DOM render.
+Cheap at any reasonable use volume. The page-size selector is a
+UX win (faster perceived load, less scrolling), not a cost win.
+When ingestion ramps and a tenant accumulates thousands of
+triages, the 200-row server cap becomes the next limit to address
+— pagination or date filters, not per-page caching.
+
+### Aesthetic
+
+- Footer uses the same `.history-filter` select styling as the
+  header controls. Slight negative `margin-top:-8px` pulls it
+  closer to the table without overlapping. Same rounded card
+  border as `.data-table-wrap` above.
+
+### Tests
+
+144 passing. UI add (header select, footer, slice logic, sync
+handler). No triage-lib or endpoint changes.
+
+---
+
 ## v0.3.20 — 2026-05-11
 
 User report: "Triage Queue — It looks like the delete function was

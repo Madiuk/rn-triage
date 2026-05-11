@@ -394,3 +394,13 @@ textarea::placeholder{color:var(--gray-400);}
 .history-detail-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:4px;}
 .history-detail-text{font-size:var(--fs-sm);color:var(--gray-800);white-space:pre-wrap;line-height:1.5;}
 .history-detail-list{margin:0;padding-left:20px;font-size:var(--fs-sm);color:var(--gray-800);line-height:1.5;}
+
+/* Page-size footer (v0.3.21). Sits below the History table so staff
+   working at the bottom of a long list can change the page size
+   without scrolling back to the top. Same .history-filter styling
+   as the controls in the header keeps the aesthetic consistent.
+   Standalone card (not visually merged with the table) so the
+   .data-table-wrap rules stay untouched and the staff-breakdown
+   table above is unaffected. */
+.history-page-footer{display:flex;align-items:center;justify-content:flex-end;gap:12px;padding:10px 14px;margin-top:-8px;margin-bottom:20px;background:var(--white);border:1.5px solid var(--gray-200);border-radius:12px;}
+.history-page-count{font-size:var(--fs-xs);color:var(--gray-500);font-weight:600;letter-spacing:.02em;}
