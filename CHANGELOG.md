@@ -6,6 +6,47 @@ bumps cover meaningful capability additions, patch bumps cover fixes).
 
 ---
 
+## v0.3.13 — 2026-05-10
+
+Fixes a regression introduced in v0.3.6: `renderResults` was
+referencing `isClinical`, a variable that was removed in v0.3.6
+when the inline classification logic was replaced with the shared
+`taskShape`/`priorityTier` helpers. A reference to it lingered on
+the severity-badge condition. At runtime this surfaced as
+`ReferenceError: isClinical is not defined`, which then propagated
+up through `runTriage`'s catch block as a generic "Triage could
+not complete" message.
+
+User would have seen this as: paste a patient message, click
+Run Triage, brief loading spinner, then an amber error panel.
+No triage data lost — the failure was purely in rendering, after
+the AI returned a valid response but before `saveHistoryRecord`
+could run.
+
+Replaced the dangling `hasSideEffect && isClinical` check with a
+`isRealSE` derived from `priorityTier(d)` — true when the tier
+is one of `severe-se | moderate-se | mild-se`. Keeps the
+severity badge in sync with the queue's tier label and removes
+the duplicate classification logic.
+
+### Audit note
+
+This is the second variable-removed-but-not-everywhere-replaced
+bug from the v0.3.6 refactor (the first was the corrupted
+saveCategoryTags compound string). Each refactor that replaces a
+local variable with a shared helper needs an exhaustive grep for
+the variable name in the same commit, not just the obvious uses.
+That's the kind of thing I should have caught with a pre-commit
+`grep -n` instead of relying on tests — the affected code path
+isn't exercised by the pure-Node test harness because
+`renderResults` is DOM-bound.
+
+### Tests
+
+137 passing.
+
+---
+
 ## v0.3.12 — 2026-05-10
 
 Fixes session-expiry — user hit `API /history returned 401:

@@ -1112,7 +1112,6 @@ function renderResults(d){
   var draftText=(d.draft_response||'').trim();
   var draftIsEmpty=!draftText;
   var severityBadge=buildSeverityBadge(d.clinical_routing_level);
-  var hasSideEffect=d.clinical_routing_flag&&(d.clinical_routing_level||'none')!=='none';
   var aiClinCat=(d.clinical_category||'').trim();
   var aiNonClin=(d.non_clinical_items&&d.non_clinical_items.length)?d.non_clinical_items.join(', '):'';
   var _in=d.internal_note||'';
@@ -1131,6 +1130,15 @@ function renderResults(d){
     shape === 'dual'         ? 'Dual Task'    :
     tier  === 'non-clinical' ? 'Non-Clinical' :
                                 'Clinical';
+  // Show the severity badge only when the tier is a real side
+  // effect (one of the three -se tiers). Earlier this used a
+  // local `hasSideEffect && isClinical` check; `isClinical` was
+  // removed in v0.3.6 when the inline logic was replaced with
+  // priorityTier/taskShape, but a reference to it lingered later
+  // in the function — surfaced as "isClinical is not defined" at
+  // runtime. Deriving from tier here keeps the badge condition in
+  // lockstep with the tier label shown in the queue.
+  var isRealSE = tier === 'severe-se' || tier === 'moderate-se' || tier === 'mild-se';
 
   // Build pills. CLINICAL_CATS / NON_CLINICAL_CATS are both derived
   // from RELAI_DEFAULTS.categories at module load — see top of file.
@@ -1156,8 +1164,9 @@ function renderResults(d){
             '<div style="font-size:var(--fs-xs);color:var(--gray-500);font-weight:600;">Task type: <span style="color:var(--gray-800);font-weight:700;">'+taskType+'</span></div>'+
           '</div>'+
 
-          // Severity badge — shown when the AI flagged a side effect
-          (hasSideEffect&&isClinical?
+          // Severity badge — shown only for the three -se tiers
+          // so the badge stays in sync with the queue's tier label.
+          (isRealSE?
             '<div style="padding:10px 0;border-top:1px solid var(--gray-100);">'+
               severityBadge+
             '</div>'
