@@ -49,6 +49,104 @@ function getToken(){
   var s = getSession();
   return s ? s.access_token : null;
 }
+
+// Supabase public values, mirroring login.html. Both files need these
+// for the magic-link flow (login.html) and the silent token-refresh
+// flow (here). The anon key is intentionally exposed in client code
+// — that's how Supabase is designed.
+// If you ever rotate these, update BOTH login.html and this block.
+const SUPA_URL = 'https://aturbsnqpdtvhrnujrqb.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF0dXJic25xcGR0dmhybnVqcnFiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc4NDc5MTgsImV4cCI6MjA5MzQyMzkxOH0.l7LdmI8PfFiIXa1nIwwauiWh6KnzpwhlpK5uieATsic';
+
+// In-flight refresh promise. Multiple parallel API calls that hit 401
+// simultaneously must share a single refresh attempt — otherwise they
+// each rotate the refresh_token, the writes race, and only the last
+// one ends up in localStorage. The dropped tokens would be invalid on
+// next use, kicking the user to the login page even though we just
+// fetched a new one.
+let refreshInFlight = null;
+
+// Use the stored refresh_token to mint a new access_token (and
+// rotated refresh_token) from Supabase, write both back to
+// localStorage. Returns true on success, false if no refresh_token,
+// the call failed, or Supabase returned an error.
+async function refreshSupabaseToken(){
+  if (refreshInFlight) return refreshInFlight;
+  refreshInFlight = (async function(){
+    try {
+      var session = getSession();
+      if (!session || !session.refresh_token) return false;
+      var r = await fetch(SUPA_URL + '/auth/v1/token?grant_type=refresh_token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': SUPA_KEY,
+        },
+        body: JSON.stringify({ refresh_token: session.refresh_token }),
+      });
+      if (!r.ok) {
+        console.error('refreshSupabaseToken: status', r.status);
+        return false;
+      }
+      var data = await r.json();
+      if (!data || !data.access_token) return false;
+      localStorage.setItem('relai_session', JSON.stringify({
+        access_token: data.access_token,
+        refresh_token: data.refresh_token || session.refresh_token,
+        timestamp: Date.now(),
+      }));
+      return true;
+    } catch (e) {
+      console.error('refreshSupabaseToken:', e.message);
+      return false;
+    } finally {
+      refreshInFlight = null;
+    }
+  })();
+  return refreshInFlight;
+}
+
+// Bearer-token-attaching fetch with automatic refresh-on-401-retry.
+// Every authenticated network call in the app should route through
+// this. The flow:
+//   1. Send the request with the current access_token.
+//   2. If response is 401, try to refresh the access_token using the
+//      stored refresh_token.
+//   3. If refresh succeeds, retry the request once with the new token.
+//   4. If refresh fails AND we had a session to begin with, the
+//      session is dead — show a toast and redirect to /login.html.
+//      (No infinite retry loop.)
+// Returns the Response object; the caller handles parsing.
+async function authFetch(url, opts){
+  opts = opts || {};
+  var baseHeaders = Object.assign({}, opts.headers || {});
+
+  var doFetch = function(tok){
+    var hdrs = Object.assign({}, baseHeaders);
+    if (tok) hdrs['Authorization'] = 'Bearer ' + tok;
+    return fetch(url, Object.assign({}, opts, { headers: hdrs }));
+  };
+
+  var r = await doFetch(getToken());
+  if (r.status !== 401) return r;
+
+  var refreshed = await refreshSupabaseToken();
+  if (refreshed) {
+    return await doFetch(getToken());
+  }
+
+  // Refresh failed. If we had a session at all, it's dead — surface
+  // it to the user briefly, then redirect. Don't redirect synchronously
+  // because the caller's catch block needs to run first.
+  if (getSession()) {
+    try { showToast('Session expired — redirecting to login...', 'warn'); } catch(e) {}
+    setTimeout(function(){
+      localStorage.removeItem('relai_session');
+      window.location.href = '/login.html';
+    }, 1500);
+  }
+  return r;
+}
 function getCompanyId(){
   // currentProfile.company_id comes straight from the `profiles`
   // table (see auth.js — its `select` includes company_id). The old
@@ -146,8 +244,12 @@ async function initAuth(){
     return;
   }
   try{
-    var r = await fetch('/.netlify/functions/auth/profile',{
-      headers:{'Authorization':'Bearer '+session.access_token}
+    // authFetch (v0.3.12) auto-refreshes a stale JWT on 401. If we
+    // get here after the user's been gone >1 hour, the original
+    // access_token is dead; the silent refresh keeps them logged
+    // in without bouncing through the magic-link flow.
+    var r = await authFetch('/.netlify/functions/auth/profile', {
+      headers: {'Content-Type': 'application/json'},
     });
     var data = await r.json();
     if(!data.user || !data.user.id){
@@ -297,15 +399,21 @@ async function api(endpoint, method, body){
   // Every existing caller is already wrapped in try/catch (verified
   // pass v0.3.8); their catch blocks now fire on real failures
   // instead of having to inspect the response shape.
-  var token = getToken();
-  var hdrs = {'Content-Type':'application/json'};
-  if (token) hdrs['Authorization'] = 'Bearer ' + token;
-  var opts = {method: method || 'GET', headers: hdrs};
+  //
+  // Auth: routes through authFetch (v0.3.12), which auto-refreshes
+  // the access_token on 401 and retries once. Before v0.3.12, a
+  // 1-hour-stale JWT would surface as a 401 here every call until
+  // the user manually logged out and back in. Now the refresh
+  // happens transparently.
+  var opts = {
+    method: method || 'GET',
+    headers: {'Content-Type': 'application/json'},
+  };
   if (body) opts.body = JSON.stringify(body);
 
   var r;
   try {
-    r = await fetch('/.netlify/functions/kb' + endpoint, opts);
+    r = await authFetch('/.netlify/functions/kb' + endpoint, opts);
   } catch (networkErr) {
     var ne = new Error('Network error reaching ' + endpoint + ': ' + networkErr.message);
     ne.cause = 'network';
@@ -724,12 +832,15 @@ currentHistoryId=null;
       { type:'text', text: getFullKB(), cache_control:{type:'ephemeral'} }
     ];
     var triageStarted = Date.now();
-    var triageHeaders = {'Content-Type':'application/json'};
-    var triageToken = getToken();
-    if(triageToken) triageHeaders['Authorization'] = 'Bearer ' + triageToken;
-    var res=await fetch('/.netlify/functions/triage',{
-      method:'POST',headers:triageHeaders,
-      body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,system:systemBlocks,messages:[{role:'user',content:userContent}]})
+    // authFetch auto-attaches the Bearer token AND auto-refreshes
+    // on 401 (v0.3.12). Earlier this was a raw fetch with manual
+    // token plumbing — a stale token would 401, throw, and the
+    // user would see a generic "triage could not complete" error
+    // with no way to recover other than logging out.
+    var res = await authFetch('/.netlify/functions/triage', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,system:systemBlocks,messages:[{role:'user',content:userContent}]})
     });
     var data=await res.json();
     if(data.error)throw new Error(typeof data.error==='string'?data.error:(data.error.message||JSON.stringify(data.error)));
@@ -929,20 +1040,17 @@ async function submitCorrection(){
         userMessage += '\n\nStaff metadata (UI selections, NOT response edits):\n' + metaLines.join('\n');
       }
 
-      // /analyze requires a Supabase session token (auth was added in
-      // v0.3.4 to prevent budget burn from anonymous callers).
-      // Earlier this fetch didn't send an Authorization header, so
-      // every analyze call has been returning 401 — analyzeData.content
-      // was undefined, `note` resolved to empty, and the user saw the
-      // "(empty learning note from analyzer)" fallback as if the
-      // analyzer just had nothing to say. The real cause was that
-      // no analyze call was ever reaching Haiku.
-      var analyzeHeaders = {'Content-Type':'application/json'};
-      var analyzeToken = getToken();
-      if (analyzeToken) analyzeHeaders['Authorization'] = 'Bearer ' + analyzeToken;
-      var analyzeRes=await fetch('/.netlify/functions/kb/analyze',{
-        method:'POST', headers: analyzeHeaders,
-        body:JSON.stringify({
+      // authFetch handles auth + auto-refresh on 401. Before v0.3.12
+      // this was a raw fetch with a manual Authorization header,
+      // which meant an expired session would silently 401 here, the
+      // empty Haiku response would fall through, and the user saw
+      // the "(empty learning note from analyzer)" fallback. Same
+      // root cause as the older missing-Auth bug surfaced by user
+      // testing in v0.3.8's first patch.
+      var analyzeRes = await authFetch('/.netlify/functions/kb/analyze', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({
           model:'claude-haiku-4-5', max_tokens:200,
           system: systemPrompt,
           messages:[{role:'user', content: userMessage}]

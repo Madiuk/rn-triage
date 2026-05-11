@@ -6,6 +6,67 @@ bumps cover meaningful capability additions, patch bumps cover fixes).
 
 ---
 
+## v0.3.12 — 2026-05-10
+
+Fixes session-expiry — user hit `API /history returned 401:
+Authentication required` after working past the JWT's 1-hour
+expiry. The bug was always there; v0.3.8's strict-error api()
+just made it visible. The frontend was never refreshing the
+access_token despite storing the refresh_token at login.
+
+### Added
+
+- **`refreshSupabaseToken()`** in `app.js`. Uses the stored
+  refresh_token to mint a new access_token (and rotated
+  refresh_token) from Supabase Auth. Serialized via a shared
+  in-flight promise so concurrent calls don't race the
+  refresh-token rotation and dead-token each other.
+- **`authFetch(url, opts)`** wrapper. Auto-attaches the Bearer
+  token, and on 401 transparently refreshes + retries once. If
+  the refresh itself fails (refresh_token expired, or user is
+  truly logged out), shows a "Session expired — redirecting to
+  login..." toast and bounces to `/login.html`.
+- **`SUPA_URL` and `SUPA_KEY` constants** in app.js, mirroring
+  login.html. The anon key is intentionally public — that's
+  Supabase by design. Comment in code calls out the
+  "if you rotate, update both files" coupling.
+
+### Changed
+
+- **`api()` routes through `authFetch`** instead of doing its
+  own raw fetch with token plumbing. All `/.netlify/functions/kb/*`
+  calls (KB load/save, history list/save/patch, reviews list/
+  resolve/dismiss, /analyze) inherit auto-refresh.
+- **`runTriage`'s `/triage` call** uses authFetch. A stale
+  session no longer breaks mid-triage.
+- **`submitCorrection`'s `/analyze` call** uses authFetch. Same
+  root cause as the missing-Auth bug from earlier today; this
+  also covers the expiry-during-correction case.
+- **`initAuth`'s `/auth/profile` call** uses authFetch. When the
+  user opens the app after >1 hour away, the silent refresh
+  keeps them in instead of bouncing to magic-link.
+
+### Behavior
+
+- **Inside the 1-hour active window**: zero change. The current
+  token works on every call.
+- **After 1 hour**: first 401 triggers a refresh. The refresh
+  call adds ~100-200ms latency to that one API call. Subsequent
+  calls use the new token without delay.
+- **After ~7 days inactive** (refresh_token expired): refresh
+  fails. Toast + redirect to login. User does the magic-link
+  flow again, fresh tokens.
+- **Concurrent calls all 401-ing**: they share the same in-flight
+  refresh promise. Only one refresh happens; everyone retries
+  with the new token. No token-rotation race.
+
+### Tests
+
+137 passing. Auth-flow logic is fetch/localStorage-bound and not
+testable in the current pure-Node harness.
+
+---
+
 ## v0.3.11 — 2026-05-10
 
 Tiny UX fix on the Triage Queue surfaced by real use: the queue was
