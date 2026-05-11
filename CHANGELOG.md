@@ -6,6 +6,54 @@ bumps cover meaningful capability additions, patch bumps cover fixes).
 
 ---
 
+## v0.3.23 — 2026-05-11
+
+The Help & Guide drifted out of sync with the UI over the last
+several releases. Surgical updates to bring it back into line.
+
+### Updated — stale content
+
+- **Quick Reference item #1** previously said "click Add Prior
+  Context and paste the earlier thread there first." Prior Context
+  is now a structured turn list (v0.3.17), not a textarea. Reworded
+  to describe the speaker dropdown + text + Add turn flow with
+  oldest-at-top, newest-at-bottom ordering.
+
+- **"When do I use Add Prior Context?" FAQ** rewritten for the
+  same reason. Also added the "why" — "without the earlier turns
+  the AI is triaging a fragment and may re-explain things the
+  patient already knows." That's the v0.3.16 bug, surfaced as the
+  reason this matters.
+
+- **"Common Mistakes" → "Entering the wrong thing"** previously
+  pointed only to the Corrections tab for cleanup. Now mentions
+  both paths: × on the Triage Queue row (v0.3.18) for whole-entry
+  deletion, Corrections tab for note-only corrections.
+
+### Added — new features that needed documentation
+
+- **"How do I see what each row was about?"** new FAQ in Triage
+  Queue & Stats. Describes the Message preview column and
+  click-to-expand inline detail (v0.3.19).
+
+- **"Can I delete a wrong entry?"** new FAQ. Describes the ×
+  button, the three checkpoints (preview / expand / confirm
+  dialog), and the fact that promoted KB entries survive a
+  triage delete — important because that's a non-obvious
+  guarantee.
+
+### Intentionally not documented
+
+- Page-size selector (v0.3.21). The dropdown labels
+  ("Show 10/25/50/100/all") explain themselves; adding help
+  copy would be over-documenting an obvious UI control.
+
+### Tests
+
+144 passing. Help-content edits only — no code paths touched.
+
+---
+
 ## v0.3.22 — 2026-05-11
 
 User report after v0.3.20 + v0.3.21: still has to trackpad-scroll

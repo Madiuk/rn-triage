@@ -192,7 +192,7 @@
           <div class="help-qr-num">1</div>
           <div>
             <div class="help-qr-label">Paste the patient message</div>
-            <div class="help-qr-desc">Drop the patient's current message into the left box. If it's a reply to something you already sent, click <strong>Add Prior Context</strong> and paste the earlier thread there first.</div>
+            <div class="help-qr-desc">Drop the patient's current message into the left box. If it's a reply to an ongoing conversation, click <strong>Add Prior Context</strong> and add each earlier turn — pick the speaker, type what they said, click <strong>+ Add turn</strong> for the next one. Oldest at top, newest reply at the bottom.</div>
           </div>
         </div>
         <div class="help-qr-item">
@@ -243,7 +243,7 @@
           <div class="help-section-title">Using Prior Context</div>
           <div class="help-faq">
             <button class="help-faq-q" onclick="toggleFaq(this)"><span>When do I use Add Prior Context?</span><span class="help-arrow">&#9660;</span></button>
-            <div class="help-faq-a">Any time the patient message is a reply to something you already sent. Without the earlier thread, the AI is triaging a fragment. Click <strong>Add Prior Context</strong>, paste everything that came before, then paste only their latest reply in the main message box.</div>
+            <div class="help-faq-a">Any time the patient message is a reply to an ongoing conversation. Without the earlier turns the AI is triaging a fragment, and may re-explain things the patient already knows or re-ask questions they already answered. Click <strong>Add Prior Context</strong> to open the turn list. Each row has a speaker dropdown (<strong>Patient</strong> / <strong>Nurse</strong> / <strong>Other</strong>) and a text field; click <strong>+ Add turn</strong> for each new turn. Put the oldest turn at the top and the most recent reply at the bottom. Then type the newest patient message in the main box below.</div>
           </div>
           <div class="help-faq">
             <button class="help-faq-q" onclick="toggleFaq(this)"><span>Do I need it every time?</span><span class="help-arrow">&#9660;</span></button>
@@ -296,6 +296,14 @@
             <button class="help-faq-q" onclick="toggleFaq(this)"><span>What does "Edit Rate" mean?</span><span class="help-arrow">&#9660;</span></button>
             <div class="help-faq-a">Percent of triages where staff <strong>actually changed the AI's draft</strong> before sending (measured by character-level edit distance). Verbatim sends — where staff copied the AI's draft as-is and clicked Submit &amp; Learn — don't count toward this number; those are positive signal that the AI got it right. A high rate means the AI's draft frequently needs work; that's useful training data for the corrections feed.</div>
           </div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>How do I see what each row was about?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a">The <strong>Message</strong> column shows the first ~80 characters of the patient message at a glance — usually enough to identify a row. For full detail, click anywhere on the row (except the &times; button) to expand it inline: full patient message, AI draft response, what was actually sent (only shown when it differs from the draft), follow-up questions, and any internal note for the support team. Click the same row again to collapse.</div>
+          </div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>Can I delete a wrong entry?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a">Yes. Each row has a small <strong>&times;</strong> on the right edge — click it to delete that triage permanently. The confirmation dialog quotes the message back to you before anything is destroyed. Three checkpoints stand between you and an accidental delete: the Message column preview, optional click-to-expand, and the confirm dialog itself. KB entries already promoted from a deleted triage are <em>not</em> removed — the lesson the AI learned survives.</div>
+          </div>
         </div>
         <div class="help-section">
           <div class="help-section-title">Common Mistakes</div>
@@ -305,7 +313,7 @@
               <strong>Triaging a reply without Prior Context</strong> &mdash; the AI gets a fragment and produces a generic response.<br><br>
               <strong>Ignoring the red severity badge</strong> &mdash; Severe means escalate to a provider now.<br><br>
               <strong>Ignoring the routing card</strong> &mdash; if a non-clinical item is flagged, the internal note needs to reach the support team via your usual handoff method. Don't paste it into the patient-facing reply.<br><br>
-              <strong>Entering the wrong thing in "What was sent to the patient"</strong> &mdash; this teaches the AI incorrect behavior. Delete it in the Corrections tab immediately.
+              <strong>Entering the wrong thing in the patient-message field or in "What was sent to the patient"</strong> &mdash; this pollutes the AI's learning signal. Two ways to fix: delete the whole entry from the Triage Queue (&times; on the row) when the entire row is garbage, or open <strong>Knowledge Base &rarr; Corrections tab</strong> when only the correction note is wrong.
             </div>
           </div>
         </div>
