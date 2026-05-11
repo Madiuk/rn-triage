@@ -41,6 +41,13 @@ let currentUser = null;      // Supabase user object
 let currentProfile = null;   // Profile + company data
 let currentHistoryId = null;
 let triageStartTime = null;
+// Cache of history rows by id (v0.3.19). Populated by loadHistory
+// every time the list refreshes; consumed by toggleHistoryRowDetail
+// when expanding a row inline and by deleteHistoryEntry when
+// building the confirm-dialog preview. We hold the data in memory
+// rather than re-fetching per-row so expand is instant. Cleared
+// implicitly each loadHistory call.
+let historyRowsById = {};
 
 function getSession(){
   try{ return JSON.parse(localStorage.getItem('relai_session')||'null'); }catch(e){ return null; }
@@ -1585,6 +1592,114 @@ async function castVote(type, btn){
   }
 }
 
+// Compact plain-text preview of a patient_message for the history
+// table's Message column and the delete-confirm dialog. Collapses
+// whitespace (including the patient's newlines) to single spaces so
+// the preview reads as one line, then truncates to `max` chars with
+// an ellipsis. Returns plain text — caller is responsible for
+// HTML-escaping when rendering to the DOM. The dialog uses it raw.
+function previewPatientMessage(text, max){
+  if(!text) return '';
+  max = max || 80;
+  var clean = String(text).replace(/\s+/g, ' ').trim();
+  if(clean.length <= max) return clean;
+  return clean.slice(0, max - 1) + '…';   // …
+}
+
+// Build the inner HTML for an expanded history-row detail panel.
+// Click on a row inserts a sibling <tr> containing this. Shows only
+// the fields that actually have data, so non-clinical rows don't
+// show empty follow-up sections, etc. All fields are esc()'d
+// because patient_message and draft_response are user/AI content
+// and may contain HTML-like characters.
+function buildHistoryDetailHtml(r){
+  if(!r) return '<div class="history-detail-block">No detail available.</div>';
+  var parts = [];
+  // Always show patient_message — it's why the row exists.
+  parts.push(
+    '<div class="history-detail-block">'+
+      '<div class="history-detail-label">Patient Message</div>'+
+      '<div class="history-detail-text">'+esc(r.patient_message || '(empty)')+'</div>'+
+    '</div>'
+  );
+  if(r.draft_response){
+    parts.push(
+      '<div class="history-detail-block">'+
+        '<div class="history-detail-label">AI Draft Response</div>'+
+        '<div class="history-detail-text">'+esc(r.draft_response)+'</div>'+
+      '</div>'
+    );
+  }
+  // Show actual_response_sent only if it actually differs from the
+  // AI draft. Same text as the draft means the staff member sent it
+  // verbatim — showing it again is just noise.
+  if(r.actual_response_sent && r.actual_response_sent !== r.draft_response){
+    parts.push(
+      '<div class="history-detail-block">'+
+        '<div class="history-detail-label">Sent to Patient</div>'+
+        '<div class="history-detail-text">'+esc(r.actual_response_sent)+'</div>'+
+      '</div>'
+    );
+  }
+  if(r.internal_note){
+    parts.push(
+      '<div class="history-detail-block">'+
+        '<div class="history-detail-label">Internal Note (Support Handoff)</div>'+
+        '<div class="history-detail-text">'+esc(r.internal_note)+'</div>'+
+      '</div>'
+    );
+  }
+  if(Array.isArray(r.follow_up_questions) && r.follow_up_questions.length){
+    parts.push(
+      '<div class="history-detail-block">'+
+        '<div class="history-detail-label">Follow-up Questions</div>'+
+        '<ul class="history-detail-list">'+
+          r.follow_up_questions.map(function(q){
+            return '<li>'+esc(q)+'</li>';
+          }).join('')+
+        '</ul>'+
+      '</div>'
+    );
+  }
+  if(r.correction_note){
+    parts.push(
+      '<div class="history-detail-block">'+
+        '<div class="history-detail-label">Correction Note</div>'+
+        '<div class="history-detail-text">'+esc(r.correction_note)+'</div>'+
+      '</div>'
+    );
+  }
+  return parts.join('');
+}
+
+// Toggle the expanded detail panel below a history row. Looked up
+// via data-history-row attribute on the row. If a detail row
+// already sits below this one, remove it (collapse); otherwise
+// build one and insert it. We don't re-fetch the row data — it's
+// cached in historyRowsById from the most recent loadHistory.
+function toggleHistoryRowDetail(id){
+  if(!id) return;
+  var row = document.querySelector('tr[data-history-row="'+id+'"]');
+  if(!row) return;
+  var next = row.nextElementSibling;
+  if(next && next.classList.contains('history-detail-row')){
+    next.parentNode.removeChild(next);
+    row.classList.remove('expanded');
+    return;
+  }
+  var data = historyRowsById[id];
+  if(!data) return;
+  var detail = document.createElement('tr');
+  detail.className = 'history-detail-row';
+  // The history table currently has 11 columns (Score, Priority,
+  // Type, Date, Staff, Message, Category, Urgency, Corrected,
+  // Time, ×). colspan must match or the detail row won't span the
+  // full width.
+  detail.innerHTML = '<td colspan="11">'+buildHistoryDetailHtml(data)+'</td>';
+  row.parentNode.insertBefore(detail, row.nextSibling);
+  row.classList.add('expanded');
+}
+
 async function loadHistory(){
   var filter = document.getElementById('historyFilter');
   var filterVal = filter ? filter.value : 'all';
@@ -1764,16 +1879,22 @@ async function loadHistory(){
     }
 
     var sortLabel = sortVal === 'priority' ? 'sorted by priority' : 'sorted newest first';
+    // Repopulate the row cache so toggleHistoryRowDetail and the
+    // delete-confirm dialog have current data. Cleared+rebuilt on
+    // every loadHistory so it never drifts.
+    historyRowsById = {};
+    sortedRows.forEach(function(r){ historyRowsById[r.id] = r; });
     var tableHtml =
       '<div class="data-table-wrap">'+
-        '<div class="data-table-title">Recent Triages — '+sortLabel+'</div>'+
-        '<table class="data-table">'+
+        '<div class="data-table-title">Recent Triages — '+sortLabel+' &middot; click a row to expand</div>'+
+        '<table class="data-table data-table-clickable">'+
           '<thead><tr>'+
             '<th class="num">Score</th>'+
             '<th>Priority</th>'+
             '<th>Type</th>'+
             '<th>Date</th>'+
             '<th>Staff</th>'+
+            '<th>Message</th>'+
             '<th>Category</th>'+
             '<th>Urgency</th>'+
             '<th class="num">Corrected</th>'+
@@ -1799,17 +1920,29 @@ async function loadHistory(){
             var shapeCell = r._shape === 'dual'
               ? '<span class="task-shape-pill task-shape-dual">Dual</span>'
               : '<span class="task-shape-muted">—</span>';
-            return '<tr>'+
+            // Preview the patient message in the Message column. ~80
+            // chars is enough to distinguish "I started 2.5mg of
+            // tirzepatide..." from "Hey I had a question about my
+            // shipment..." without taking over the row width.
+            var msgPreview = previewPatientMessage(r.patient_message, 80);
+            var msgCell = msgPreview
+              ? esc(msgPreview)
+              : '<span style="color:var(--gray-300);">(empty)</span>';
+            return '<tr data-history-row="'+r.id+'" onclick="toggleHistoryRowDetail(\''+r.id+'\')">'+
               '<td class="num" style="font-weight:700;color:'+scoreColor+';">'+score+'</td>'+
               '<td style="color:'+tierColor[tier]+';font-weight:600;">'+tierLabel[tier]+'</td>'+
               '<td>'+shapeCell+'</td>'+
               '<td>'+dt+'</td>'+
               '<td class="staff-name">'+esc(r.nurse_name||'')+'</td>'+
+              '<td class="message-preview">'+msgCell+'</td>'+
               '<td>'+esc(formatCategoryDisplay(r))+'</td>'+
               '<td>'+esc(urg)+'</td>'+
               '<td class="num">'+corrected+'</td>'+
               '<td class="num">'+dur+'</td>'+
-              '<td class="num"><button class="row-delete" onclick="deleteHistoryEntry(\''+r.id+'\')" title="Delete this entry permanently">&times;</button></td>'+
+              // stopPropagation on the × so clicking it doesn't also
+              // toggle the row's expand state — those are two
+              // separate intents and need to stay decoupled.
+              '<td class="num"><button class="row-delete" onclick="event.stopPropagation(); deleteHistoryEntry(\''+r.id+'\')" title="Delete this entry permanently">&times;</button></td>'+
             '</tr>';
           }).join('')+
           '</tbody>'+
@@ -1848,12 +1981,21 @@ async function loadHistory(){
 // the Triage tab would then 404. Clearing it here prevents that.
 async function deleteHistoryEntry(id){
   if(!id) return;
-  var ok = confirm(
-    'Delete this triage entry permanently?\n\n' +
-    'This removes the entry and any unresolved review request attached to it. ' +
-    'KB entries already promoted from this triage are NOT affected.'
-  );
-  if(!ok) return;
+  // Look up the row in the cached map (populated by loadHistory) so
+  // the confirm dialog can quote the patient message back to the
+  // user. Third checkpoint against accidental delete: the column
+  // preview shows what the row is about, expand-on-click shows
+  // full detail, and the dialog repeats the preview at the moment
+  // of the destructive action.
+  var row = historyRowsById[id];
+  var preview = row ? previewPatientMessage(row.patient_message, 120) : '';
+  var msg = 'Delete this triage entry permanently?\n\n';
+  if(preview){
+    msg += '"' + preview + '"\n\n';
+  }
+  msg += 'This removes the entry and any unresolved review request attached to it. ' +
+    'KB entries already promoted from this triage are NOT affected.';
+  if(!confirm(msg)) return;
   try{
     await api('/history','POST',{action:'delete_entry', id:id});
     if(currentHistoryId === id) currentHistoryId = null;

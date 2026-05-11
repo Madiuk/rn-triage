@@ -6,6 +6,64 @@ bumps cover meaningful capability additions, patch bumps cover fixes).
 
 ---
 
+## v0.3.19 — 2026-05-11
+
+User report on v0.3.18: "I am unable to see what content / entry
+was the one I want to delete. This is a huge issue because people
+could randomly delete entries, especially incorrect ones as there
+is no context."
+
+v0.3.18 shipped delete but didn't ship the context staff need to
+decide WHICH row to delete. Fair criticism — the row only showed
+score, date, staff, category, urgency. Nothing about WHAT the
+patient said.
+
+### Added — three checkpoints of context before delete
+
+1. **"Message" column** in the History table previews ~80 chars
+   of `patient_message`. Whitespace is collapsed so newlines don't
+   break the single-line preview. Empty messages render as a
+   muted `(empty)`. Visible in every row, zero interaction
+   required — solves the "is this the one?" question at a glance
+   for the common case.
+
+2. **Click any row to expand inline.** Click the row body (not
+   the × button) and a detail panel slides in below showing:
+   - Full patient message
+   - AI draft response
+   - Sent-to-patient text (only if it differs from the draft —
+     verbatim sends would just duplicate)
+   - Internal note (for non-clinical handoffs)
+   - Follow-up questions (if any)
+   - Correction note (if staff left one)
+
+   Click again to collapse. The cached row data lives in
+   `historyRowsById` (populated by `loadHistory`) so expand is
+   instant — no per-row refetch.
+
+3. **Delete-confirm dialog now quotes the preview back to the
+   user** before they commit. Three checkpoints total: column
+   preview → optional row expand → confirm dialog with preview.
+
+### Changed
+
+- `deleteHistoryEntry(id)` looks up the row in `historyRowsById`
+  and includes a 120-char preview in the confirm message.
+- The × button now calls `event.stopPropagation()` so clicking
+  delete doesn't also toggle the row's expand state — those are
+  two separate intents.
+- The data table got a `data-table-clickable` modifier class for
+  the cursor:pointer + hover styling on history rows, without
+  affecting other tables (per-staff breakdown above).
+
+### Tests
+
+144 passing. UI restructure + helpers (`previewPatientMessage`,
+`buildHistoryDetailHtml`, `toggleHistoryRowDetail`); no
+triage-lib or pure-helper changes.
+
+---
+
 ## v0.3.18 — 2026-05-11
 
 User report: "I entered the wrong messages into the Triage area. I
