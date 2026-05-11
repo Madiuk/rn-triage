@@ -238,6 +238,29 @@ function priorityTier(parsed) {
   return 'clinical';
 }
 
+// Build a human-readable category string for table/list display.
+// Combines clinical_category (text) and non_clinical_items (jsonb
+// array) into one line. Earlier the queue's Category column showed
+// only clinical_category — non-clinical-only triages appeared with
+// an empty Category cell even though the staff had selected
+// non-clinical pills and saved them. The data was correct in the
+// DB (non_clinical_items array); the display just didn't read it.
+//
+// Output shape:
+//   clinical only: "Side Effects"
+//   non-clinical only: "Billing/Payment, Shipment/Tracking"
+//   dual: "Side Effects · Billing/Payment"
+//   empty: ""
+function formatCategoryDisplay(row) {
+  if (!row) return '';
+  var parts = [];
+  if (row.clinical_category) parts.push(row.clinical_category);
+  if (Array.isArray(row.non_clinical_items) && row.non_clinical_items.length) {
+    parts.push(row.non_clinical_items.join(', '));
+  }
+  return parts.join(' · ');
+}
+
 // Task shape — orthogonal to priority. A 'dual' task has BOTH clinical
 // and non-clinical components and requires extra routing work (an
 // internal handoff to the support team — Bask thread comment, internal
@@ -375,6 +398,7 @@ if (typeof module !== 'undefined' && module.exports) {
     computeUrgencyScore,
     priorityTier,
     taskShape,
+    formatCategoryDisplay,
     formatDuration,
     levenshteinDistance,
     computeTriageCost,

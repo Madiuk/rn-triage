@@ -1329,7 +1329,7 @@ async function loadCorrections(){
 
       var catSpan=document.createElement('span');
       catSpan.style.cssText='font-size:var(--fs-xs);color:var(--gray-500);';
-      catSpan.textContent=r.clinical_category||'';
+      catSpan.textContent=formatCategoryDisplay(r);
 
       meta.appendChild(nameSpan);
       meta.appendChild(catSpan);
@@ -1690,7 +1690,7 @@ async function loadHistory(){
               '<td>'+shapeCell+'</td>'+
               '<td>'+dt+'</td>'+
               '<td class="staff-name">'+esc(r.nurse_name||'')+'</td>'+
-              '<td>'+esc(r.clinical_category||'')+'</td>'+
+              '<td>'+esc(formatCategoryDisplay(r))+'</td>'+
               '<td>'+esc(urg)+'</td>'+
               '<td class="num">'+corrected+'</td>'+
               '<td class="num">'+dur+'</td>'+

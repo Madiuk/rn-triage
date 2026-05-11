@@ -6,6 +6,53 @@ bumps cover meaningful capability additions, patch bumps cover fixes).
 
 ---
 
+## v0.3.15 — 2026-05-10
+
+User report (with screenshot): selected a non-clinical category,
+saved it, but the Category column in the Triage Queue showed
+empty. Data was saved correctly to `non_clinical_items` (the
+jsonb array); the display logic just ignored it.
+
+### Fixed (display bug, no data corruption)
+
+- **Queue table's Category column** only read `clinical_category`
+  and didn't look at `non_clinical_items` at all. Non-clinical-
+  only triages appeared with an empty Category cell.
+- **Corrections list's category label** (in KB → Corrections
+  tab) had the same bug — same fix.
+
+Both now use a shared `formatCategoryDisplay(row)` helper in
+`triage-lib.js`. Output shapes:
+- Clinical only: `"Side Effects"`
+- Non-clinical only: `"Billing/Payment"`
+- Dual: `"Side Effects · Billing/Payment"`
+- Multiple non-clinical: `"Billing/Payment, Shipment/Tracking"`
+
+The middle-dot separator distinguishes the clinical vs
+non-clinical halves of a dual; commas separate items within the
+non-clinical list.
+
+### Added
+
+- `formatCategoryDisplay(row)` helper in `data/triage-lib.js` — pure,
+  testable, handles null/empty inputs defensively.
+- 7 new tests covering each output shape + null/legacy-row
+  handling (e.g., non-array `non_clinical_items` from
+  pre-v0.3.1 data).
+
+### Tests
+
+144 passing (was 137).
+
+### What you'll see after the deploy
+
+Your row from the screenshot — Brad, May 10 8:12 PM, score 3,
+Non-Clinical priority — should now show the actual non-clinical
+category you selected in the Category column. The data was
+already there; only the rendering was missing it.
+
+---
+
 ## v0.3.14 — 2026-05-10
 
 Twelfth-pass audit. User asked whether more checks are warranted
