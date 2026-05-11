@@ -343,7 +343,13 @@ textarea::placeholder{color:var(--gray-400);}
 .stat-value{font-size:var(--fs-lg);font-weight:700;}
 
 /* Per-staff breakdown + Triage queue tables ——————————————————————— */
-.staff-breakdown,.data-table-wrap{background:var(--white);border:1.5px solid var(--gray-200);border-radius:12px;overflow:hidden;margin-bottom:20px;}
+/* overflow-x:auto, not overflow:hidden — v0.3.19 added a Message
+   preview column to the History table which on typical viewports
+   pushes the table past its container's width, clipping the
+   rightmost cell (the × delete button) off-screen. Horizontal
+   scroll lets staff reach the × when the table overflows.
+   overflow-y stays hidden so the rounded corners still clip. */
+.staff-breakdown,.data-table-wrap{background:var(--white);border:1.5px solid var(--gray-200);border-radius:12px;overflow-x:auto;overflow-y:hidden;margin-bottom:20px;}
 .staff-breakdown-title,.data-table-title{padding:12px 16px;background:var(--gray-50);border-bottom:1px solid var(--gray-200);font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-700);}
 .data-table{width:100%;border-collapse:collapse;font-size:var(--fs-xs);}
 .data-table thead{background:var(--gray-50);}
@@ -375,7 +381,7 @@ textarea::placeholder{color:var(--gray-400);}
    ~80 chars of patient_message at-a-glance, the row expands inline
    on click to show full content, and the delete-confirm dialog
    quotes the preview back to the user before destruction. */
-.message-preview{max-width:320px;color:var(--gray-700);font-size:var(--fs-xs);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.message-preview{max-width:260px;color:var(--gray-700);font-size:var(--fs-xs);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .data-table-clickable tbody tr[data-history-row]{cursor:pointer;}
 .data-table-clickable tbody tr[data-history-row]:hover{background:var(--blue-l)!important;}
 .data-table-clickable tbody tr.expanded{background:var(--blue-l)!important;}

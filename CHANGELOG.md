@@ -6,6 +6,46 @@ bumps cover meaningful capability additions, patch bumps cover fixes).
 
 ---
 
+## v0.3.20 — 2026-05-11
+
+User report: "Triage Queue — It looks like the delete function was
+removed."
+
+It wasn't removed — it was clipped. v0.3.19 added a Message preview
+column which pushed the History table past its container width on
+typical viewports, and the wrap's `overflow:hidden` (inherited from
+the original styling for rounded corners) cut the rightmost cell —
+the × delete button — off the screen entirely. Classic "didn't
+test on a normal-width browser" miss.
+
+### Fixed
+
+- `.data-table-wrap` overflow changed from `hidden` to
+  `overflow-x:auto;overflow-y:hidden`. Horizontal scroll lets staff
+  reach the × button when the table exceeds the container width.
+  Vertical stays hidden so the rounded corners still clip cleanly.
+
+- `.message-preview` max-width reduced from 320px to 260px to
+  reduce the likelihood of overflow in the first place. The
+  truncation still cleanly fits ~80 chars; the column just doesn't
+  hog as much horizontal real estate.
+
+### Quality audit (v0.3.16 → v0.3.19)
+
+Ran a focused audit across the last four releases — tenant scoping
+on the new delete endpoint, HTML injection on the new inline
+onclick handlers, dead code from the priorInput → priorTurns swap,
+historyRowsById cache staleness, prior-turn serialization with
+embedded quotes, and eval wrapper drift vs production. All six
+came back clean. No bugs or security issues introduced by v0.3.16
+through v0.3.19.
+
+### Tests
+
+144 passing. CSS-only fix.
+
+---
+
 ## v0.3.19 — 2026-05-11
 
 User report on v0.3.18: "I am unable to see what content / entry
