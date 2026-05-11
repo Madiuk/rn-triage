@@ -6,6 +6,91 @@ bumps cover meaningful capability additions, patch bumps cover fixes).
 
 ---
 
+## v0.3.14 — 2026-05-10
+
+Twelfth-pass audit. User asked whether more checks are warranted
+given the recent pattern of bugs from prior refactors. Applied
+the new AGENTS.md rule #15 retroactively — exhaustive grep for
+every variable/function symbol I've removed in past commits.
+
+### Audit results
+
+- **All onclick / onchange / oninput handlers in `index.html`
+  resolve to functions defined in `app.js`** — no orphan
+  handlers.
+- **All `getElementById('x')` calls in `app.js`** reference IDs
+  either defined in `index.html` or dynamically created within
+  `app.js`'s `innerHTML` blocks. No dangling lookups.
+- **Past-refactor orphan search** (the v0.3.13 `isClinical`
+  class of bug): every previously-removed symbol — `getKBPrompt`,
+  `kbCacheKey`, `triageHeaders`, `triageToken`, `analyzeHeaders`,
+  `analyzeToken`, `isClinical`, `hasSideEffect` — has zero
+  remaining code references. Only historical comments in the
+  v0.3.13 CHANGELOG explanation contain the names, which is
+  intentional.
+- **Eval cases use current enum values** — no leftover
+  pre-v0.3.0 categories like "GI side effects" or
+  "Urgent-escalate."
+
+### Fixed (schema drift)
+
+- **`review_requests.created_by` declared in 0001_baseline.sql
+  but missing in production.** Discovered when 0008's first
+  attempt failed at the review_requests UPDATE. Migration 0009
+  adds the column with `add column if not exists` (idempotent)
+  and backfills historical rows via the triage_id chain
+  (`rr.triage_id → query_history.user_id`).
+
+  Application impact: silent. The application has been writing
+  `created_by: user.id` on every review insert since the
+  codebase existed; PostgREST has been dropping the field
+  because Supabase tolerates unknown columns. Functionally
+  invisible because nothing reads the column today. But the
+  fallback PATCH WHERE clauses in `/reviews resolve` and
+  `/reviews dismiss` reference `created_by` when
+  `callerCompanyId` is null — those clauses would 400 if they
+  ever fired. They don't fire in production today because every
+  profile has a company_id after 0008. Closing the drift
+  removes a latent failure mode.
+
+### Recommended: run migration 0009 in Supabase
+
+```sql
+-- one-line column addition + backfill
+\i migrations/0009_review_requests_created_by.sql
+```
+
+Or paste the file's contents into the SQL editor. Output will
+show how many historical rows got their `created_by` populated
+via the triage chain.
+
+### Audit method (this pass)
+
+Applied AGENTS.md #15 retroactively. The audit started with:
+
+```bash
+# 1. Every onclick handler in HTML resolves to a function in JS
+grep -nE 'on(click|change|input)="[a-zA-Z_]+\(' index.html | ...
+
+# 2. Every getElementById in JS either exists in HTML or in JS innerHTML
+grep -oE "getElementById\('([^']+)'\)" app.js ...
+
+# 3. Every removed symbol from past refactors has zero code refs
+for sym in <removed-symbols>; do grep -nE "\\b$sym\\b" ...; done
+
+# 4. Eval cases match current enum values
+grep -h "clinical_category" eval/cases/*.json
+```
+
+All four came back clean except the known `created_by` drift,
+which 0009 now reconciles.
+
+### Tests
+
+137 passing. No new tests — schema migration only.
+
+---
+
 ## v0.3.13 — 2026-05-10
 
 Fixes a regression introduced in v0.3.6: `renderResults` was
