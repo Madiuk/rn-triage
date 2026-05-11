@@ -553,6 +553,64 @@ exports.handler = async function (event) {
           }
           case "delete_correction":
             return patchById({ actual_response_sent: null, correction_note: null });
+          case "delete_entry": {
+            // Hard-delete a query_history row. Used when staff entered
+            // the wrong content (e.g. pasted their own reply into the
+            // patient-message field) and want the row gone so it
+            // doesn't pollute the learning loop or aggregations.
+            //
+            // FK cleanup: review_requests.triage_id references
+            // query_history.id WITHOUT ON DELETE CASCADE (see
+            // migrations/0001_baseline.sql). Deleting the parent
+            // before the children would 23503. Wipe any attached
+            // review_requests first, tenant-scoped so a malicious
+            // caller can't nuke another tenant's reviews by passing a
+            // foreign triage_id.
+            //
+            // KB entries already promoted from this triage live in a
+            // separate `kb_entries` row and are intentionally NOT
+            // touched — the lesson the AI learned survives the
+            // deletion of its origin triage. If staff want to undo a
+            // KB promotion they do that from the KB tab.
+            if (!body.id) return json(400, { error: "id required" });
+            const tenantClause = callerCompanyId
+              ? `&company_id=eq.${callerCompanyId}`
+              : `&user_id=eq.${encodeURIComponent(user.id)}`;
+            // Reviews are looked up by triage_id, but tenant-scope on
+            // the review's OWN company_id (the FK doesn't enforce
+            // tenant alignment). Strip the leading & so it works as
+            // the first filter clause after `?`.
+            const reviewTenantClause = tenantClause.replace(/^&/, '');
+            try {
+              await fetch(
+                `${SUPABASE_URL}/rest/v1/review_requests?triage_id=eq.${body.id}&${reviewTenantClause}`,
+                { method: "DELETE", headers: { ...wHdr, Prefer: "return=minimal" } }
+              );
+            } catch (e) {
+              // Reviews cleanup is best-effort: if it fails the
+              // query_history delete will FK-violate and we'll
+              // surface the error from there. Don't crash the
+              // handler.
+              console.error("kb.delete_entry.reviews:", e.message);
+            }
+            const r = await fetch(base + "?id=eq." + body.id + tenantClause, {
+              method: "DELETE",
+              headers: wHdr,
+            });
+            const responseText = await r.text();
+            if (r.ok) {
+              try {
+                const parsed = JSON.parse(responseText);
+                if (Array.isArray(parsed) && parsed.length === 0) {
+                  return json(404, { error: "Row not found in caller's tenant." });
+                }
+              } catch (e) {
+                // Body wasn't JSON; fall through to return what
+                // PostgREST sent.
+              }
+            }
+            return json(r.status, responseText);
+          }
           default: {
             // Insert. Force user_id and company_id from the verified
             // JWT so a malicious client can't insert query_history

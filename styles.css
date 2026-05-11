@@ -361,3 +361,10 @@ textarea::placeholder{color:var(--gray-400);}
 .task-shape-pill{display:inline-block;font-size:11px;font-weight:700;padding:1px 8px;border-radius:10px;letter-spacing:.04em;text-transform:uppercase;}
 .task-shape-dual{background:var(--amber-l);color:var(--amber);border:1px solid var(--amber-m);}
 .task-shape-muted{color:var(--gray-300);font-size:var(--fs-xs);}
+
+/* Per-row × delete button on the History table (v0.3.18). Muted by
+   default so the table doesn't shout DELETE at staff during normal
+   reading; reddens on hover to make the destructive action obvious
+   right before they click. */
+.row-delete{background:none;border:none;color:var(--gray-300);font-size:18px;cursor:pointer;padding:2px 8px;border-radius:4px;line-height:1;transition:all .15s;}
+.row-delete:hover{color:var(--red);background:var(--red-l);}

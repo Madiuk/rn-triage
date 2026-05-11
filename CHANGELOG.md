@@ -6,6 +6,60 @@ bumps cover meaningful capability additions, patch bumps cover fixes).
 
 ---
 
+## v0.3.18 — 2026-05-11
+
+User report: "I entered the wrong messages into the Triage area. I
+entered my response into the most recent message 'Latest Reply' and
+so it messed up the response. I don't want the AI to learn
+something whacky in regards to it. I'd rather not manually enter
+the del query into Supabase every time."
+
+Until now the only way to delete a bad entry was opening Supabase
+and running DELETE manually. Friction that meant most bad rows just
+sat in the table, polluting averages and corrupting the learning
+loop.
+
+### Added
+
+- **× delete button on each row of the History table.** Muted gray
+  by default; turns red on hover. Confirms before deleting with a
+  dialog that's explicit about what gets removed and what survives.
+
+- **`delete_entry` action on `/history` POST** (`kb.js`). Hard-deletes
+  the `query_history` row, tenant-scoped via
+  `id=eq.<id>&company_id=eq.<callers>` so a malicious caller can't
+  delete another tenant's rows by passing a foreign id. Returns 404
+  if zero rows match (PostgREST normally returns 200 with `[]` for
+  empty-result deletes — easy to misread as success).
+
+- **FK cleanup for `review_requests`.** `review_requests.triage_id`
+  references `query_history.id` without `ON DELETE CASCADE` (see
+  `migrations/0001_baseline.sql`), so deleting the parent first
+  would FK-violate. The handler deletes any attached `review_requests`
+  rows before deleting the triage. Tenant-scoped on the review's own
+  `company_id` to prevent cross-tenant nukes via a foreign
+  `triage_id`.
+
+- **`deleteHistoryEntry(id)` on the frontend.** Calls `/history`
+  POST with the new action, clears `currentHistoryId` if the
+  deleted row was the one currently displayed on the Triage tab
+  (so subsequent edits/upvotes don't 404), then reloads the
+  history list.
+
+### Intentionally NOT deleted
+
+- **KB entries already promoted from the triage.** They live in
+  `kb_entries` as separate rows — the lesson the AI learned
+  survives the deletion of its origin triage. Staff manage KB
+  entries from the KB tab.
+
+### Tests
+
+144 passing. The change is a UI add + new endpoint action; no
+triage-lib or pure-helper changes.
+
+---
+
 ## v0.3.17 — 2026-05-11
 
 User feedback after v0.3.16 landed: the prior-context feature was

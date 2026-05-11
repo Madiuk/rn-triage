@@ -1778,6 +1778,7 @@ async function loadHistory(){
             '<th>Urgency</th>'+
             '<th class="num">Corrected</th>'+
             '<th class="num">Time</th>'+
+            '<th class="num"></th>'+
           '</tr></thead>'+
           '<tbody>'+
           // Show every row the server returned (up to /history/all's
@@ -1808,6 +1809,7 @@ async function loadHistory(){
               '<td>'+esc(urg)+'</td>'+
               '<td class="num">'+corrected+'</td>'+
               '<td class="num">'+dur+'</td>'+
+              '<td class="num"><button class="row-delete" onclick="deleteHistoryEntry(\''+r.id+'\')" title="Delete this entry permanently">&times;</button></td>'+
             '</tr>';
           }).join('')+
           '</tbody>'+
@@ -1821,6 +1823,45 @@ async function loadHistory(){
 }
 
 
+
+// Delete a single triage entry permanently. Wired to the × button on
+// each row of the History table (v0.3.18). Used when staff enter
+// wrong content into the triage form — e.g. pasting their own reply
+// into the patient-message field. Without a delete option, staff
+// would have to leave the app and run DELETE in Supabase manually,
+// which was the friction this fixes.
+//
+// Confirm dialog is intentionally explicit about scope:
+//   - The query_history row is hard-deleted (no soft-delete column;
+//     the row is gone).
+//   - Any UNRESOLVED review_request attached is also deleted
+//     server-side (FK cleanup; review_requests.triage_id has no
+//     CASCADE).
+//   - KB entries already promoted from this triage live in a
+//     separate kb_entries row and are NOT touched. The lesson the
+//     AI learned survives. Staff manage KB entries from the KB tab.
+//
+// currentHistoryId guard: if the user just ran a triage on the
+// Triage tab and immediately came over here to delete it, the
+// Triage tab still holds currentHistoryId pointing at that row.
+// Any follow-up actions (save_actual, update_urgency, votes) from
+// the Triage tab would then 404. Clearing it here prevents that.
+async function deleteHistoryEntry(id){
+  if(!id) return;
+  var ok = confirm(
+    'Delete this triage entry permanently?\n\n' +
+    'This removes the entry and any unresolved review request attached to it. ' +
+    'KB entries already promoted from this triage are NOT affected.'
+  );
+  if(!ok) return;
+  try{
+    await api('/history','POST',{action:'delete_entry', id:id});
+    if(currentHistoryId === id) currentHistoryId = null;
+    loadHistory();
+  }catch(e){
+    alert('Could not delete: ' + (e.message || 'unknown error'));
+  }
+}
 
 function goToClarifications(){
   closeProfile();
