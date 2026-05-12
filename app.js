@@ -81,11 +81,32 @@ const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsI
 // fetched a new one.
 let refreshInFlight = null;
 
+// Sign-out latch (v0.4.1). When the user clicks Sign Out, this flag
+// flips to true and stays true for the lifetime of the page. Any
+// in-flight or future authFetch that gets a 401 will hit the refresh
+// path; that path is what writes a new session into localStorage. If
+// it runs AFTER signOut already cleared localStorage, it would
+// restore the session — and login.html's "redirect-if-logged-in"
+// block would bounce the user back to the app. We saw this in
+// production as "I have to click Sign Out twice." The latch makes
+// refreshSupabaseToken bail out the moment sign-out starts, even if
+// the network call is already in flight (it bails before the
+// localStorage.setItem at the end).
+let isSigningOut = false;
+
 // Use the stored refresh_token to mint a new access_token (and
 // rotated refresh_token) from Supabase, write both back to
 // localStorage. Returns true on success, false if no refresh_token,
 // the call failed, or Supabase returned an error.
 async function refreshSupabaseToken(){
+  // v0.4.1: don't refresh during sign-out. If the user clicked Sign
+  // Out, isSigningOut is true and the page is about to navigate to
+  // /login.html. Writing a fresh session into localStorage now would
+  // get bounced right back to the app by login.html's "already
+  // logged in" check. Bail out at both possible re-entry points:
+  // before the network call, AND right before the localStorage.set
+  // (in case the call was already in flight when sign-out started).
+  if (isSigningOut) return false;
   if (refreshInFlight) return refreshInFlight;
   refreshInFlight = (async function(){
     try {
@@ -105,6 +126,10 @@ async function refreshSupabaseToken(){
       }
       var data = await r.json();
       if (!data || !data.access_token) return false;
+      // Second check — the network response just came back; if
+      // sign-out fired while we were awaiting, don't repopulate
+      // the cleared session.
+      if (isSigningOut) return false;
       localStorage.setItem('relai_session', JSON.stringify({
         access_token: data.access_token,
         refresh_token: data.refresh_token || session.refresh_token,
@@ -346,12 +371,11 @@ function openProfile(){
   document.getElementById('profileEmail').textContent = email;
   document.getElementById('profileRole').textContent = roleLabel;
   document.getElementById('profileCompany').textContent = company;
-  // Show a placeholder while the real numbers load from the DB. These
-  // persist across logouts/magic-link refreshes — they're not session-scoped.
-  document.getElementById('profileStats').textContent = 'Loading triage stats…';
   document.getElementById('profilePanel').classList.add('show');
   document.getElementById('profileOverlay').classList.add('show');
-  loadProfileStats();
+  // Activity section removed in v0.4.1 pending a decision on what
+  // metrics are actually useful at-a-glance. loadProfileStats() and
+  // its /history/stats endpoint are kept for easy reinstatement.
 }
 
 async function loadProfileStats(){
@@ -389,21 +413,34 @@ function openHelpFromProfile(){
   });
 }
 
-async function signOut(){
+function signOut(){
+  // v0.4.1: NOT async. Earlier this used `await fetch(...)` which
+  // opened a multi-hundred-millisecond window during which any
+  // pending authFetch could 401 → trigger refreshSupabaseToken →
+  // write a fresh session back into localStorage AFTER we cleared
+  // it. login.html's "redirect-if-logged-in" block then bounced the
+  // user back to the app. Symptom: "I have to click Sign Out twice."
+  //
+  // Fix: flip the isSigningOut latch first (refreshSupabaseToken
+  // bails on this), clear localStorage second, fire the server-side
+  // signout as a true fire-and-forget (no await, browser orphans it
+  // on navigation), then navigate. The whole function returns
+  // synchronously now.
+  isSigningOut = true;
   var token = getToken();
-  if(token){
-    try{
-      await fetch('/.netlify/functions/auth/signout',{
-        method:'POST',
-        headers:{'Authorization':'Bearer '+token}
-      });
-    }catch(e){
-      // Best-effort signout. Network failure is OK — we proceed to
-      // clear the session and redirect regardless. Logged for debug.
-      console.error('signOut.fetch:', e.message);
-    }
-  }
   localStorage.removeItem('relai_session');
+  if(token){
+    // Fire-and-forget. The /auth/signout endpoint only updates
+    // last_seen — nothing security-critical, so we don't need to
+    // wait for it. If the browser orphans this on navigation,
+    // that's fine.
+    fetch('/.netlify/functions/auth/signout',{
+      method:'POST',
+      headers:{'Authorization':'Bearer '+token}
+    }).catch(function(e){
+      console.error('signOut.fetch:', e.message);
+    });
+  }
   window.location.href = '/login.html';
 }
 

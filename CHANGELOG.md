@@ -6,6 +6,85 @@ bumps cover meaningful capability additions, patch bumps cover fixes).
 
 ---
 
+## v0.4.1 — 2026-05-11
+
+User reports after v0.4.0 deployed:
+1. "When I click Sign Out, it sends me right back to the Inquiry
+   page without signing out. I have to sign out twice."
+2. "The Activity section doesn't really seem to be doing anything
+   important. Let's get rid of it for the moment."
+
+### Fixed — sign-out race
+
+`signOut()` used `await fetch(...)` before clearing localStorage.
+That created a multi-hundred-millisecond window during which a
+pending authFetch could 401, trigger refreshSupabaseToken, and
+write a fresh session back into localStorage AFTER signOut had
+cleared it. `login.html`'s "redirect-if-logged-in" block then saw
+the restored session and bounced the user back to the app.
+
+Two changes:
+- `signOut()` is no longer async. The server-side
+  `/auth/signout` call (which only updates `last_seen`) now fires
+  as fire-and-forget without `await`. localStorage clears
+  synchronously and the navigation starts immediately.
+- New `isSigningOut` latch flag. Once flipped, `refreshSupabaseToken`
+  bails out at TWO points: before the network call, and right
+  before the localStorage.set in case the call was already in
+  flight when sign-out started. Closes the window completely.
+
+One click should now sign you out reliably.
+
+### Removed — Activity section
+
+The profile dropdown's "Activity" block (today/week/total triage
+counts) is removed. The underlying `/history/stats` endpoint and
+the `loadProfileStats()` function are intentionally kept so we
+can restore meaningful per-user metrics later once you decide
+what's worth showing at-a-glance.
+
+Help & Guide updated to remove the mention of the Activity
+section.
+
+### Tests
+
+All 250 still passing. No new tests — both changes are
+behavioral (sign-out flow) and pure markup removal.
+
+### Reminder unrelated to this release
+
+The Admin tab being missing for you is almost certainly because
+the v0.3.27 migration only ADDED the `is_admin` and `is_super_user`
+columns (defaulted to false). The one-off SQL to actually flip
+yours to true was a manual step:
+
+```sql
+UPDATE public.profiles
+   SET is_admin = true, is_super_user = true
+ WHERE id = (SELECT id FROM auth.users WHERE email = 'YOUR_EMAIL');
+```
+
+Run that in Supabase SQL Editor and the Admin tab will appear on
+your next page load. Verify with:
+
+```sql
+SELECT u.email, p.full_name, p.role, p.is_admin, p.is_super_user
+  FROM public.profiles p
+  JOIN auth.users u ON u.id = p.id
+ WHERE u.email = 'YOUR_EMAIL';
+```
+
+The chip showing `bmadiuk` instead of `Brad` is the same shape of
+issue — `profiles.full_name` is NULL for your row, so the chip
+falls back to the email username. Fix with:
+
+```sql
+UPDATE public.profiles SET full_name = 'Brad'
+ WHERE id = (SELECT id FROM auth.users WHERE email = 'YOUR_EMAIL');
+```
+
+---
+
 ## v0.4.0 — 2026-05-11
 
 The Level-1 server-side cleanup. Three commits worth of work

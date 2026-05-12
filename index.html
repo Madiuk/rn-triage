@@ -28,8 +28,10 @@
   <div class="profile-body">
     <div class="profile-eyebrow">Workspace</div>
     <div id="profileCompany" class="profile-company"></div>
-    <div class="profile-eyebrow gap">Activity</div>
-    <div id="profileStats" class="profile-stats"></div>
+    <!-- Activity section removed in v0.4.1. The /history/stats
+         endpoint and loadProfileStats() function in app.js are
+         intentionally kept so we can restore meaningful per-user
+         metrics later once we decide what's actually worth showing. -->
   </div>
   <div class="profile-foot">
     <button class="profile-action" onclick="openHelpFromProfile()">&#10067; Help &amp; Guide</button>
@@ -287,7 +289,7 @@
           <div class="help-section-title">Inquiries &amp; Stats</div>
           <div class="help-faq">
             <button class="help-faq-q" onclick="toggleFaq(this)"><span>Where do I see what I've been doing?</span><span class="help-arrow">&#9660;</span></button>
-            <div class="help-faq-a">Open your profile (click the chip in the top-right corner). The <strong>Activity</strong> section gives a quick personal summary — your inquiries today, in the last 7 days, and all-time. For the team-wide view, click <strong>Pending Review Items</strong> in the same dropdown. That opens the Inquiries page, which has three parts in order: AI-flagged review items at the top (clarifications waiting on a clinical answer), then aggregate stats and a per-staff breakdown (total inquiries, average priority score, escalation rate, edit rate, average time per inquiry), then the full record list.</div>
+            <div class="help-faq-a">Open your profile (click the chip in the top-right corner) for your workspace info. For the team-wide view, click <strong>Pending Review Items</strong> in the same dropdown. That opens the Inquiries page, which has three parts in order: AI-flagged review items at the top (clarifications waiting on a clinical answer), then aggregate stats and a per-staff breakdown (total inquiries, average priority score, escalation rate, edit rate, average time per inquiry), then the full record list.</div>
           </div>
           <div class="help-faq">
             <button class="help-faq-q" onclick="toggleFaq(this)"><span>What does "Escalated" mean in the stats?</span><span class="help-arrow">&#9660;</span></button>
