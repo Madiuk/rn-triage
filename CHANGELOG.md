@@ -6,6 +6,164 @@ bumps cover meaningful capability additions, patch bumps cover fixes).
 
 ---
 
+## v0.4.0 — 2026-05-11
+
+The Level-1 server-side cleanup. Three commits worth of work
+(phases 1a, 1b, 1c) bundled under one minor version because
+together they're the architectural inflection point that the
+recent bug rate suggested was overdue. Behavior-preserving —
+no user-visible changes, no migration required, no behavior
+change risk for either of you or the staff joining soon.
+
+User prompt was:
+> "Lets go to Level 1. Be slow and methodical. If you run into
+> an issue or see improvements to make along the way, go for it.
+> But let's make sure this doesn't spiral and turn into a
+> disaster. Clean it up. Stop duplication. Tighten up data
+> access."
+
+### Phase 1a — Server helper extraction
+
+`netlify/functions/kb.js` had grown to 1392 lines with auth,
+permissions, data-access, audit, and route logic interleaved.
+Extracted into four modules under `_lib/`:
+
+- `_lib/supabase.js` — env vars, read/write header builders,
+  `json()` response helper, `isConfigured()`.
+- `_lib/auth.js` — `verifyUser`, `resolveCompanyId`,
+  `resolveProfile`, `extractToken`.
+- `_lib/permissions.js` — **the single source of truth for role
+  and row gates.** Pure helpers, no IO, fully testable.
+  Exports: `isClinical`, `isNonClinical`, `isAdmin`,
+  `isSuperUser`, `rowIsClinical`, `canMutateRow`,
+  `canResolveReview`, `canEditClinicalCategory`,
+  `canDeleteRow`, `canVoteOnDraft`, `canSaveActualResponse`,
+  `canMarkEscalated`.
+- `_lib/db.js` — tenant-scoped query wrappers:
+  `fetchRowInTenant`, `fetchOriginTriage`, `writeAuditLog`,
+  `tenantClause`, `tenantScopedPatch`, `tenantScopedDelete`.
+
+### Phase 1b — Route handler split
+
+Each endpoint moved into its own file under `_lib/routes/`:
+
+| file | lines | endpoints |
+|---|---|---|
+| `routes/analyze.js`  |  66 | `/analyze` |
+| `routes/profile.js`  |  90 | `/profile`, `/handoff-template`, `/categories` |
+| `routes/kb-crud.js`  | 176 | `/kb` |
+| `routes/reviews.js`  | 304 | `/reviews` (+ `promoteReviewToKB`) |
+| `routes/admin.js`    | 295 | `/admin/users`, `/admin/categories`, `/admin/settings` |
+| `routes/history.js`  | 390 | `/history*` (stats/cost/quality/all) |
+
+`kb.js` is now a **70-line thin router**. Path-substring dispatch
+with comments documenting the ordering constraints (`/admin/categories`
+must be checked before `/categories`, etc).
+
+Result: when adding a new endpoint or modifying a role gate, you
+touch one focused file instead of a thousand-line monolith. The
+two-files-out-of-sync bug pattern that produced several recent
+regressions (v0.3.13 `isClinical not defined`, the `/analyze`
+auth header miss, etc.) becomes structurally harder to repeat.
+
+### Phase 1c — Server-side test coverage
+
+The most important part. Before today the 144 tests covered
+only pure helpers in `data/triage-lib.js`; every server endpoint
+shipped with zero coverage. Three new test files (62 new tests):
+
+- **`tests/permissions.test.js`** (23 tests) — every role
+  classifier, `rowIsClinical`, every composite predicate.
+  These predicates ARE the safety boundary; if anything here
+  ever fails, a CSR could send clinical advice.
+
+- **`tests/clinicalDetection.test.js`** (23 tests) — the
+  **contract test**. Imports server's `rowIsClinical` AND
+  client's `resultIsClinical`, runs them against a battery of
+  22 input rows, and asserts both agree. If either side
+  changes the rule, the test fails and we know to update the
+  other. This kills the drift bug class that the duplicated
+  logic created.
+
+- **`tests/roleGates.test.js`** (16 tests) — end-to-end gate
+  behavior. Mocks `global.fetch` with a route table, calls
+  the actual route handlers with constructed events, asserts
+  on the response status + body. Covers:
+  - Non-clinical CANNOT delete / save_actual / update_urgency
+    / downvote / set body.category on clinical rows → 403
+  - Non-clinical CAN do all of those on non-clinical rows → 200
+  - General Inquiry treated as non-clinical (per Big Easy seed)
+  - Clinical user is never over-gated → all 200
+  - `mark_escalated` succeeds for non-clinical on clinical
+    rows (the CSR's outlet must always work)
+  - Non-clinical CANNOT resolve clinical-origin reviews → 403
+  - Non-clinical CAN resolve non-clinical-origin reviews → 200
+
+  Total tests: 144 → 206 passing.
+
+### Code-organization side-effects
+
+- Client's `resultIsClinical` moved from `app.js` inline into
+  `data/triage-lib.js`. The browser still loads it via the
+  same `<script>` tag that's been in `index.html`. Removes one
+  duplicate definition (was two — client inline and server
+  inline). The remaining duplicate (server has its own copy
+  in `_lib/permissions.js`) is intentional, because the server
+  can't reliably require cross-directory paths inside a Netlify
+  Function bundle. The contract test enforces they agree.
+
+- `promoteReviewToKB` moved from top-of-kb.js to inside
+  `_lib/routes/reviews.js` — it was only called from there.
+
+### Not in this release
+
+Phase 2 (client-side app.js split) is deferred to a separate
+release. The frontend has the same monolith problem but
+splitting it has bigger surface area (no module system in
+plain HTML; state management to untangle). Better as its own
+focused work, not piled on top of the server changes.
+
+### Total impact
+
+| metric | before | after |
+|---|---|---|
+| `kb.js` line count | 1392 | 70 |
+| Test count | 144 | 206 |
+| Largest single server file | 1392 | 390 (`history.js`) |
+| Files touched per typical endpoint change | 1 | 1 |
+| Files touched per role-gate change | 1 | 1 |
+
+The line-count of any single file is dramatically smaller, the
+test coverage of safety-critical code went from zero to
+exhaustive, and adding a new endpoint or gate still touches
+exactly one file. Net architectural lift without surface-area
+expansion.
+
+### What you should NOT see after deploy
+
+- Any difference in app behavior. URLs, response bodies,
+  error codes — all preserved byte-for-byte.
+- Any change to the Inquiry / Admin / KB tabs.
+- Any new operational alerts.
+- Any client errors. Browser code only changed in one place
+  (moving `resultIsClinical` into a file that was already
+  loaded).
+
+### What's safer now
+
+- Adding a new role: change `_lib/permissions.js` predicates
+  once, every route consults them. No more inline gate logic
+  to keep in sync.
+- Adding a new endpoint: drop a `routes/<name>.js`, add one
+  dispatch line in `kb.js`. No risk of touching unrelated
+  routes.
+- Catching client/server drift on clinical detection: the
+  contract test runs in CI; drift = test failure.
+- Refactoring a route: confidence comes from coverage, not
+  from clicking through the app.
+
+---
+
 ## v0.3.27 — 2026-05-11
 
 Roles, gates, escalation flow, admin panel, and the "Triage → Inquiry"

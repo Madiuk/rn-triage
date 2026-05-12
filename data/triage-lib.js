@@ -389,6 +389,35 @@ function simpleHash(str) {
   return (h >>> 0).toString(16).padStart(8, '0');
 }
 
+// Shared "is this a clinical result?" predicate. Used by:
+//   - Browser: renderResults uses this to decide whether a
+//     non-clinical user gets the simplified handoff view or the
+//     standard render (app.js).
+//   - Server: not directly — the server has its own
+//     rowIsClinical in netlify/functions/_lib/permissions.js
+//     because the server can't reliably require this file from
+//     inside a Netlify Function bundle. The contract test in
+//     tests/clinicalDetection.test.js enforces that the two
+//     implementations agree on a battery of test inputs. If
+//     either side changes the rule, the test fails and we know
+//     to update the other.
+//
+// Rules (must stay aligned with permissions.rowIsClinical):
+//   - Any side-effect detection (clinical_routing_level !== 'none')
+//     → clinical, full stop.
+//   - clinical_category set, EXCEPT 'General Inquiry' (which is
+//     is_clinical=false per Big Easy's category_metadata seed)
+//     and the legacy 'General/multiple' value → clinical.
+//   - Otherwise → not clinical.
+function resultIsClinical(d) {
+  if (!d) return false;
+  var lvl = String((d.clinical_routing_level || 'none')).toLowerCase();
+  if (lvl !== 'none') return true;
+  var cat = String(d.clinical_category || '').trim();
+  if (cat && cat !== 'General Inquiry' && cat !== 'General/multiple') return true;
+  return false;
+}
+
 // Node export hook — no-op in the browser.
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
@@ -404,6 +433,7 @@ if (typeof module !== 'undefined' && module.exports) {
     computeTriageCost,
     simpleHash,
     requiresClinicalAuthorization,
+    resultIsClinical,
     TRIAGE_PRICING,
   };
 }

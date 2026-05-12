@@ -1253,19 +1253,12 @@ function buildSeverityBadge(routingLevel){
   return '<div class="severity-badge '+sev.cls+'"><div class="sev-dot"></div>'+sev.label+'</div>';
 }
 
-// v0.3.27: client-side mirror of the server's rowIsClinical helper
-// (kb.js). Used to decide whether a non-clinical user gets the
-// restricted handoff view or the standard render. Keep this in
-// lockstep with the server: under-gating is a worse failure than
-// over-gating (defensive: treat ambiguous results as clinical).
-function resultIsClinical(d) {
-  if (!d) return false;
-  var lvl = String((d.clinical_routing_level || 'none')).toLowerCase();
-  if (lvl !== 'none') return true;
-  var cat = String(d.clinical_category || '').trim();
-  if (cat && cat !== 'General Inquiry' && cat !== 'General/multiple') return true;
-  return false;
-}
+// resultIsClinical moved to data/triage-lib.js (v0.4.0) — loaded
+// before this file via <script> tag in index.html, so it's
+// available as a global. The server has its own rowIsClinical
+// in netlify/functions/_lib/permissions.js; a contract test
+// (tests/clinicalDetection.test.js) enforces they agree on a
+// battery of inputs.
 
 // Cached handoff template per session. Loaded once from
 // /handoff-template (which reads companies.non_clinical_handoff_template).
