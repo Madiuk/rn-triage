@@ -1,4 +1,4 @@
-// Relai — KB / History / Reviews / Analyze proxy
+// Relai — KB / History / Reviews / Analyze / Admin proxy
 // Endpoints:
 //   /kb                  (GET, POST)
 //   /history             (GET, POST)
@@ -8,173 +8,46 @@
 //   /history/quality     (GET) — override / correction / confidence trends
 //   /reviews             (GET, POST)
 //   /analyze             (POST)
+//   /admin/users         (GET, POST)
+//   /admin/categories    (GET, POST)
+//   /admin/settings      (GET, POST)
+//   /profile             (GET)
+//   /handoff-template    (GET)
+//   /categories          (GET)
+//
+// v0.4.0 cleanup: helpers extracted into _lib/. This file is in the
+// process of being slimmed down to a thin router. Next phase will
+// move each route handler into _lib/routes/*.js.
 
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
-const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
+const {
+  SUPABASE_URL,
+  SUPABASE_ANON_KEY,
+  SUPABASE_SERVICE_KEY,
+  readHeaders,
+  writeHeaders,
+  json,
+} = require("./_lib/supabase");
+
+const {
+  verifyUser,
+  resolveCompanyId,
+  resolveProfile,
+} = require("./_lib/auth");
+
+const {
+  isClinical,
+  isNonClinical,
+  isAdmin,
+  isSuperUser,
+  rowIsClinical,
+} = require("./_lib/permissions");
+
+const {
+  fetchRowInTenant,
+  writeAuditLog,
+} = require("./_lib/db");
 
 const { aggregateCostRows, aggregateQualityRows } = require("./_lib/history-aggregations");
-
-// User-JWT-authenticated request headers. After v0.3.4 these are
-// only used to call Supabase Auth's /auth/v1/user endpoint to verify
-// a token — they're NOT used for PostgREST reads anymore. Every
-// PostgREST read in this file goes through writeHeaders() (service
-// key) with explicit `company_id=eq.<verified-id>` filtering so the
-// behavior is RLS-independent and not at the mercy of policies that
-// may or may not be configured on the tables.
-function readHeaders(token) {
-  return {
-    "Content-Type": "application/json",
-    "apikey": SUPABASE_ANON_KEY,
-    "Authorization": "Bearer " + (token || SUPABASE_ANON_KEY),
-  };
-}
-function writeHeaders() {
-  const key = SUPABASE_SERVICE_KEY || SUPABASE_ANON_KEY;
-  return {
-    "Content-Type": "application/json",
-    "apikey": key,
-    "Authorization": "Bearer " + key,
-    "Prefer": "return=representation",
-  };
-}
-
-async function verifyUser(token) {
-  if (!token) return null;
-  try {
-    const r = await fetch(SUPABASE_URL + "/auth/v1/user", { headers: readHeaders(token) });
-    if (!r.ok) return null;
-    const u = await r.json();
-    return u && u.id ? u : null;
-  } catch (e) {
-    console.error("kb.verifyUser:", e.message);
-    return null;
-  }
-}
-
-// Look up the verified user's company_id from the profiles table using
-// the service key. Returns null if no company_id is set on the row.
-//
-// This is the keystone for tenant-scoped reads. All read endpoints in
-// this file route through here so they can scope queries by
-// company_id explicitly — independent of whatever RLS policies happen
-// (or don't) to be configured on the tables. The migrations enable RLS
-// on every tenant table but never declare any SELECT policies, which
-// means user-JWT reads return zero rows by default. Service-key +
-// explicit company_id filter is what makes the read path actually
-// work and not depend on Supabase-dashboard configuration drift.
-async function resolveCompanyId(user) {
-  if (!user || !user.id) return null;
-  try {
-    const r = await fetch(
-      `${SUPABASE_URL}/rest/v1/profiles?id=eq.${user.id}&select=company_id`,
-      { headers: writeHeaders() }
-    );
-    const profiles = await r.json();
-    return Array.isArray(profiles) && profiles[0] ? profiles[0].company_id : null;
-  } catch (e) {
-    console.error("kb.resolveCompanyId:", e.message);
-    return null;
-  }
-}
-
-// Resolve the verified user's full profile (role + flags + company_id)
-// in one query. Used by every gated endpoint so role checks happen
-// against the persisted source of truth, not whatever the client
-// claims. Tenant-scope still flows through company_id; role and flag
-// fields are new (migration 0010).
-//
-// Returns: { company_id, role, is_admin, is_super_user } or null.
-// Role values match production data: 'Clinical' | 'Non-Clinical'
-// (also accepts 'staff' as a legacy default = no clinical
-// authorization).
-async function resolveProfile(user) {
-  if (!user || !user.id) return null;
-  try {
-    const r = await fetch(
-      `${SUPABASE_URL}/rest/v1/profiles?id=eq.${user.id}&select=company_id,role,is_admin,is_super_user,full_name`,
-      { headers: writeHeaders() }
-    );
-    const profiles = await r.json();
-    return Array.isArray(profiles) && profiles[0] ? profiles[0] : null;
-  } catch (e) {
-    console.error("kb.resolveProfile:", e.message);
-    return null;
-  }
-}
-
-// Role classifiers. Defensive against null/legacy 'staff' values —
-// anything that isn't explicitly 'Clinical' is treated as
-// non-clinical for the purposes of gates. Under-gate is worse than
-// over-gate: a 'staff' user with ambiguous role should get the
-// restricted experience until an admin assigns them a real role.
-function isClinical(profile) {
-  return profile && profile.role === 'Clinical';
-}
-function isNonClinical(profile) {
-  return profile && profile.role === 'Non-Clinical';
-}
-function isAdmin(profile) {
-  return profile && profile.is_admin === true;
-}
-function isSuperUser(profile) {
-  return profile && profile.is_super_user === true;
-}
-
-// Decide whether a query_history row contains clinical content. Used
-// by the server-side gates to know whether a non-clinical caller is
-// trying to act on a row they shouldn't. Mirrors priorityTier in
-// data/triage-lib.js — server can't require that file so the logic
-// is re-implemented here. Stay consistent if either changes.
-function rowIsClinical(row) {
-  if (!row) return false;
-  // Side effect detection at any severity → clinical, full stop.
-  const lvl = String(row.clinical_routing_level || 'none').toLowerCase();
-  if (lvl !== 'none') return true;
-  // Clinical category set (and not the universal General Inquiry,
-  // which is is_clinical=false in category_metadata) → clinical.
-  // We treat General Inquiry as non-clinical because the practice
-  // configured it that way; if a tenant flips General to clinical
-  // in category_metadata, this check stays correct: General would
-  // still be a clinical_category string, and the AI's draft for
-  // General Inquiry rarely contains clinical advice on its own.
-  const cat = String(row.clinical_category || '').trim();
-  if (cat && cat !== 'General Inquiry' && cat !== 'General/multiple') return true;
-  return false;
-}
-
-// Fetch one query_history row by id, tenant-scoped. Used by gates
-// that need to read the row before deciding whether to allow the
-// action. Returns null if not found in the caller's tenant —
-// callers should treat null as a 404, not as "row is non-clinical."
-async function fetchRowInTenant(rowId, companyId) {
-  if (!rowId) return null;
-  try {
-    const url = `${SUPABASE_URL}/rest/v1/query_history?id=eq.${rowId}`
-      + (companyId ? `&company_id=eq.${companyId}` : '')
-      + `&select=id,clinical_category,clinical_routing_level,non_clinical_flag,non_clinical_items,escalated_to_clinical,company_id&limit=1`;
-    const r = await fetch(url, { headers: writeHeaders() });
-    const arr = await r.json();
-    return Array.isArray(arr) && arr[0] ? arr[0] : null;
-  } catch (e) {
-    console.error("kb.fetchRowInTenant:", e.message);
-    return null;
-  }
-}
-
-// Best-effort append to public.audit_log. Never throws — audit failures
-// must not block real operations.
-async function writeAuditLog(entry) {
-  try {
-    await fetch(SUPABASE_URL + "/rest/v1/audit_log", {
-      method: "POST",
-      headers: { ...writeHeaders(), Prefer: "return=minimal" },
-      body: JSON.stringify(entry),
-    });
-  } catch (e) {
-    console.error("kb.writeAuditLog:", e.message);
-  }
-}
 
 // Promote a resolved review_request into a kb_entries row. Returns the
 // section it was filed under, or null on failure.
@@ -230,11 +103,10 @@ async function promoteReviewToKB({ companyId, context, question, answer, resolve
   }
 }
 
-const json = (status, body) => ({
-  statusCode: status,
-  headers: { "Content-Type": "application/json" },
-  body: typeof body === "string" ? body : JSON.stringify(body),
-});
+// json() helper is imported from _lib/supabase above.
+// promoteReviewToKB stays inline for now — it's specific to the
+// /reviews resolve handler and will move with that route in the
+// next extraction pass.
 
 exports.handler = async function (event) {
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
