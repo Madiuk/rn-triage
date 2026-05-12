@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Relai — Triage and Tasking</title>
+<title>Relai — Patient Inquiry &amp; Tasking</title>
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -43,12 +43,13 @@
     <div class="brand-icon brand-mini-icon">R</div>
     <div class="brand-stack">
       <div class="brand-name">Relai</div>
-      <div class="brand-sub"><span id="brandTenant">Big Easy Weight Loss</span> <span class="brand-sep">·</span> Triage and Tasking</div>
+      <div class="brand-sub"><span id="brandTenant">Big Easy Weight Loss</span> <span class="brand-sep">·</span> Patient Inquiry &amp; Tasking</div>
     </div>
   </div>
   <div class="tab-nav">
-    <button class="tab-btn active" onclick="switchTab('triage',this)">Triage</button>
+    <button class="tab-btn active" onclick="switchTab('triage',this)">Inquiry</button>
     <button class="tab-btn" onclick="switchTab('kb',this)">Knowledge Base</button>
+    <button class="tab-btn hidden" id="adminTabBtn" onclick="switchTab('admin',this)">Admin</button>
     <button class="tab-btn hidden" id="helpTabBtn" onclick="switchTab('help',this)">Help &amp; Guide</button>
     <button class="tab-btn hidden" id="historyTabBtn" onclick="switchTab('history',this)">&#8226;&#8226;&#8226;</button>
   </div>
@@ -95,7 +96,7 @@
           <div class="eyebrow" id="msgLabel">Patient Message</div>
           <textarea id="msgInput" placeholder="Paste the patient's message here..."></textarea>
           <button class="btn-run" id="triageBtn" onclick="runTriage()">
-            <span id="btnText">Run Triage</span>
+            <span id="btnText">Analyze</span>
             <div class="spinner" id="btnSpinner"></div>
           </button>
         </div>
@@ -105,7 +106,7 @@
       <div class="output-stack" id="results">
         <div class="placeholder">
           <div class="placeholder-icon">&#128203;</div>
-          <div class="placeholder-text">Paste a patient message and click Run Triage</div>
+          <div class="placeholder-text">Paste a patient message and click Analyze</div>
         </div>
       </div>
     </div>
@@ -198,8 +199,8 @@
         <div class="help-qr-item">
           <div class="help-qr-num">2</div>
           <div>
-            <div class="help-qr-label">Click Run Triage</div>
-            <div class="help-qr-desc">The AI reads the message against your Knowledge Base and returns a classification, routing decision, and a draft response. Usually takes 5&ndash;15 seconds.</div>
+            <div class="help-qr-label">Click Analyze</div>
+            <div class="help-qr-desc">The AI reads the message against your Knowledge Base and returns a classification, routing decision, and a draft response (for clinical staff) or a handoff template (for non-clinical staff handling clinical content). Usually takes 5&ndash;15 seconds.</div>
           </div>
         </div>
         <div class="help-qr-item">
@@ -283,18 +284,18 @@
           </div>
         </div>
         <div class="help-section">
-          <div class="help-section-title">Triage Queue &amp; Stats</div>
+          <div class="help-section-title">Inquiries &amp; Stats</div>
           <div class="help-faq">
             <button class="help-faq-q" onclick="toggleFaq(this)"><span>Where do I see what I've been doing?</span><span class="help-arrow">&#9660;</span></button>
-            <div class="help-faq-a">Open your profile (click the chip in the top-right corner). The <strong>Activity</strong> section gives a quick personal summary — your triages today, in the last 7 days, and all-time. For the team-wide view, click <strong>Pending Review Items</strong> in the same dropdown. That opens the Triage Queue page, which has three parts in order: AI-flagged review items at the top (clarifications waiting on a clinical answer), then aggregate stats and a per-staff breakdown (total triages, average priority score, escalation rate, edit rate, average time per triage), then the full record list.</div>
+            <div class="help-faq-a">Open your profile (click the chip in the top-right corner). The <strong>Activity</strong> section gives a quick personal summary — your inquiries today, in the last 7 days, and all-time. For the team-wide view, click <strong>Pending Review Items</strong> in the same dropdown. That opens the Inquiries page, which has three parts in order: AI-flagged review items at the top (clarifications waiting on a clinical answer), then aggregate stats and a per-staff breakdown (total inquiries, average priority score, escalation rate, edit rate, average time per inquiry), then the full record list.</div>
           </div>
           <div class="help-faq">
             <button class="help-faq-q" onclick="toggleFaq(this)"><span>What does "Escalated" mean in the stats?</span><span class="help-arrow">&#9660;</span></button>
-            <div class="help-faq-a">A triage counts as escalated whenever the AI flagged a side effect at any severity level (mild, moderate, or severe). It's the AI's classification, not a staff action.</div>
+            <div class="help-faq-a">An inquiry counts as escalated whenever the AI flagged a side effect at any severity level (mild, moderate, or severe), OR when a non-clinical staff member manually escalated it (v0.3.27). It's a routing signal, not a staff-only action.</div>
           </div>
           <div class="help-faq">
             <button class="help-faq-q" onclick="toggleFaq(this)"><span>What does "Edit Rate" mean?</span><span class="help-arrow">&#9660;</span></button>
-            <div class="help-faq-a">Percent of triages where staff <strong>actually changed the AI's draft</strong> before sending (measured by character-level edit distance). Verbatim sends — where staff copied the AI's draft as-is and clicked Submit &amp; Learn — don't count toward this number; those are positive signal that the AI got it right. A high rate means the AI's draft frequently needs work; that's useful training data for the corrections feed.</div>
+            <div class="help-faq-a">Percent of inquiries where staff <strong>actually changed the AI's draft</strong> before sending (measured by character-level edit distance). Verbatim sends — where staff copied the AI's draft as-is and clicked Submit &amp; Learn — don't count toward this number; those are positive signal that the AI got it right. A high rate means the AI's draft frequently needs work; that's useful training data for the corrections feed.</div>
           </div>
           <div class="help-faq">
             <button class="help-faq-q" onclick="toggleFaq(this)"><span>How do I see what each row was about?</span><span class="help-arrow">&#9660;</span></button>
@@ -302,7 +303,22 @@
           </div>
           <div class="help-faq">
             <button class="help-faq-q" onclick="toggleFaq(this)"><span>Can I delete a wrong entry?</span><span class="help-arrow">&#9660;</span></button>
-            <div class="help-faq-a">Yes. Each row has a small <strong>&times;</strong> on the right edge — click it to delete that triage permanently. The confirmation dialog quotes the message back to you before anything is destroyed. Three checkpoints stand between you and an accidental delete: the Message column preview, optional click-to-expand, and the confirm dialog itself. KB entries already promoted from a deleted triage are <em>not</em> removed — the lesson the AI learned survives.</div>
+            <div class="help-faq-a">Yes. Each row has a small <strong>&times;</strong> on the right edge — click it to delete that inquiry permanently. The confirmation dialog quotes the message back to you before anything is destroyed. Three checkpoints stand between you and an accidental delete: the Message column preview, optional click-to-expand, and the confirm dialog itself. KB entries already promoted from a deleted inquiry are <em>not</em> removed — the lesson the AI learned survives. Non-clinical staff can only delete non-clinical-tier rows.</div>
+          </div>
+        </div>
+        <div class="help-section">
+          <div class="help-section-title">Roles &amp; Escalation</div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>What's the difference between clinical and non-clinical roles?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a"><strong>Clinical staff</strong> (RNs/MDs) handle anything — clinical questions, non-clinical questions, escalations from non-clinical. <strong>Non-clinical staff</strong> (CSRs) handle non-clinical inquiries (Billing, Shipping, Account, etc.) and General Inquiry. When they receive clinical content, they hit <strong>Escalate to Clinical</strong> and the nursing team picks it up. Severity (mild/moderate/severe), clinical category selection, and editing clinical drafts are all clinical-only.</div>
+          </div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>I'm non-clinical and got a clinical message. What do I do?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a">Paste the patient message and click <strong>Analyze</strong>. If the AI flags clinical content, you'll see a handoff card with the patient message and a generic acknowledgment ("I've passed your message to our nursing team..."). Copy the acknowledgment, send it to the patient through your usual channel, then click <strong>Mark as Escalated</strong>. The nursing team sees the inquiry in their queue and replies directly.</div>
+          </div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>Can non-clinical staff change categories or severity?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a">Non-clinical staff can edit <strong>non-clinical categories</strong> (Billing, Shipping, etc.) but cannot touch <strong>clinical categories</strong> or <strong>severity</strong>. Severity isn't editable from the UI by anyone — it's set by the AI. If non-clinical sees clinical content the AI missed, they hit Escalate to Clinical rather than picking a clinical category themselves.</div>
           </div>
         </div>
         <div class="help-section">
@@ -313,9 +329,55 @@
               <strong>Triaging a reply without Prior Context</strong> &mdash; the AI gets a fragment and produces a generic response.<br><br>
               <strong>Ignoring the red severity badge</strong> &mdash; Severe means escalate to a provider now.<br><br>
               <strong>Ignoring the routing card</strong> &mdash; if a non-clinical item is flagged, the internal note needs to reach the support team via your usual handoff method. Don't paste it into the patient-facing reply.<br><br>
-              <strong>Entering the wrong thing in the patient-message field or in "What was sent to the patient"</strong> &mdash; this pollutes the AI's learning signal. Two ways to fix: delete the whole entry from the Triage Queue (&times; on the row) when the entire row is garbage, or open <strong>Knowledge Base &rarr; Corrections tab</strong> when only the correction note is wrong.
+              <strong>Entering the wrong thing in the patient-message field or in "What was sent to the patient"</strong> &mdash; this pollutes the AI's learning signal. Two ways to fix: delete the whole entry from the Inquiries list (&times; on the row) when the entire row is garbage, or open <strong>Knowledge Base &rarr; Corrections tab</strong> when only the correction note is wrong.
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ADMIN TAB (v0.3.27) — only visible when currentProfile.is_admin -->
+<div class="tab-panel" id="tab-admin">
+  <div class="admin-wrap">
+    <div class="admin-head">
+      <h2>Admin</h2>
+      <p>Manage users and tenant configuration.</p>
+    </div>
+
+    <div class="admin-section">
+      <div class="admin-section-head">
+        <h3>Users</h3>
+        <p class="admin-section-blurb">Set role, admin flag, and (super-user only) super-user flag for any user in your tenant.</p>
+      </div>
+      <div id="adminUsersList" class="admin-users">
+        <div class="admin-empty">Loading users...</div>
+      </div>
+    </div>
+
+    <div class="admin-section" id="adminCategoriesSection">
+      <div class="admin-section-head">
+        <h3>Categories</h3>
+        <p class="admin-section-blurb">Configure which categories require clinical authorization. Non-clinical staff can only pick categories with is_clinical = false.</p>
+        <span class="admin-superuser-only">Super-user only</span>
+      </div>
+      <div id="adminCategoriesList" class="admin-categories">
+        <div class="admin-empty">Loading categories...</div>
+      </div>
+    </div>
+
+    <div class="admin-section" id="adminSettingsSection">
+      <div class="admin-section-head">
+        <h3>Non-clinical handoff template</h3>
+        <p class="admin-section-blurb">The generic acknowledgment a non-clinical staff member sends to the patient when escalating clinical content. Their personal greeting/signoff is added at send time — keep this body-only.</p>
+        <span class="admin-superuser-only">Super-user only</span>
+      </div>
+      <div class="admin-settings">
+        <textarea id="adminHandoffTemplate" class="admin-textarea" rows="4" placeholder="Loading..."></textarea>
+        <div class="admin-settings-actions">
+          <button class="admin-btn" onclick="saveHandoffTemplate()">Save</button>
+          <span id="adminSettingsStatus" class="admin-status"></span>
         </div>
       </div>
     </div>
@@ -339,8 +401,8 @@
 
     <div class="history-head">
       <div>
-        <h2>Triage Queue</h2>
-        <p>All triage records. Infrastructure view.</p>
+        <h2>Inquiries</h2>
+        <p>All patient inquiries processed through Relai.</p>
       </div>
       <div class="history-controls">
         <select id="historyFilter" class="history-filter" onchange="loadHistory()">
@@ -352,7 +414,7 @@
           <option value="urgent">Urgent only</option>
           <option value="corrected">Corrected</option>
         </select>
-        <select id="historySort" class="history-filter" onchange="loadHistory()" title="How to order the Recent Triages table">
+        <select id="historySort" class="history-filter" onchange="loadHistory()" title="How to order the Recent Inquiries table">
           <option value="newest" selected>Newest first</option>
           <option value="priority">Priority first</option>
         </select>

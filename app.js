@@ -309,6 +309,18 @@ async function initAuth(){
         if(avatarEl) avatarEl.style.background='var(--amber)';
       }
     }
+    // v0.3.27: reveal the Admin tab if the user has the flag.
+    // Default-hidden in the HTML; only flipped on for admins.
+    if (currentProfile && currentProfile.is_admin) {
+      var adminBtn = document.getElementById('adminTabBtn');
+      if (adminBtn) adminBtn.classList.remove('hidden');
+    }
+    // v0.3.27: prefetch the non-clinical handoff template so the
+    // first clinical-tier render for a non-clinical user has it
+    // ready without a fetch-on-render flicker. For clinical users
+    // it's a tiny wasted call (one row, ~200 bytes) — acceptable.
+    // Fire-and-forget; the FALLBACK kicks in if it fails.
+    loadHandoffTemplate();
   }catch(e){
     console.error('initAuth:', e.message);
     // Network error — don't redirect, allow offline use
@@ -900,11 +912,16 @@ function switchTab(name,btn){
   btn.classList.add('active');
   if(name==='kb')loadKBFromServer();
   if(name==='history')loadReviews();
+  if(name==='admin')loadAdminTab();
 }
 
 // TRIAGE
 function setLoading(on){
-  document.getElementById('btnText').textContent=on?'Analyzing...':'Run Triage';
+  // Renamed in v0.3.27: "Run Triage" → "Analyze" everywhere
+  // user-facing. Internal function names stay (runTriage) — those
+  // are stable identifiers across the codebase. Only the button
+  // label and the loading text change.
+  document.getElementById('btnText').textContent=on?'Analyzing...':'Analyze';
   document.getElementById('btnSpinner').className=on?'spinner active':'spinner';
   document.getElementById('triageBtn').disabled=on;
 }
@@ -1236,7 +1253,176 @@ function buildSeverityBadge(routingLevel){
   return '<div class="severity-badge '+sev.cls+'"><div class="sev-dot"></div>'+sev.label+'</div>';
 }
 
+// v0.3.27: client-side mirror of the server's rowIsClinical helper
+// (kb.js). Used to decide whether a non-clinical user gets the
+// restricted handoff view or the standard render. Keep this in
+// lockstep with the server: under-gating is a worse failure than
+// over-gating (defensive: treat ambiguous results as clinical).
+function resultIsClinical(d) {
+  if (!d) return false;
+  var lvl = String((d.clinical_routing_level || 'none')).toLowerCase();
+  if (lvl !== 'none') return true;
+  var cat = String(d.clinical_category || '').trim();
+  if (cat && cat !== 'General Inquiry' && cat !== 'General/multiple') return true;
+  return false;
+}
+
+// Cached handoff template per session. Loaded once from
+// /handoff-template (which reads companies.non_clinical_handoff_template).
+// Falls back to a sensible default if the fetch fails so the UI
+// still works — staff can copy-paste a slightly less polished
+// version of the same message.
+let cachedHandoffTemplate = null;
+const FALLBACK_HANDOFF =
+  "Thanks for reaching out! I've passed your message to our nursing team and they'll get back to you shortly.";
+async function loadHandoffTemplate() {
+  try {
+    var r = await api('/handoff-template');
+    if (Array.isArray(r) && r[0] && r[0].non_clinical_handoff_template) {
+      cachedHandoffTemplate = r[0].non_clinical_handoff_template;
+    } else {
+      cachedHandoffTemplate = FALLBACK_HANDOFF;
+    }
+  } catch (e) {
+    console.error('loadHandoffTemplate:', e.message);
+    cachedHandoffTemplate = FALLBACK_HANDOFF;
+  }
+}
+function getHandoffTemplate() {
+  return cachedHandoffTemplate || FALLBACK_HANDOFF;
+}
+
+// v0.3.27: simplified render for non-clinical staff viewing a
+// clinical-tier result. Shows patient message, an escalation
+// banner, the handoff template they should send to the patient,
+// optionally the non-clinical portion if this is a dual triage,
+// and a single Mark as Escalated action. Clinical drafts are
+// hidden entirely — a CSR shouldn't be reading or sending
+// clinical advice.
+function renderNonClinicalHandoff(d) {
+  var hasNonClinPortion = !!(d.non_clinical_flag &&
+    Array.isArray(d.non_clinical_items) && d.non_clinical_items.length);
+  var handoffText = getHandoffTemplate();
+  var html = '';
+
+  // Escalation banner
+  html += '<div class="card handoff-banner">'+
+    '<div class="handoff-banner-icon">&#9877;</div>'+
+    '<div>'+
+      '<div class="handoff-banner-title">Clinical content detected</div>'+
+      '<div class="handoff-banner-body">'+
+        (hasNonClinPortion
+          ? 'The clinical portion is being routed to the nursing team. You can still handle the non-clinical portion below.'
+          : 'The nursing team has been notified. Send the message below to acknowledge with the patient, then click Mark as Escalated.')+
+      '</div>'+
+    '</div>'+
+  '</div>';
+
+  // Patient message reference card
+  html += '<div class="card">'+
+    '<div class="card-header"><span class="card-title">Patient Message</span></div>'+
+    '<div class="card-body">'+
+      '<div class="patient-msg-readonly">'+esc(d._patient_message_original || (document.getElementById('msgInput')||{}).value || '')+'</div>'+
+    '</div>'+
+  '</div>';
+
+  // Non-clinical portion (dual only)
+  if (hasNonClinPortion) {
+    html += '<div class="card">'+
+      '<div class="card-header"><span class="card-title">Your portion (non-clinical)</span></div>'+
+      '<div class="card-body">'+
+        '<div class="eyebrow">Category</div>'+
+        '<div class="handoff-meta">'+esc(d.non_clinical_items.join(', '))+'</div>'+
+        (d.internal_note ? (
+          '<div class="eyebrow" style="margin-top:12px;">Internal Note</div>'+
+          '<div class="handoff-meta">'+esc(d.internal_note)+'</div>'
+        ) : '')+
+        (d.routed_to ? (
+          '<div class="eyebrow" style="margin-top:12px;">Route to</div>'+
+          '<div class="handoff-meta">'+esc(d.routed_to)+'</div>'
+        ) : '')+
+      '</div>'+
+    '</div>';
+  }
+
+  // Handoff template card with Copy button
+  var sendTitle = hasNonClinPortion
+    ? 'Acknowledgment to send (with your non-clinical reply)'
+    : 'Send this to the patient now';
+  html += '<div class="card">'+
+    '<div class="card-header"><span class="card-title">'+sendTitle+'</span></div>'+
+    '<div class="card-body">'+
+      '<div class="handoff-template-text" id="handoffTemplateText">'+esc(handoffText)+'</div>'+
+      '<div class="handoff-actions">'+
+        '<button class="btn-copy" onclick="copyHandoffTemplate()">Copy</button>'+
+        '<span id="handoffCopyStatus" class="handoff-copy-status"></span>'+
+      '</div>'+
+    '</div>'+
+  '</div>';
+
+  // Single action: Mark as Escalated
+  html += '<div class="card escalate-action-card">'+
+    '<div class="card-body">'+
+      '<button class="btn-escalate" id="markEscalatedBtn" onclick="markEscalated()">Mark as Escalated</button>'+
+      '<div class="escalate-hint">This records that you sent the handoff and routes the inquiry to clinical for a full reply.</div>'+
+    '</div>'+
+  '</div>';
+
+  document.getElementById('results').innerHTML = html;
+}
+
+function copyHandoffTemplate() {
+  var txt = (document.getElementById('handoffTemplateText')||{}).textContent || '';
+  if (!txt) return;
+  try {
+    navigator.clipboard.writeText(txt).then(function(){
+      var status = document.getElementById('handoffCopyStatus');
+      if (status) {
+        status.textContent = 'Copied';
+        status.classList.add('show');
+        setTimeout(function(){ status.classList.remove('show'); status.textContent = ''; }, 1500);
+      }
+    });
+  } catch (e) {
+    console.error('copyHandoffTemplate:', e.message);
+  }
+}
+
+async function markEscalated() {
+  if (!currentHistoryId) {
+    alert('Cannot escalate: no inquiry id. Run Analyze first.');
+    return;
+  }
+  var btn = document.getElementById('markEscalatedBtn');
+  if (btn) btn.disabled = true;
+  try {
+    var handoffText = getHandoffTemplate();
+    await api('/history', 'POST', {
+      action: 'mark_escalated',
+      id: currentHistoryId,
+      actual_response: handoffText,
+    });
+    if (btn) {
+      btn.textContent = 'Escalated ✓';
+      btn.classList.add('escalated-done');
+    }
+  } catch (e) {
+    if (btn) btn.disabled = false;
+    alert('Could not mark escalated: ' + (e.message || 'unknown error'));
+  }
+}
+
 function renderResults(d){
+  // v0.3.27: role-aware fork. Non-clinical viewing a clinical-tier
+  // result gets the simplified handoff view; everyone else gets
+  // the standard render below. The fork is at the very top so we
+  // don't accidentally evaluate clinical content (severity badges,
+  // category pills, etc.) for users who shouldn't see it.
+  var role = (currentProfile && currentProfile.role) || '';
+  if (role === 'Non-Clinical' && resultIsClinical(d)) {
+    return renderNonClinicalHandoff(d);
+  }
+
   var html='';
   var draftText=(d.draft_response||'').trim();
   var draftIsEmpty=!draftText;
@@ -1271,7 +1457,16 @@ function renderResults(d){
 
   // Build pills. CLINICAL_CATS / NON_CLINICAL_CATS are both derived
   // from RELAI_DEFAULTS.categories at module load — see top of file.
-  var clinPills=CLINICAL_CATS.map(function(c){
+  //
+  // v0.3.27 role gate: non-clinical staff don't get clinical pills.
+  // They can't modify clinical_category by design (server-side gate
+  // would reject it anyway), so leaving the pills visible-but-
+  // unclickable would just be a confusing dead control. Emit an
+  // empty pill string instead so the Classification card just shows
+  // non-clinical options. Severity controls aren't editable from
+  // the UI by anyone — AI-only — so no extra hide needed.
+  var isNonClinViewer = (currentProfile && currentProfile.role) === 'Non-Clinical';
+  var clinPills = isNonClinViewer ? '' : CLINICAL_CATS.map(function(c){
     var sel=c===aiClinCat;
     return '<button class="cat-pill'+(sel?' sel-clin':'')+'" data-val="'+esc(c)+'" data-type="clin">'+esc(c)+'</button>';
   }).join(' ');
@@ -2393,6 +2588,187 @@ function showToast(msg,type){
 
 function esc(str){
   return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Admin tab (v0.3.27)
+// ─────────────────────────────────────────────────────────────────────
+//
+// The tab is hidden by default in index.html; initAuth flips it on
+// when currentProfile.is_admin is true. loadAdminTab() is called by
+// switchTab when the user opens the Admin tab. It loads three
+// sections in parallel:
+//   - Users: every admin sees; only super-users can toggle
+//     is_super_user via the role gate on the server.
+//   - Categories: super-user only (section hidden otherwise).
+//   - Settings (handoff template): super-user only.
+//
+// All three sections are RLS-independent reads through the kb.js
+// service-key path — same pattern every other tenant-scoped read in
+// the codebase uses.
+
+async function loadAdminTab() {
+  // Hide super-user-only sections if caller isn't super-user. Server
+  // refuses the underlying API calls anyway, so this is purely UX.
+  var isSU = !!(currentProfile && currentProfile.is_super_user);
+  var catsSection = document.getElementById('adminCategoriesSection');
+  var settingsSection = document.getElementById('adminSettingsSection');
+  if (catsSection) catsSection.style.display = isSU ? '' : 'none';
+  if (settingsSection) settingsSection.style.display = isSU ? '' : 'none';
+
+  loadAdminUsers();
+  if (isSU) {
+    loadAdminCategories();
+    loadAdminSettings();
+  }
+}
+
+async function loadAdminUsers() {
+  var list = document.getElementById('adminUsersList');
+  if (!list) return;
+  list.innerHTML = '<div class="admin-empty">Loading users...</div>';
+  try {
+    var users = await api('/admin/users');
+    if (!Array.isArray(users) || !users.length) {
+      list.innerHTML = '<div class="admin-empty">No users found in this tenant.</div>';
+      return;
+    }
+    var isSU = !!(currentProfile && currentProfile.is_super_user);
+    list.innerHTML = users.map(function(u){
+      var roleSel =
+        '<select class="admin-role-select" data-uid="'+esc(u.id)+'" onchange="updateUserRole(\''+esc(u.id)+'\', \'role\', this.value)">'+
+          '<option value="Clinical"'+(u.role==='Clinical'?' selected':'')+'>Clinical</option>'+
+          '<option value="Non-Clinical"'+(u.role==='Non-Clinical'?' selected':'')+'>Non-Clinical</option>'+
+        '</select>';
+      var adminToggle =
+        '<label class="admin-flag-toggle">'+
+          '<input type="checkbox" '+(u.is_admin?'checked':'')+
+            ' onchange="updateUserRole(\''+esc(u.id)+'\', \'is_admin\', this.checked)" />'+
+          ' Admin'+
+        '</label>';
+      var suToggle = isSU ?
+        '<label class="admin-flag-toggle">'+
+          '<input type="checkbox" '+(u.is_super_user?'checked':'')+
+            ' onchange="updateUserRole(\''+esc(u.id)+'\', \'is_super_user\', this.checked)" />'+
+          ' Super-user'+
+        '</label>'
+        : (u.is_super_user ? '<span class="admin-flag-readonly">Super-user</span>' : '');
+      return '<div class="admin-user-row">'+
+        '<div class="admin-user-info">'+
+          '<div class="admin-user-name">'+esc(u.full_name || '(no name)')+'</div>'+
+          '<div class="admin-user-email">'+esc(u.email || '(no email)')+'</div>'+
+        '</div>'+
+        '<div class="admin-user-controls">'+
+          roleSel+adminToggle+suToggle+
+        '</div>'+
+      '</div>';
+    }).join('');
+  } catch (e) {
+    list.innerHTML = '<div class="admin-error">Error loading users: '+esc(e.message||'unknown')+'</div>';
+  }
+}
+
+async function updateUserRole(userId, field, value) {
+  if (!userId || !field) return;
+  var body = { action: 'update_role', user_id: userId };
+  body[field] = value;
+  try {
+    await api('/admin/users', 'POST', body);
+    showToast('Updated', 'success');
+    // Reload to reflect any cascading state changes (e.g., a removed
+    // admin flag that should also unset super_user UI-wise).
+    loadAdminUsers();
+  } catch (e) {
+    showToast('Update failed: ' + (e.message || 'unknown'), 'error');
+    // Reload so the UI snaps back to the actual server state.
+    loadAdminUsers();
+  }
+}
+
+async function loadAdminCategories() {
+  var list = document.getElementById('adminCategoriesList');
+  if (!list) return;
+  list.innerHTML = '<div class="admin-empty">Loading categories...</div>';
+  try {
+    var cats = await api('/admin/categories');
+    if (!Array.isArray(cats) || !cats.length) {
+      list.innerHTML = '<div class="admin-empty">No categories defined. Seed via migration 0010.</div>';
+      return;
+    }
+    list.innerHTML = cats.map(function(c){
+      return '<div class="admin-cat-row">'+
+        '<div class="admin-cat-name">'+esc(c.category_name)+'</div>'+
+        '<label class="admin-flag-toggle">'+
+          '<input type="checkbox" '+(c.is_clinical?'checked':'')+
+            ' onchange="updateCategory(\''+esc(c.id)+'\', \'is_clinical\', this.checked)" />'+
+          ' Clinical-gated'+
+        '</label>'+
+        '<label class="admin-flag-toggle">'+
+          '<input type="checkbox" '+(c.is_active?'checked':'')+
+            ' onchange="updateCategory(\''+esc(c.id)+'\', \'is_active\', this.checked)" />'+
+          ' Active'+
+        '</label>'+
+      '</div>';
+    }).join('');
+  } catch (e) {
+    list.innerHTML = '<div class="admin-error">Error loading categories: '+esc(e.message||'unknown')+'</div>';
+  }
+}
+
+async function updateCategory(catId, field, value) {
+  if (!catId || !field) return;
+  var body = { action: 'update', id: catId };
+  body[field] = value;
+  try {
+    await api('/admin/categories', 'POST', body);
+    showToast('Saved', 'success');
+  } catch (e) {
+    showToast('Save failed: ' + (e.message || 'unknown'), 'error');
+    loadAdminCategories();
+  }
+}
+
+async function loadAdminSettings() {
+  var ta = document.getElementById('adminHandoffTemplate');
+  if (!ta) return;
+  ta.value = '';
+  ta.placeholder = 'Loading...';
+  try {
+    var rows = await api('/admin/settings');
+    var template = Array.isArray(rows) && rows[0] ? rows[0].non_clinical_handoff_template : '';
+    ta.value = template || '';
+    ta.placeholder = "Thanks for reaching out! I've passed your message...";
+  } catch (e) {
+    ta.placeholder = 'Error: ' + (e.message || 'unknown');
+  }
+}
+
+async function saveHandoffTemplate() {
+  var ta = document.getElementById('adminHandoffTemplate');
+  var status = document.getElementById('adminSettingsStatus');
+  if (!ta) return;
+  var val = (ta.value || '').trim();
+  if (!val) {
+    if (status) status.textContent = 'Template cannot be empty.';
+    return;
+  }
+  if (status) status.textContent = 'Saving...';
+  try {
+    await api('/admin/settings', 'POST', {
+      action: 'update_handoff_template',
+      template: val,
+    });
+    if (status) {
+      status.textContent = 'Saved.';
+      setTimeout(function(){ if (status) status.textContent = ''; }, 1500);
+    }
+    // Refresh the cached template so subsequent renders see the new
+    // version without a page reload. Future non-clinical handoff
+    // renders will use the updated text.
+    cachedHandoffTemplate = val;
+  } catch (e) {
+    if (status) status.textContent = 'Save failed: ' + (e.message || 'unknown');
+  }
 }
 
 initAuth();

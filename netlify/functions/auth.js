@@ -53,7 +53,7 @@ exports.handler = async function(event) {
       let profile = null;
       try {
         const profRes = await fetch(
-          `${SUPABASE_URL}/rest/v1/profiles?id=eq.${user.id}&select=id,full_name,role,company_id,triages_completed,last_seen`,
+          `${SUPABASE_URL}/rest/v1/profiles?id=eq.${user.id}&select=id,full_name,role,company_id,triages_completed,last_seen,is_admin,is_super_user`,
           { headers: hdr }
         );
         const profiles = await profRes.json();

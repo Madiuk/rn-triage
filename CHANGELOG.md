@@ -6,6 +6,234 @@ bumps cover meaningful capability additions, patch bumps cover fixes).
 
 ---
 
+## v0.3.27 — 2026-05-11
+
+Roles, gates, escalation flow, admin panel, and the "Triage → Inquiry"
+rename. Built as one cohesive release rather than three sequential
+versions (would-have-been v0.3.25 plumbing + v0.3.26 gates + v0.3.27
+admin) because the pieces are tightly interconnected and shipping
+them separately would have meant three sets of related migrations,
+duplicate scaffolding, and three rounds of partial-state risk.
+
+### Why this matters
+
+Big Easy is rolling out to multiple staff: Bridget (clinical) next
+week, Zack (non-clinical) shortly after. Until now, the system had
+no role gates — any authenticated user could send any reply on any
+inquiry. Acceptable for a single-user trial; not acceptable when a
+non-clinical CSR is in the workflow. v0.3.27 builds the foundation
+that will keep the learning loop clean and patient safety enforced
+as headcount grows.
+
+### Migration required
+
+**Run this in Supabase SQL Editor:**
+```sql
+-- Apply the new schema
+-- Run the contents of migrations/0010_roles_admin_categories.sql
+
+-- Then set yourself as super-user (replace email):
+UPDATE public.profiles
+   SET is_admin = true, is_super_user = true
+ WHERE id = (SELECT id FROM auth.users WHERE email = 'you@example.com');
+```
+
+Migration 0010 is idempotent. Safe to re-run.
+
+### Renamed (user-facing)
+
+- "Triage" → "Inquiry" everywhere user-visible (tab label, page
+  headings, help & guide text, button)
+- "Run Triage" button → "Analyze"
+- "Triage Queue" → "Inquiries"
+- "Recent Triages" → "Recent Inquiries"
+
+Internal code names (`runTriage`, `query_history` table, function
+identifiers) unchanged — renaming those would be churn for no
+user-visible benefit, and stable identifiers help anyone reading
+git history.
+
+Rationale: "Triage" is clinical-coded. With non-clinical staff in
+the workflow, a neutral name is needed. "Inquiry" works for both
+manual entry and the future ingestion/queue workflow.
+
+### Roles & flags (DB schema)
+
+`profiles` got two new columns:
+- `is_admin BOOLEAN` — can manage users in their tenant
+- `is_super_user BOOLEAN` — can configure category metadata, edit
+  handoff template, grant/revoke super_user on others
+
+The existing `role` column stays — values are still `'Clinical'`
+or `'Non-Clinical'`. Admin and super_user are ORTHOGONAL to role:
+a user can be `'Clinical' + admin`, `'Non-Clinical' + admin`,
+either with super_user, etc. Admin/super_user are capabilities,
+not job titles.
+
+### Server-side role gates (kb.js)
+
+Every mutating action on a clinical-tier row now checks the
+caller's role:
+
+- `update_urgency` → non-clinical refused on clinical rows
+- `update_category` → non-clinical can edit `non_clinical_items`
+  but cannot touch `clinical_category`. Tries to set category
+  return 403, not silently dropped.
+- `save_actual` → non-clinical refused on clinical rows (would
+  otherwise pollute the Haiku correction analyzer)
+- `delete_entry` → non-clinical refused on clinical rows
+- `upvote` / `downvote` → non-clinical refused on clinical drafts
+- `/reviews resolve` → non-clinical refused on reviews whose
+  originating triage is clinical (would otherwise inject CSR
+  judgments into the clinical KB)
+
+All gates resolve via the new `resolveProfile(user)` helper, with
+defensive helpers `isClinical()`, `isNonClinical()`, `isAdmin()`,
+`isSuperUser()`. Under-gate is the worse failure mode (anyone
+that isn't explicitly Clinical is treated as non-clinical for
+gate purposes).
+
+### Non-clinical handoff flow
+
+When a non-clinical user analyzes a message and the AI flags
+clinical content, they see a simplified handoff view instead of
+the standard draft + controls. The view shows:
+
+- Banner: "Clinical content detected. The nursing team has been
+  notified."
+- Patient message reference card
+- (Dual triages only) the non-clinical portion they can act on —
+  category, internal note, routed-to label
+- Acknowledgment template card with Copy button. Template body
+  comes from `companies.non_clinical_handoff_template` (per-tenant,
+  super-user editable). Default: *"Thanks for reaching out! I've
+  passed your message to our nursing team and they'll get back
+  to you shortly."*
+- Single "Mark as Escalated" button — flips
+  `escalated_to_clinical=true`, sets `escalated_by` + `escalated_at`,
+  records `non_clinical_handoff_used=true` and persists the
+  acknowledgment as `actual_response_sent` so the row reflects
+  what reached the patient.
+
+The AI's clinical draft is NEVER shown to non-clinical staff —
+not even hidden-but-collapsible. A CSR shouldn't be reading or
+sending clinical advice; if the draft text is in their DOM they
+could accidentally copy-paste it elsewhere.
+
+### Category metadata (super-user configurable)
+
+New `category_metadata` table, per-tenant, seeded for Big Easy:
+
+| Category | is_clinical |
+|---|---|
+| Injection/Dosing | true |
+| Side Effects | true |
+| Severe Side Effects | true |
+| Medication Management | true |
+| Stall/Lack of Results | true |
+| **General Inquiry** | **false** ← per your request |
+| Billing/Payment | false |
+| Shipment/Tracking | false |
+| Account/Subscription | false |
+| Refund Request | false |
+| Complaint/Concern | false |
+
+Super-user can flip `is_clinical` on any category via the Admin
+panel. This drives the future Tasks/picker workflow's role-based
+visibility.
+
+### Admin panel (new tab)
+
+Hidden by default; flipped on when `currentProfile.is_admin === true`.
+Three sections:
+
+- **Users** (admin): list every user in the tenant with email,
+  name, role, admin flag, super-user flag. Edit role (Clinical /
+  Non-Clinical), toggle admin flag, toggle super-user flag (only
+  super-users see this control; only super-users can grant/revoke
+  super_user). Self-demotion of super_user is blocked.
+- **Categories** (super-user): list all `category_metadata` rows
+  for the tenant. Toggle `is_clinical` and `is_active` per row.
+- **Settings** (super-user): edit `non_clinical_handoff_template`.
+  Capped at 4000 chars.
+
+User emails come from `auth.users` via the Supabase Auth admin
+REST endpoint (service-key only). Tenant-scoping: an admin can
+only see users in their own `company_id`.
+
+### New endpoints (kb.js)
+
+- `GET /profile` — caller's own profile (role + flags). Used by
+  initAuth to populate `currentProfile`.
+- `GET /handoff-template` — caller's tenant handoff template.
+- `GET /categories` — caller's tenant active categories.
+- `GET /admin/users` — admin only.
+- `POST /admin/users` action=`update_role` — admin only;
+  super-user-only for `is_super_user` field.
+- `GET /admin/categories` — super-user only.
+- `POST /admin/categories` actions=`create`/`update` — super-user only.
+- `GET /admin/settings` — super-user only.
+- `POST /admin/settings` action=`update_handoff_template` — super-user only.
+
+### New /history POST action
+
+- `mark_escalated` — any role can call; flips
+  `escalated_to_clinical`, sets `escalated_by` + `escalated_at`.
+  When the caller is non-clinical, also sets
+  `non_clinical_handoff_used=true` and (if `actual_response` in
+  body) persists it as `actual_response_sent`.
+
+### Frontend additions
+
+- `resultIsClinical(d)` — client mirror of server's `rowIsClinical`.
+- `loadHandoffTemplate()` / `getHandoffTemplate()` — prefetched
+  cache for the non-clinical handoff text.
+- `renderNonClinicalHandoff(d)` — simplified render path.
+- `copyHandoffTemplate()` / `markEscalated()` — handoff actions.
+- `loadAdminTab()` / `loadAdminUsers()` / `loadAdminCategories()`
+  / `loadAdminSettings()` / `updateUserRole()` /
+  `updateCategory()` / `saveHandoffTemplate()` — admin panel.
+- `renderResults` gains a role-aware fork at the top.
+- Standard render hides clinical category pills for non-clinical
+  viewers — they can't set them anyway, no point dangling dead
+  controls.
+
+### Help & Guide updates
+
+- "Roles & Escalation" section added (three FAQs)
+- "Triage" terminology replaced with "Inquiry" throughout
+- "Common Mistakes" updated to mention both delete paths and
+  non-clinical's role-restricted delete
+
+### Training-loop integrity
+
+The gates ensure the learning loop stays clean:
+- Non-clinical can't save `actual_response_sent` on clinical rows →
+  Haiku correction analyzer never sees CSR edits to clinical content
+- Non-clinical can't resolve clinical reviews → CSR answers never
+  promote to clinical KB
+- Non-clinical can't set clinical_category or severity → CSR
+  judgments never enter the classification distribution
+
+The KB stays clean by construction, not by trusting roles to
+behave correctly.
+
+### Tests
+
+144 passing. No triage-lib changes; all additions are in kb.js
+(server gates + admin endpoints), app.js (UI gates + admin tab),
+and the new migration. CSS is additive only.
+
+### Multi-tenant readiness
+
+Everything is tenant-scoped by `company_id`. `category_metadata`,
+`non_clinical_handoff_template`, role/flag columns all live
+per-tenant. When tenant #2 onboards, they get their own seeded
+categories and configurable handoff template; their admins manage
+their own users without seeing Big Easy's.
+
+---
+
 ## v0.3.24 — 2026-05-11
 
 User report: with the page-size selector (v0.3.21) showing only

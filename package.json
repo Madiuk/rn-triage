@@ -1,6 +1,6 @@
 {
   "name": "relai",
-  "version": "0.3.24",
+  "version": "0.3.27",
   "description": "Relai — AI-assisted customer-service triage and task routing.",
   "private": true,
   "scripts": {

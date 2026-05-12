@@ -424,3 +424,61 @@ textarea::placeholder{color:var(--gray-400);}
 .history-page-btn:hover:not(:disabled){background:var(--blue-l);border-color:var(--blue-m);color:var(--blue);}
 .history-page-btn:disabled{opacity:.4;cursor:not-allowed;}
 .history-page-indicator{font-size:var(--fs-xs);color:var(--gray-700);font-weight:600;min-width:90px;text-align:center;letter-spacing:.02em;}
+
+/* ─────────────────────────────────────────────────────────────────
+   Non-clinical handoff view (v0.3.27). Rendered when a non-clinical
+   staffer sees a clinical-tier inquiry. The whole flow is "show
+   patient context, send acknowledgment, mark escalated" — visually
+   distinct (amber accent) so it's obvious they're in the
+   handoff path, not the standard authoring path.
+   ───────────────────────────────────────────────────────────────── */
+.handoff-banner{background:var(--amber-l);border-color:var(--amber-m);display:flex;align-items:flex-start;gap:14px;padding:14px 18px;margin-bottom:14px;}
+.handoff-banner-icon{font-size:22px;line-height:1;color:var(--amber);flex:0 0 auto;}
+.handoff-banner-title{font-size:var(--fs-sm);font-weight:700;color:var(--amber);margin-bottom:4px;}
+.handoff-banner-body{font-size:var(--fs-sm);color:var(--gray-700);line-height:1.5;}
+.patient-msg-readonly{font-size:var(--fs-sm);color:var(--gray-800);white-space:pre-wrap;line-height:1.5;padding:10px 12px;background:var(--gray-50);border:1px solid var(--gray-200);border-radius:8px;}
+.handoff-meta{font-size:var(--fs-sm);color:var(--gray-800);padding:6px 0;}
+.handoff-template-text{font-size:var(--fs-sm);color:var(--gray-800);white-space:pre-wrap;line-height:1.6;padding:12px 14px;background:var(--blue-l);border:1.5px solid var(--blue-m);border-radius:8px;margin-bottom:10px;}
+.handoff-actions{display:flex;align-items:center;gap:10px;}
+.btn-copy{background:var(--blue);color:white;border:none;border-radius:7px;padding:8px 16px;font-family:var(--sans);font-size:var(--fs-sm);font-weight:600;cursor:pointer;transition:all .15s;}
+.btn-copy:hover{background:var(--blue-d, #2563eb);}
+.handoff-copy-status{font-size:var(--fs-xs);color:var(--green);font-weight:600;opacity:0;transition:opacity .15s;}
+.handoff-copy-status.show{opacity:1;}
+.escalate-action-card{margin-top:14px;}
+.btn-escalate{background:var(--amber);color:white;border:none;border-radius:8px;padding:10px 20px;font-family:var(--sans);font-size:var(--fs-sm);font-weight:700;cursor:pointer;transition:all .15s;}
+.btn-escalate:hover:not(:disabled){background:#d97706;}
+.btn-escalate:disabled{opacity:.6;cursor:not-allowed;}
+.btn-escalate.escalated-done{background:var(--green);}
+.escalate-hint{font-size:var(--fs-xs);color:var(--gray-500);margin-top:8px;line-height:1.5;}
+
+/* ─────────────────────────────────────────────────────────────────
+   Admin tab (v0.3.27). Three stacked sections: Users, Categories,
+   Settings. Same card aesthetic as the rest of the app.
+   ───────────────────────────────────────────────────────────────── */
+.admin-wrap{max-width:1100px;margin:0 auto;padding:28px 24px;}
+.admin-head{margin-bottom:24px;}
+.admin-head h2{font-size:var(--fs-xl);font-weight:700;margin-bottom:4px;}
+.admin-head p{font-size:var(--fs-sm);color:var(--gray-500);}
+.admin-section{background:var(--white);border:1.5px solid var(--gray-200);border-radius:12px;padding:20px 24px;margin-bottom:20px;}
+.admin-section-head{margin-bottom:16px;position:relative;}
+.admin-section-head h3{font-size:var(--fs-lg);font-weight:700;margin-bottom:4px;}
+.admin-section-blurb{font-size:var(--fs-sm);color:var(--gray-500);line-height:1.5;}
+.admin-superuser-only{position:absolute;top:0;right:0;background:var(--blue-l);color:var(--blue);font-size:var(--fs-xs);font-weight:700;padding:2px 10px;border-radius:10px;letter-spacing:.04em;text-transform:uppercase;}
+.admin-empty{text-align:center;color:var(--gray-400);padding:20px;font-size:var(--fs-sm);}
+.admin-error{color:var(--red);padding:12px;font-size:var(--fs-sm);}
+.admin-user-row,.admin-cat-row{display:flex;align-items:center;gap:14px;padding:10px 0;border-bottom:1px solid var(--gray-100);}
+.admin-user-row:last-child,.admin-cat-row:last-child{border-bottom:none;}
+.admin-user-info{flex:1;min-width:0;}
+.admin-user-name{font-size:var(--fs-sm);font-weight:600;color:var(--gray-800);}
+.admin-user-email{font-size:var(--fs-xs);color:var(--gray-500);margin-top:2px;}
+.admin-user-controls{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+.admin-role-select{padding:5px 8px;border:1.5px solid var(--gray-200);border-radius:6px;font-family:var(--sans);font-size:var(--fs-xs);background:var(--white);}
+.admin-flag-toggle{display:flex;align-items:center;gap:6px;font-size:var(--fs-xs);color:var(--gray-700);cursor:pointer;user-select:none;}
+.admin-flag-toggle input[type="checkbox"]{cursor:pointer;}
+.admin-flag-readonly{font-size:var(--fs-xs);color:var(--gray-400);font-weight:600;}
+.admin-cat-name{flex:1;font-size:var(--fs-sm);font-weight:600;color:var(--gray-800);}
+.admin-textarea{width:100%;min-height:90px;padding:10px 12px;border:1.5px solid var(--gray-200);border-radius:7px;font-family:var(--sans);font-size:var(--fs-sm);resize:vertical;}
+.admin-settings{display:flex;flex-direction:column;gap:10px;}
+.admin-settings-actions{display:flex;align-items:center;gap:12px;}
+.admin-btn{background:var(--blue);color:white;border:none;border-radius:7px;padding:7px 18px;font-family:var(--sans);font-size:var(--fs-sm);font-weight:600;cursor:pointer;}
+.admin-status{font-size:var(--fs-xs);color:var(--gray-500);}

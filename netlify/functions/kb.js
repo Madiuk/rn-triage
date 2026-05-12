@@ -78,6 +78,90 @@ async function resolveCompanyId(user) {
   }
 }
 
+// Resolve the verified user's full profile (role + flags + company_id)
+// in one query. Used by every gated endpoint so role checks happen
+// against the persisted source of truth, not whatever the client
+// claims. Tenant-scope still flows through company_id; role and flag
+// fields are new (migration 0010).
+//
+// Returns: { company_id, role, is_admin, is_super_user } or null.
+// Role values match production data: 'Clinical' | 'Non-Clinical'
+// (also accepts 'staff' as a legacy default = no clinical
+// authorization).
+async function resolveProfile(user) {
+  if (!user || !user.id) return null;
+  try {
+    const r = await fetch(
+      `${SUPABASE_URL}/rest/v1/profiles?id=eq.${user.id}&select=company_id,role,is_admin,is_super_user,full_name`,
+      { headers: writeHeaders() }
+    );
+    const profiles = await r.json();
+    return Array.isArray(profiles) && profiles[0] ? profiles[0] : null;
+  } catch (e) {
+    console.error("kb.resolveProfile:", e.message);
+    return null;
+  }
+}
+
+// Role classifiers. Defensive against null/legacy 'staff' values —
+// anything that isn't explicitly 'Clinical' is treated as
+// non-clinical for the purposes of gates. Under-gate is worse than
+// over-gate: a 'staff' user with ambiguous role should get the
+// restricted experience until an admin assigns them a real role.
+function isClinical(profile) {
+  return profile && profile.role === 'Clinical';
+}
+function isNonClinical(profile) {
+  return profile && profile.role === 'Non-Clinical';
+}
+function isAdmin(profile) {
+  return profile && profile.is_admin === true;
+}
+function isSuperUser(profile) {
+  return profile && profile.is_super_user === true;
+}
+
+// Decide whether a query_history row contains clinical content. Used
+// by the server-side gates to know whether a non-clinical caller is
+// trying to act on a row they shouldn't. Mirrors priorityTier in
+// data/triage-lib.js — server can't require that file so the logic
+// is re-implemented here. Stay consistent if either changes.
+function rowIsClinical(row) {
+  if (!row) return false;
+  // Side effect detection at any severity → clinical, full stop.
+  const lvl = String(row.clinical_routing_level || 'none').toLowerCase();
+  if (lvl !== 'none') return true;
+  // Clinical category set (and not the universal General Inquiry,
+  // which is is_clinical=false in category_metadata) → clinical.
+  // We treat General Inquiry as non-clinical because the practice
+  // configured it that way; if a tenant flips General to clinical
+  // in category_metadata, this check stays correct: General would
+  // still be a clinical_category string, and the AI's draft for
+  // General Inquiry rarely contains clinical advice on its own.
+  const cat = String(row.clinical_category || '').trim();
+  if (cat && cat !== 'General Inquiry' && cat !== 'General/multiple') return true;
+  return false;
+}
+
+// Fetch one query_history row by id, tenant-scoped. Used by gates
+// that need to read the row before deciding whether to allow the
+// action. Returns null if not found in the caller's tenant —
+// callers should treat null as a 404, not as "row is non-clinical."
+async function fetchRowInTenant(rowId, companyId) {
+  if (!rowId) return null;
+  try {
+    const url = `${SUPABASE_URL}/rest/v1/query_history?id=eq.${rowId}`
+      + (companyId ? `&company_id=eq.${companyId}` : '')
+      + `&select=id,clinical_category,clinical_routing_level,non_clinical_flag,non_clinical_items,escalated_to_clinical,company_id&limit=1`;
+    const r = await fetch(url, { headers: writeHeaders() });
+    const arr = await r.json();
+    return Array.isArray(arr) && arr[0] ? arr[0] : null;
+  } catch (e) {
+    console.error("kb.fetchRowInTenant:", e.message);
+    return null;
+  }
+}
+
 // Best-effort append to public.audit_log. Never throws — audit failures
 // must not block real operations.
 async function writeAuditLog(entry) {
@@ -455,7 +539,33 @@ exports.handler = async function (event) {
 
         const body = JSON.parse(event.body || "{}");
         const wHdr = writeHeaders();
-        const callerCompanyId = await resolveCompanyId(user);
+        // v0.3.27: resolve full profile (role + flags + company_id)
+        // in one query so every gated action can check the role
+        // without an extra round-trip. callerCompanyId stays the same
+        // variable name everything downstream already uses.
+        const callerProfile = await resolveProfile(user);
+        const callerCompanyId = callerProfile ? callerProfile.company_id : null;
+
+        // Role gate helper. Most gated actions need to refuse a
+        // non-clinical caller from acting on a clinical-tier row.
+        // Reads the row once (in-tenant) and returns null if all
+        // good, or a 403 json response if the gate triggered. Caller
+        // does:
+        //   const denial = await denyIfNonClinicalOnClinicalRow();
+        //   if (denial) return denial;
+        const denyIfNonClinicalOnClinicalRow = async () => {
+          if (!isNonClinical(callerProfile)) return null;
+          if (!body.id) return null;
+          const row = await fetchRowInTenant(body.id, callerCompanyId);
+          if (!row) return json(404, { error: "Row not found in caller's tenant." });
+          if (rowIsClinical(row)) {
+            return json(403, {
+              error: "Clinical authorization required for this action.",
+              code: "clinical_only",
+            });
+          }
+          return null;
+        };
 
         // Tenant-scoped patch. Earlier the WHERE was `id=eq.<body.id>`
         // alone — meaning a user with a valid JWT could PATCH ANY
@@ -511,6 +621,12 @@ exports.handler = async function (event) {
 
         switch (body.action) {
           case "update_urgency": {
+            // ROLE GATE: urgency on clinical-tier rows is clinical-only.
+            // Non-clinical staff don't make priority decisions on
+            // medical content. Same gate fires on every clinical-row
+            // mutation below.
+            const denial = await denyIfNonClinicalOnClinicalRow();
+            if (denial) return denial;
             const val = body.urgency_override;
             if (val != null && !URGENCY_OVERRIDE_VALUES.has(val)) {
               return json(400, { error: "Invalid urgency_override value." });
@@ -525,7 +641,35 @@ exports.handler = async function (event) {
             // category-based aggregations downstream. Now: clinical
             // selections go into clinical_category, non-clinical into
             // non_clinical_items (+ flag), independent.
-            const patch = { clinical_category: body.category || null };
+            //
+            // ROLE GATE: non-clinical can edit non_clinical_items and
+            // non_clinical_flag, but CANNOT touch clinical_category.
+            // Picking severity is a clinical judgment they're not
+            // qualified to make; clearing a clinical category an AI
+            // or clinician set is the under-gate failure mode we
+            // explicitly want to prevent (triage-lib.js comment on
+            // requiresClinicalAuthorization).
+            if (isNonClinical(callerProfile)) {
+              // `body.category` is the clinical category field; if
+              // the client sent it at all, reject the request rather
+              // than silently dropping it. Silent drops mislead the
+              // UI into thinking the save succeeded.
+              if ('category' in body) {
+                return json(403, {
+                  error: "Non-clinical cannot set or change clinical category. Use Escalate to clinical instead.",
+                  code: "clinical_only",
+                });
+              }
+            }
+            const patch = {};
+            // Only patch clinical_category when the caller actually
+            // sent the field. Earlier we always patched it (defaulting
+            // to null) — that meant non-clinical edits to JUST the
+            // non_clinical_items would nuke clinical_category as a
+            // side effect. With the gate above, non-clinical can't
+            // send `category` anyway, but defensive: only patch what
+            // the caller explicitly provided.
+            if ('category' in body) patch.clinical_category = body.category || null;
             if (Array.isArray(body.non_clinical_items)) {
               patch.non_clinical_items = body.non_clinical_items;
             }
@@ -534,11 +678,27 @@ exports.handler = async function (event) {
             }
             return patchById(patch);
           }
-          case "downvote":
+          case "downvote": {
+            // ROLE GATE: voting on a clinical draft is a clinical
+            // judgment about the AI's medical content. Non-clinical
+            // can downvote on non-clinical drafts only.
+            const denial = await denyIfNonClinicalOnClinicalRow();
+            if (denial) return denial;
             return patchById({ downvoted: true, downvote_reason: body.reason || "" });
-          case "upvote":
+          }
+          case "upvote": {
+            const denial = await denyIfNonClinicalOnClinicalRow();
+            if (denial) return denial;
             return patchById({ upvoted: true, upvote_reason: body.reason || "" });
+          }
           case "save_actual": {
+            // ROLE GATE: actual_response_sent on a clinical-tier row
+            // is the input the Haiku correction analyzer reads to
+            // generate learning notes. Allowing a non-clinical save
+            // here would let CSR edits to clinical responses pollute
+            // the learning loop. Strict refusal.
+            const denial = await denyIfNonClinicalOnClinicalRow();
+            if (denial) return denial;
             const patch = {
               actual_response_sent: body.actual_response,
               correction_note: body.correction_note || "",
@@ -551,13 +711,54 @@ exports.handler = async function (event) {
             }
             return patchById(patch);
           }
-          case "delete_correction":
+          case "delete_correction": {
+            const denial = await denyIfNonClinicalOnClinicalRow();
+            if (denial) return denial;
             return patchById({ actual_response_sent: null, correction_note: null });
+          }
+          case "mark_escalated": {
+            // v0.3.27: Non-clinical staff hit "Escalate to clinical"
+            // when they receive a message they can't handle. Flips
+            // the row's escalated_to_clinical flag so clinical's
+            // queue surfaces it distinctly. Any role can call this
+            // (clinical might use it too if they want to flag a row
+            // for a colleague's attention), but the common case is
+            // non-clinical's only outlet for clinical content.
+            //
+            // Also records non_clinical_handoff_used when the caller
+            // is non-clinical, so we can measure CSR-routing volume.
+            const patch = {
+              escalated_to_clinical: true,
+              escalated_by: user.id,
+              escalated_at: new Date().toISOString(),
+            };
+            if (isNonClinical(callerProfile)) {
+              patch.non_clinical_handoff_used = true;
+              // If body includes actual_response (the handoff text
+              // they sent the patient), persist it. Treated the same
+              // as save_actual but allowed for non-clinical because
+              // the content is the static handoff template, not a
+              // CSR-authored clinical reply.
+              if (body.actual_response) {
+                patch.actual_response_sent = body.actual_response;
+              }
+            }
+            return patchById(patch);
+          }
           case "delete_entry": {
             // Hard-delete a query_history row. Used when staff entered
             // the wrong content (e.g. pasted their own reply into the
             // patient-message field) and want the row gone so it
             // doesn't pollute the learning loop or aggregations.
+            //
+            // ROLE GATE: non-clinical cannot delete clinical-tier
+            // rows. A CSR might paste a clinical message and want to
+            // undo, but a delete also wipes the AI's classification
+            // and would erase the escalation trail. Non-clinical can
+            // mark_escalated; if they want a row truly gone, ask a
+            // clinician to delete.
+            const denial = await denyIfNonClinicalOnClinicalRow();
+            if (denial) return denial;
             //
             // FK cleanup: review_requests.triage_id references
             // query_history.id WITHOUT ON DELETE CASCADE (see
@@ -661,7 +862,12 @@ exports.handler = async function (event) {
 
         const body = JSON.parse(event.body || "{}");
         const wHdr = writeHeaders();
-        const callerCompanyId = await resolveCompanyId(user);
+        // v0.3.27: resolve full profile so we can role-gate the resolve
+        // action. Create is open to any authenticated user — the AI
+        // emits review_request from any triage and we want whoever
+        // ran the triage to be able to persist it.
+        const callerProfile = await resolveProfile(user);
+        const callerCompanyId = callerProfile ? callerProfile.company_id : null;
 
         if (body.action === "create") {
           // Force company_id to the verified user's company. Earlier
@@ -709,6 +915,22 @@ exports.handler = async function (event) {
           // injecting their answer into the wrong tenant's KB.
           if (callerCompanyId && review.company_id && review.company_id !== callerCompanyId) {
             return json(403, { error: "Cross-tenant review resolve refused." });
+          }
+
+          // ROLE GATE (v0.3.27): non-clinical staff cannot resolve
+          // reviews originating from clinical-tier triages. The
+          // resolved answer feeds the active learning loop — a CSR's
+          // clinical answer would inject non-licensed content into
+          // the clinical KB. Look up the originating triage to
+          // determine tier.
+          if (isNonClinical(callerProfile) && review.triage_id) {
+            const originTriage = await fetchRowInTenant(review.triage_id, callerCompanyId);
+            if (originTriage && rowIsClinical(originTriage)) {
+              return json(403, {
+                error: "Clinical reviews can only be resolved by clinical staff.",
+                code: "clinical_only",
+              });
+            }
           }
 
           // Block double-resolve. The review row already has a
@@ -861,6 +1083,305 @@ exports.handler = async function (event) {
         body: JSON.stringify(body),
       });
       return json(r.status, await r.text());
+    }
+
+    // ── Admin endpoints (v0.3.27) ──────────────────────────────────────
+    //
+    // All /admin/* paths require is_admin=true on the caller's profile.
+    // /admin/settings and /admin/categories require is_super_user=true
+    // additionally (super-user is the role-system configurator; admin
+    // is just user management).
+    //
+    // Every admin endpoint resolves the caller's profile and refuses
+    // immediately if the flag check fails. Tenant scoping flows through
+    // company_id like every other read in this file — an admin can only
+    // see/edit users and categories in their own tenant. Super-user
+    // doesn't break tenant scoping; it just unlocks the configuration
+    // endpoints WITHIN the caller's tenant. Cross-tenant admin lives in
+    // Supabase Dashboard, not here.
+    if (path.includes("/admin")) {
+      const user = await verifyUser(token);
+      if (!user) return json(401, { error: "Authentication required." });
+      const callerProfile = await resolveProfile(user);
+      if (!isAdmin(callerProfile)) {
+        return json(403, { error: "Admin access required.", code: "admin_only" });
+      }
+      const callerCompanyId = callerProfile.company_id;
+
+      // /admin/users — list, update role/flags, (later) invite.
+      if (path.includes("/admin/users")) {
+        if (method === "GET") {
+          // List all users in caller's tenant. Joins profiles with
+          // auth.users via the user_id is implicit (profiles.id ==
+          // auth.users.id). We expose email by reading auth.users
+          // through the admin REST endpoint with the service key.
+          if (!callerCompanyId) {
+            return json(400, { error: "Caller has no company_id; cannot list tenant users." });
+          }
+          // Get profile rows for the tenant
+          const profilesRes = await fetch(
+            `${SUPABASE_URL}/rest/v1/profiles?company_id=eq.${callerCompanyId}&select=id,full_name,role,is_admin,is_super_user,last_seen,created_at&order=created_at.asc`,
+            { headers: writeHeaders() }
+          );
+          const profileRows = await profilesRes.json();
+          if (!Array.isArray(profileRows)) {
+            return json(500, { error: "Could not load profiles.", detail: profileRows });
+          }
+          // Fetch emails from auth.users via the Supabase Auth admin
+          // REST endpoint. One call per user; small tenants only.
+          // GET /auth/v1/admin/users?id=eq.<id> isn't a standard
+          // endpoint, so we fetch the full list and filter — fine
+          // for tenants with <100 users. Migrate to per-id lookups
+          // when scaling up.
+          const authRes = await fetch(`${SUPABASE_URL}/auth/v1/admin/users?per_page=200`, {
+            headers: {
+              "apikey": SUPABASE_SERVICE_KEY || SUPABASE_ANON_KEY,
+              "Authorization": "Bearer " + (SUPABASE_SERVICE_KEY || SUPABASE_ANON_KEY),
+            },
+          });
+          let emailByUserId = {};
+          if (authRes.ok) {
+            const authData = await authRes.json();
+            const users = Array.isArray(authData) ? authData : (authData.users || []);
+            users.forEach(u => { emailByUserId[u.id] = u.email; });
+          }
+          const enriched = profileRows.map(p => Object.assign({}, p, {
+            email: emailByUserId[p.id] || null,
+          }));
+          return json(200, enriched);
+        }
+
+        if (method === "POST") {
+          let body;
+          try { body = JSON.parse(event.body || "{}"); }
+          catch (e) { return json(400, { error: "Invalid JSON body." }); }
+
+          if (body.action === "update_role") {
+            // Patch role and/or flag fields on a profile in caller's
+            // tenant. Defensive against:
+            //   - Promoting a user to super_user without being one
+            //     yourself (only super_user can grant super_user)
+            //   - Removing your own admin/super_user (lock-out risk)
+            //   - Promoting users in other tenants (tenant-scope patch)
+            if (!body.user_id) return json(400, { error: "user_id required" });
+            if (!callerCompanyId) return json(400, { error: "Caller has no company_id." });
+            const patch = {};
+            if ('role' in body) {
+              if (body.role !== 'Clinical' && body.role !== 'Non-Clinical') {
+                return json(400, { error: "role must be 'Clinical' or 'Non-Clinical'." });
+              }
+              patch.role = body.role;
+            }
+            if ('is_admin' in body) {
+              if (typeof body.is_admin !== 'boolean') {
+                return json(400, { error: "is_admin must be boolean." });
+              }
+              patch.is_admin = body.is_admin;
+            }
+            if ('is_super_user' in body) {
+              if (typeof body.is_super_user !== 'boolean') {
+                return json(400, { error: "is_super_user must be boolean." });
+              }
+              // Only super-users can grant or revoke super_user. Same
+              // principle as "only root can promote to root" — closes
+              // the privilege-escalation hole where a regular admin
+              // could grant themselves super_user flag.
+              if (!isSuperUser(callerProfile)) {
+                return json(403, {
+                  error: "Only super-users can change is_super_user.",
+                  code: "super_user_only",
+                });
+              }
+              patch.is_super_user = body.is_super_user;
+            }
+            if (Object.keys(patch).length === 0) {
+              return json(400, { error: "No fields to update." });
+            }
+            // Self-demotion guard: refuse to remove your own super_user
+            // flag (would lock you out of category/settings management
+            // until another super_user re-grants it). Self-removing
+            // is_admin is allowed — there might be another admin in
+            // the tenant.
+            if (body.user_id === user.id && 'is_super_user' in patch && patch.is_super_user === false) {
+              return json(400, {
+                error: "Cannot revoke your own super-user flag. Ask another super-user.",
+                code: "self_demotion_blocked",
+              });
+            }
+            const r = await fetch(
+              `${SUPABASE_URL}/rest/v1/profiles?id=eq.${body.user_id}&company_id=eq.${callerCompanyId}`,
+              {
+                method: "PATCH",
+                headers: writeHeaders(),
+                body: JSON.stringify(patch),
+              }
+            );
+            const responseText = await r.text();
+            if (r.ok) {
+              try {
+                const parsed = JSON.parse(responseText);
+                if (Array.isArray(parsed) && parsed.length === 0) {
+                  return json(404, { error: "User not found in caller's tenant." });
+                }
+              } catch (e) { /* fall through */ }
+            }
+            return json(r.status, responseText);
+          }
+          return json(400, { error: "Unknown action for /admin/users." });
+        }
+      }
+
+      // /admin/categories — list and update category_metadata.
+      // Super-user only (admins manage users; super-user configures
+      // the role system itself).
+      if (path.includes("/admin/categories")) {
+        if (!isSuperUser(callerProfile)) {
+          return json(403, { error: "Super-user access required.", code: "super_user_only" });
+        }
+        if (!callerCompanyId) {
+          return json(400, { error: "Caller has no company_id." });
+        }
+        if (method === "GET") {
+          const r = await fetch(
+            `${SUPABASE_URL}/rest/v1/category_metadata?company_id=eq.${callerCompanyId}&order=display_order.asc,category_name.asc`,
+            { headers: writeHeaders() }
+          );
+          return json(r.status, await r.text());
+        }
+        if (method === "POST") {
+          let body;
+          try { body = JSON.parse(event.body || "{}"); }
+          catch (e) { return json(400, { error: "Invalid JSON body." }); }
+
+          if (body.action === "update") {
+            if (!body.id) return json(400, { error: "id required" });
+            const patch = { updated_at: new Date().toISOString() };
+            if (typeof body.is_clinical === 'boolean') patch.is_clinical = body.is_clinical;
+            if (typeof body.is_active === 'boolean') patch.is_active = body.is_active;
+            if (typeof body.display_order === 'number') patch.display_order = body.display_order;
+            const r = await fetch(
+              `${SUPABASE_URL}/rest/v1/category_metadata?id=eq.${body.id}&company_id=eq.${callerCompanyId}`,
+              {
+                method: "PATCH",
+                headers: writeHeaders(),
+                body: JSON.stringify(patch),
+              }
+            );
+            return json(r.status, await r.text());
+          }
+          if (body.action === "create") {
+            if (!body.category_name) return json(400, { error: "category_name required" });
+            const record = {
+              company_id: callerCompanyId,
+              category_name: body.category_name,
+              is_clinical: typeof body.is_clinical === 'boolean' ? body.is_clinical : true,
+              display_order: typeof body.display_order === 'number' ? body.display_order : 100,
+              is_active: true,
+            };
+            const r = await fetch(
+              `${SUPABASE_URL}/rest/v1/category_metadata`,
+              { method: "POST", headers: writeHeaders(), body: JSON.stringify(record) }
+            );
+            return json(r.status, await r.text());
+          }
+          return json(400, { error: "Unknown action for /admin/categories." });
+        }
+      }
+
+      // /admin/settings — tenant-level config (handoff template).
+      // Super-user only.
+      if (path.includes("/admin/settings")) {
+        if (!isSuperUser(callerProfile)) {
+          return json(403, { error: "Super-user access required.", code: "super_user_only" });
+        }
+        if (!callerCompanyId) {
+          return json(400, { error: "Caller has no company_id." });
+        }
+        if (method === "GET") {
+          const r = await fetch(
+            `${SUPABASE_URL}/rest/v1/companies?id=eq.${callerCompanyId}&select=id,name,non_clinical_handoff_template`,
+            { headers: writeHeaders() }
+          );
+          return json(r.status, await r.text());
+        }
+        if (method === "POST") {
+          let body;
+          try { body = JSON.parse(event.body || "{}"); }
+          catch (e) { return json(400, { error: "Invalid JSON body." }); }
+
+          if (body.action === "update_handoff_template") {
+            if (typeof body.template !== 'string' || !body.template.trim()) {
+              return json(400, { error: "template (non-empty string) required" });
+            }
+            // Cap length defensively — a 50KB handoff template is
+            // either a paste accident or hostile.
+            if (body.template.length > 4000) {
+              return json(400, { error: "template too long (max 4000 chars)" });
+            }
+            const r = await fetch(
+              `${SUPABASE_URL}/rest/v1/companies?id=eq.${callerCompanyId}`,
+              {
+                method: "PATCH",
+                headers: writeHeaders(),
+                body: JSON.stringify({ non_clinical_handoff_template: body.template }),
+              }
+            );
+            return json(r.status, await r.text());
+          }
+          return json(400, { error: "Unknown action for /admin/settings." });
+        }
+      }
+
+      return json(404, { error: "Unknown admin endpoint." });
+    }
+
+    // ── /profile — caller's own profile (any authenticated user) ─────
+    // Used by the frontend on session init to pick up role/flags so the
+    // UI gates can render correctly without a separate /admin/users
+    // call (which would be rejected for non-admins).
+    if (path.includes("/profile")) {
+      const user = await verifyUser(token);
+      if (!user) return json(401, { error: "Authentication required." });
+      if (method === "GET") {
+        const profile = await resolveProfile(user);
+        if (!profile) return json(404, { error: "Profile not found." });
+        return json(200, profile);
+      }
+    }
+
+    // ── /handoff-template — caller's tenant handoff template ─────────
+    // Read-only for everyone, edited only via /admin/settings. The
+    // non-clinical Inquiry flow reads this to render the handoff card.
+    if (path.includes("/handoff-template")) {
+      const user = await verifyUser(token);
+      if (!user) return json(401, { error: "Authentication required." });
+      if (method === "GET") {
+        const companyId = await resolveCompanyId(user);
+        if (!companyId) return json(400, { error: "Caller has no company_id." });
+        const r = await fetch(
+          `${SUPABASE_URL}/rest/v1/companies?id=eq.${companyId}&select=non_clinical_handoff_template`,
+          { headers: writeHeaders() }
+        );
+        return json(r.status, await r.text());
+      }
+    }
+
+    // ── /categories — active category list for the caller's tenant ───
+    // Reads category_metadata, filtered to is_active=true. Frontend
+    // uses this to populate the picker (filtered by is_clinical based
+    // on role) and to validate category names client-side.
+    if (path.includes("/categories")) {
+      const user = await verifyUser(token);
+      if (!user) return json(401, { error: "Authentication required." });
+      if (method === "GET") {
+        const companyId = await resolveCompanyId(user);
+        if (!companyId) return json(400, { error: "Caller has no company_id." });
+        const r = await fetch(
+          `${SUPABASE_URL}/rest/v1/category_metadata?company_id=eq.${companyId}&is_active=eq.true&order=display_order.asc,category_name.asc`,
+          { headers: writeHeaders() }
+        );
+        return json(r.status, await r.text());
+      }
     }
 
     return json(404, { error: "Not found" });
