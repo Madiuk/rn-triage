@@ -36,14 +36,37 @@ ones like "function" or "variable."
 2. **Stay narrow.** Do what was asked. If you notice other things worth
    doing, mention them in one sentence at the end — don't fix them.
 
+   The three-file limit is a heuristic, not an absolute. What matters is
+   whether the change touches one logical concern. A function and its
+   directly associated test count as one concern. Generated files (types,
+   etc.) don't count toward the limit. Migrations always count and always
+   trigger the clinical-sensitive flag regardless.
+
 3. **Ask when unsure.** If scope or intent is ambiguous, ask. Don't guess.
 
 4. **Slow down for two things.** The triage classification path (prompt,
    parsing, confidence gate, routing, KB retrieval) and tenant scoping.
    Everywhere else, normal speed is fine.
 
+   For behavior changes in the triage path, verify a test pins down the
+   current behavior before refactoring; if there isn't one, propose the
+   test first. Renames, log additions, and behavior-preserving refactors
+   in the triage path don't require a pinning test, but they still require
+   explicit description and confirmation before editing.
+
 5. **Reviews and fixes are separate.** When asked to "find issues,"
    produce a finite scoped list. Don't start fixing during review.
+
+---
+
+## Tenant scoping
+
+The codebase is currently single-tenant but multi-tenant is the target.
+Write all new code as if multi-tenant exists. Tenant ID comes from
+server-verified auth context, never from request input (body, query
+params, headers controllable by the client). Existing single-tenant code
+that doesn't follow this is not for you to fix in passing — note it and
+move on.
 
 ---
 
@@ -54,6 +77,9 @@ ones like "function" or "variable."
 - No tenant scoping from untrusted input. Tenant identity comes from
   server-verified auth, not request bodies or query params.
 - Nothing under `migrations/` without explicit confirmation in the chat.
+  [Note to project owner: confirm this is the literal directory path. If
+  the actual path is `db/migrations/`, `supabase/migrations/`, or other,
+  update this line to match.]
 
 ---
 
