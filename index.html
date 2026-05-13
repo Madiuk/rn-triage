@@ -65,6 +65,82 @@
   </div>
 </div>
 
+<!-- Optimistic chip + admin tab paint. Runs synchronously between
+     the topbar HTML and the rest of the body, before any external
+     scripts download — so the first frame already has the user's
+     name in the chip. Without this, the chip shows "Loading..." for
+     ~300–600 ms while ~200 KB of data/*.js + app.js is downloaded
+     and parsed before initAuth() can even read the cache.
+     Reads the same relai_profile_cache that app.js writes after
+     every /auth/profile success. Falls back to decoding the JWT in
+     relai_session when the cache is empty (first sign-in after
+     logout). app.js still reconciles via the network when it loads
+     and overwrites these values if anything changed server-side.
+     Intentionally duplicates a subset of applyProfileUI in app.js;
+     it has to run before app.js exists, so code-sharing isn't an
+     option. Keep the two in sync if the chip styling changes. -->
+<script>
+(function(){
+  try {
+    var profile = null, user = null;
+    var raw = localStorage.getItem('relai_profile_cache');
+    if (raw) {
+      var c = JSON.parse(raw);
+      if (c && c.user) { user = c.user; profile = c.profile || null; }
+    }
+    if (!user) {
+      var s = JSON.parse(localStorage.getItem('relai_session') || 'null');
+      if (s && s.access_token) {
+        var parts = s.access_token.split('.');
+        if (parts.length >= 2) {
+          var p = JSON.parse(atob(parts[1].replace(/-/g,'+').replace(/_/g,'/')));
+          if (p && p.email) user = { id: p.sub, email: p.email };
+        }
+      }
+    }
+    if (!user) return;
+
+    var name = (profile && profile.full_name)
+      || (user.email ? user.email.split('@')[0] : 'Staff');
+    var initials = name.split(' ').map(function(n){return n[0];})
+      .join('').substring(0,2).toUpperCase();
+    var chip = document.getElementById('staffChipName');
+    var avatar = document.getElementById('chipAvatar');
+    if (chip) chip.textContent = name.split(' ')[0];
+    if (avatar) avatar.textContent = initials;
+
+    if (!profile) return;
+
+    if (profile.company_name) {
+      var brand = document.getElementById('brandTenant');
+      if (brand) brand.textContent = profile.company_name;
+    }
+    var badge = document.getElementById('staffDeptBadge');
+    if (badge) {
+      if (profile.role === 'Clinical') {
+        badge.textContent = 'RN';
+        badge.style.display = '';
+        badge.style.background = 'var(--blue-m)';
+        badge.style.color = 'var(--blue)';
+        if (avatar) avatar.style.background = 'var(--blue)';
+      } else if (profile.role === 'Non-Clinical') {
+        badge.textContent = 'CS';
+        badge.style.display = '';
+        badge.style.background = 'var(--amber-l)';
+        badge.style.color = 'var(--amber)';
+        if (avatar) avatar.style.background = 'var(--amber)';
+      }
+    }
+    if (profile.is_admin) {
+      var adminBtn = document.getElementById('adminTabBtn');
+      if (adminBtn) adminBtn.classList.remove('hidden');
+    }
+  } catch(e) {
+    // Swallow — fall through to applyProfileUI in app.js once it loads.
+  }
+})();
+</script>
+
 <!-- TRIAGE TAB -->
 <div class="tab-panel active" id="tab-triage">
   <div class="triage-layout">
