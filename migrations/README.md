@@ -13,6 +13,40 @@ schema. To bring a new environment online, run them in numeric order.
   after it's been applied; add `0002_*.sql` instead.
 - Keep migrations small. One logical concern per file.
 
+## Grants & RLS template for new tables
+
+Supabase is changing its default: starting **2026-10-30**, new tables
+created on existing projects will NOT be exposed to the Data API
+unless an explicit `GRANT` is in place. PostgREST returns `42501`
+with the missing GRANT statement when this happens.
+
+Every `create table` in this directory MUST include the block below.
+The app only uses the service key, so `service_role` is the only role
+that gets any privileges. `anon` and `authenticated` get nothing —
+all reads/writes route through Netlify functions with the service
+key, and RLS-enabled-with-no-policies is the second layer of defence.
+
+```sql
+create table if not exists public.your_table (
+  id         uuid primary key default gen_random_uuid(),
+  company_id uuid references public.companies(id) on delete cascade,
+  -- …
+  created_at timestamptz default now()
+);
+
+-- Data API grants. service_role only; never grant to anon/authenticated.
+grant select, insert, update, delete on public.your_table to service_role;
+
+-- Explicit-deny RLS (see 0011_query_history_explicit_deny_rls.sql for the
+-- rationale). Service key bypasses RLS, anon/authenticated have neither
+-- grants nor policies, so this is closed by default.
+alter table public.your_table enable row level security;
+```
+
+If a future feature genuinely needs anon or user-JWT direct access
+(e.g. a public read-only table), grant only that one verb — never
+`all on …`. Match the convention in `0016_tighten_grants.sql`.
+
 ## Running them
 
 The fastest path during the trial:

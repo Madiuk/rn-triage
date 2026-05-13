@@ -133,6 +133,11 @@ If a rule prevents an action, ask the user before bypassing it.
   otherwise.
 - RLS is enabled on every table; tenant-scoped tables filter by
   `company_id`.
+- **Grants:** every new table needs an explicit
+  `grant select, insert, update, delete on public.X to service_role;`
+  and nothing to `anon` or `authenticated`. Required from 2026-10-30
+  when Supabase changes the default. Full template + rationale in
+  [migrations/README.md](migrations/README.md#grants--rls-template-for-new-tables).
 
 ### Errors & logging
 - Server: `console.error('<function>.<context>:', err.message)` — Netlify
