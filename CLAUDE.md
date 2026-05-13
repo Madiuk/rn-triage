@@ -54,6 +54,10 @@ ones like "function" or "variable."
    in the triage path don't require a pinning test, but they still require
    explicit description and confirmation before editing.
 
+   When you're about to touch the triage path or anything under
+   `migrations/`, open your response with `CLINICAL-SENSITIVE:` so it
+   stands out in scrollback.
+
 5. **Reviews and fixes are separate.** When asked to "find issues,"
    produce a finite scoped list. Don't start fixing during review.
 
@@ -77,9 +81,14 @@ move on.
 - No tenant scoping from untrusted input. Tenant identity comes from
   server-verified auth, not request bodies or query params.
 - Nothing under `migrations/` without explicit confirmation in the chat.
-  [Note to project owner: confirm this is the literal directory path. If
-  the actual path is `db/migrations/`, `supabase/migrations/`, or other,
-  update this line to match.]
+- If Claude's classification response is malformed, missing required
+  fields, or fails validation, the message routes to human review and
+  the failure is logged. Never let a bad response flow through to
+  automated routing.
+- API keys, tokens, and credentials live in environment variables,
+  never in source files.
+- Don't modify a test to make it pass after a code change. A failing
+  test is information, not an obstacle.
 
 ---
 
