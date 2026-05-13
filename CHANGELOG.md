@@ -6,6 +6,234 @@ bumps cover meaningful capability additions, patch bumps cover fixes).
 
 ---
 
+## v0.4.2 — 2026-05-12
+
+The "audit and harden" pass. Two source-document audits revealed the
+system had several HIGH-rank security and DB-integrity gaps that
+weren't surfacing at runtime because most don't fail unless a
+specific attack or data drift fires. v0.4.2 closes the items that
+have realistic blast radius today, explicitly tracks the ones safe
+to defer, and lands test infrastructure that locks the boundaries
+in place so future drift breaks CI instead of silently shipping.
+
+### Added — async-aware serialized test runner
+
+`tests/run.js` upgraded in three ways:
+- Async-aware: `it(name, async fn)` is now awaited. The previous
+  runner returned immediately after `fn()`, so an unresolved
+  Promise counted as a pass and async assertions silently
+  passed even when they failed.
+- Deferred execution: `describe`/`it` register into a queue at
+  require time, then drain sequentially. Tests no longer execute
+  inline during `require`, eliminating races between test files
+  that install global stubs (e.g., fetch mocks).
+- Serialized: tests run strictly one at a time. A mock installed
+  by test A can't leak into test B's assertions.
+
+Without this runner, the five new route test suites below would
+silently pass — their async assertions wouldn't fire.
+
+### Added — five new route test suites
+
+- `analyzeRoute.test.js` — /analyze gate, allowlist, cap.
+- `promoteReviewToKB.test.js` — `kb_gap` / `protocol` promotion paths.
+- `triagePathContract.test.js` — triage proxy contract shape.
+- `triageProxy.test.js` — model allowlist + auth on /triage.
+- `urgencyScoreCallSite.test.js` — regression guard on the
+  `computeUrgencyScore` call-site signature.
+
+### Added — eval scoring extensions + six new cases
+
+Additive scoring branches in `eval/run.js`:
+- `routed_to`: case-insensitive enum match. Catches drift like
+  "Shipping" vs "Shipping & Fulfillment" splitting routing
+  aggregations.
+- `review_request`: supports `required: true`, `max_confidence`,
+  `min_confidence`, `context_in` predicates. Exercises the
+  active-learning-loop entrypoint introduced in v0.3.27.
+
+Six new cases: `dehydration-001`, `general-hours-001`,
+`hypoglycemia-001`, `low-confidence-001` (uses the new
+`review_request` rules), `missed-dose-001`, `prior-context-001`.
+
+Existing cases don't reference the new rules; nothing about prior
+scoring behavior changes.
+
+### Added — three audit documents
+
+- `RELAI_INPUT_SURFACES.md`: every place untrusted data enters the
+  system — HTTP endpoints, webhooks, scheduled jobs, third-party
+  integrations, and Claude API responses (LLM output is treated
+  as an entry point too).
+- `RELAI_VALIDATION_AUDIT.md`: per-entry-point validation gaps
+  ranked by consequence and exposure.
+- `RELAI_DB_INTEGRITY_AUDIT.md`: per-table NOT NULL / CHECK /
+  UNIQUE / FK / RLS gaps. Ranks "no RLS policies declared" and
+  "no CHECK constraints on enum columns" as HIGH.
+
+These docs are the rationale layer behind the fixes that follow.
+
+### Fixed — /auth/invite unauthenticated tenant takeover
+
+The highest-severity finding from the validation audit. The
+/auth/invite endpoint had **no caller auth at all** — anyone with
+the URL could POST `{ email, company_id, role, ... }` and Supabase
+would create a confirmed user attached to any tenant with any
+role. Full tenant-takeover with one curl.
+
+Seven gates added, in order, before any side effect runs:
+1. Bearer token required, verified against `/auth/v1/user`.
+2. Caller's profile resolved via service key; `is_admin = true`
+   required (403 `admin_only` otherwise).
+3. Caller must have a resolved `company_id`.
+4. Body parsed with explicit 400 on invalid JSON.
+5. Body key allowlist: only `{ email, role, company_id }` accepted.
+   Defends against future callers slipping `is_admin` /
+   `is_super_user` through.
+6. `role` allowlist: `Clinical | Non-Clinical | staff`.
+7. `company_id` forced to caller's; cross-tenant invite refused
+   with `code: cross_tenant` rather than silent override.
+
+The `admin/users` create, profile PATCH, and `company_members`
+insert all move below the gates so a refused request leaves no
+upstream trace.
+
+`tests/authInviteAuth.test.js`: 14 tests — 11 rejection paths
+(each asserts the upstream `/auth/v1/admin/users` was NOT called
+when validation rejects) plus 3 happy paths (caller's
+`company_id` flows through; `role` defaults to `'staff'`).
+
+No client code uses /invite today, so legitimate callers see no
+behavior change.
+
+### Added — query_history DB integrity hardening
+
+Four migrations and four paired contract tests addressing the
+HIGH-rank findings from the DB integrity audit:
+
+- **0011**: explicit `FOR ALL TO authenticated, anon USING (false)`
+  deny policy on `query_history`. No behavioral change
+  (`service_role` bypasses RLS; `anon` and `authenticated` already
+  received zero rows under implicit deny) — the value is
+  visibility: a future permissive policy stands out as a deliberate
+  diff against a documented baseline.
+- **0012**: CHECK constraint on `query_history.urgency_override`,
+  allowlist `routine | 24h | 24-72h | same-day | urgent`.
+- **0013**: CHECK constraint on `query_history.urgency_original`,
+  allowlist `routine | same-day | urgent`. Deliberately tighter
+  than 0012 — the AI's enum is a coarse subset; staff refinement
+  adds the two timeframe values via the override path.
+- **0014**: CHECK constraint on
+  `query_history.clinical_routing_level`, allowlist
+  `severe | moderate | mild | none`.
+
+Each migration defensively backfills any pre-existing
+non-conforming values to NULL via UPDATE before the ADD
+CONSTRAINT, mirroring the precedent set by 0004 for the `status`
+column.
+
+Tests assert DB ↔ code parity: each migration's allowlist is
+set-equal to its canonical source — `URGENCY_OVERRIDE_VALUES` in
+`routes/history.js` for 0012; `normalizeTriageOutput` in
+`data/triage-lib.js` for 0013/0014. Drift in either direction
+breaks CI.
+
+`clinical_category` and `source_channel` were considered for
+the same treatment and deferred: `clinical_category`'s normalizer
+deliberately preserves unknown values to surface AI drift to
+staff; `source_channel` has no canonical allowlist in code yet.
+
+### Added — first-admin per-tenant bootstrap
+
+Resolves an orphan helper that had been sitting in `_lib/auth.js`'s
+working-tree state since at least May 9 — function written,
+documented, exported, but no caller. Now wired into the
+`/auth/profile` sign-in handler.
+
+When a user signs in and their tenant has **zero** super-users,
+the helper auto-promotes them to `is_admin = true` +
+`is_super_user = true`, writes an `audit_log` entry with
+`event_type = 'auth.first_admin_bootstrap'`, and mutates the
+in-memory profile so the response carries the new flags without
+a re-fetch.
+
+Closes the manual `UPDATE` step from migration 0010 that bit
+v0.4.1 — Brad asked *"I thought I'd be the admin/super user?"*
+after running just the migration. Bootstrap eliminates that step
+for every future tenant.
+
+Safety invariants pinned by `tests/firstAdminBootstrap.test.js`
+(8 tests):
+- Already super-user → no upstream calls; profile flags unchanged.
+- Null profile / no user.id / no company_id → no upstream calls.
+- Tenant already has a super-user → no promote attempted.
+- Super-user lookup non-ok → **fails closed** (no promote on
+  uncertainty).
+- Promote PATCH non-ok → returns false, profile **not** mutated
+  (response can't lie about user's permissions).
+- Happy path → PATCHes flags, writes audit, mutates profile,
+  returns true.
+
+Race: two users signing in simultaneously could both pass the
+"no super-user" check and both get promoted. Documented in the
+function header as acceptable — worst outcome is two legitimate
+first-time admins in a tenant that genuinely had none.
+
+### Tracked — three HIGH-rank items deferred to a security backlog
+
+Not urgent for the single-tenant trial. Each has a specific
+trigger; when the trigger fires, the item moves out of the
+backlog into active work:
+
+- **S1. `/triage` body validation** (persona-replacement + Opus-
+  tier budget burn). Trigger: multi-tenant rollout, cost anomaly,
+  or any Supabase account outside the practice.
+- **S2. Rate limiting** (cross-cutting on `/ingest`, `/triage`,
+  `/analyze`). Trigger: first production-volume channel adapter,
+  second tenant, or cost anomaly. Storage-mechanism decision
+  required first (Postgres counter / external KV / Netlify Edge).
+- **S3. AI output semantic trust** (auto-send blocker). Prompt
+  injection in patient_message can produce syntactically valid
+  but semantically wrong routing / urgency / confidence values.
+  The CHECK constraints from 0012–0014 catch shape drift but not
+  semantic correctness. Today's patient-safety backstop is the
+  staff member reviewing the draft before sending. Trigger: the
+  workflow shifts toward auto-send, OR staff review attention
+  drops, OR AI correction rate stays high. Brad's call on the
+  trigger — v0.4.1 era note: *"It's so young it's making the
+  same mistakes and recommending the same content I am not using
+  for patient replies."*
+
+Tracking lives at two anchors: inline TODOs at the call sites
+(`ingest.js`, `triage.js`, `_lib/routes/analyze.js`) AND a new
+"Security backlog (deferred from v0.4.x audit)" section in
+[PLAN.md](PLAN.md) with each item's full trigger and fix shape.
+
+### Added — codebase summary docs
+
+Two snapshot-style overviews, reconciled to current state before
+committing:
+- `CODEBASE_SUMMARY_LAYMAN.md`: non-technical overview pitched at
+  someone who doesn't read code (board member, advisor,
+  prospective tenant).
+- `CODEBASE_SUMMARY_TECHNICAL.md`: engineer-onboarding cheat
+  sheet — stack, file map, recent direction.
+
+Both are inherently snapshot-style; expect drift after major
+refactors. CHANGELOG.md remains canonical for version-by-version
+diffs.
+
+### Tests
+
+322 checks across 23 files, all green. Tests added in v0.4.2
+alone: 14 (`authInviteAuth`) + 8 (`firstAdminBootstrap`) + 9
+(`queryHistoryRlsPolicy`) + 8 (`queryHistoryUrgencyOverrideCheck`)
++ 9 (`queryHistoryUrgencyOriginalCheck`) + 8
+(`queryHistoryClinicalRoutingLevelCheck`) + the five route test
+files from the test-runner upgrade.
+
+---
+
 ## v0.4.1 — 2026-05-11
 
 User reports after v0.4.0 deployed:
