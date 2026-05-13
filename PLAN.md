@@ -374,6 +374,85 @@ assumptions at onboarding time:
 
 ---
 
+## Security backlog (deferred from v0.4.x audit)
+
+Three HIGH-rank findings from
+[RELAI_VALIDATION_AUDIT.md](RELAI_VALIDATION_AUDIT.md) that are safe to
+defer for the single-tenant trial. Each has a specific trigger — when
+that trigger fires, the corresponding item moves out of this backlog
+and into active work. Closed items from the same audit pass:
+`/auth/invite` auth gate (commit 2318488), `query_history` enum
+CHECKs (commit 28f6eb3), `query_history` explicit RLS deny baseline
+(commit 28f6eb3), first-admin bootstrap (commit 32b458c).
+
+### S1. `/triage` body validation
+- **Where:** [netlify/functions/triage.js](netlify/functions/triage.js)
+  (see TODO at top of file).
+- **Problem:** authenticated callers can send arbitrary `system` /
+  `messages` payloads. Persona-replacement + Opus-tier budget burn
+  vector.
+- **Today's control:** ANTHROPIC_API_KEY cost alerts on the Anthropic
+  side. Single-tenant trial means the threat is insider-only.
+- **Trigger:** multi-tenant rollout (Phase 4) OR a cost anomaly OR any
+  Supabase account holder outside the practice.
+- **Fix shape:** server-side hash-check on `body.system` against the
+  expected BASE_PROMPT + KB block; bound `body.messages` length and
+  shape. One file change, one test file using the existing
+  triageProxy.test.js mock pattern.
+
+### S2. Rate limiting (cross-cutting)
+- **Where:** [ingest.js](netlify/functions/ingest.js),
+  [triage.js](netlify/functions/triage.js),
+  [_lib/routes/analyze.js](netlify/functions/_lib/routes/analyze.js)
+  (TODOs in all three).
+- **Problem:** no per-key or per-user throttling anywhere. A
+  compromised API key or session token can flood any of these.
+- **Today's control:** bounded keyset (0-1 API keys issued, ~1 active
+  staff session per tenant).
+- **Trigger:** first external channel adapter goes live in production
+  volume (Phase 3 — Bask outbound, Intercom inbound at volume, email
+  / SMS adapters), OR a second tenant onboards (Phase 4), OR a known
+  cost anomaly.
+- **Fix shape:** storage-mechanism decision required first:
+  - Postgres-backed counter (no new dep, ~50ms overhead per call).
+  - External KV (Upstash etc., new dependency).
+  - Netlify Edge built-in rate limiting (Netlify-locked).
+  All three are viable; pick when the trigger fires. Once picked,
+  the per-endpoint wiring is small.
+
+### S3. AI output semantic trust (auto-send blocker)
+- **Where:** [triage.js](netlify/functions/triage.js) (TODO at top),
+  [data/triage-lib.js](data/triage-lib.js) (`normalizeTriageOutput`
+  is the natural extension point).
+- **Problem:** prompt injection in `patient_message` can produce
+  output where `clinical_routing_level` / `urgency` / `ai_confidence`
+  are syntactically valid but semantically wrong — e.g., a soothing
+  draft + `'none'` routing + `0.95` confidence on a clinically severe
+  message. The CHECK constraints in migrations 0012–0014 catch shape
+  drift but not semantic correctness.
+- **Today's control:** the staff member who reviews the AI draft
+  before sending. Human-in-the-loop IS the patient-safety backstop.
+  This is by design until the AI earns more trust — v0.4.1 era note
+  from Brad: *"It's so young it's making the same mistakes and
+  recommending the same content I am not using for patient replies."*
+- **Trigger:** the workflow shifts toward auto-send (no human review),
+  OR staff workload makes review attention drop below a threshold,
+  OR the AI's measured correction rate falls below some bar (the
+  `aggregateQualityRows` correction-rate metric is the closest
+  proxy today).
+- **Fix shape (cheapest first):**
+  - Server-side enum + range revalidation in `/triage` mirroring
+    the DB CHECKs from 0012–0014. Confidence clamped to `[0, 1]`.
+    Cheap, doesn't add latency.
+  - Second-pass Haiku classifier that re-reads the patient message
+    and the AI's structured output, looking for routing / severity
+    / confidence mismatches. Adds ~1–2s latency and a Haiku call's
+    cost per triage; worth it once auto-send is on the table.
+  - Both, layered. Server-side validation as a syntactic guard;
+    Haiku second-pass as a semantic guard.
+
+---
+
 ## Non-goals (for now)
 
 - Mobile-first redesign — staff use desktops/tablets in clinical settings

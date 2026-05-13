@@ -21,6 +21,16 @@
 // schedule and runs the triage. This endpoint never calls Anthropic
 // itself — it must respond quickly so the upstream caller's webhook
 // doesn't time out.
+//
+// TODO(pre-multi-tenant): rate-limit per api_key. Today this
+// endpoint has no throttle — a compromised or buggy external caller
+// can flood query_history at line rate, which then drives Anthropic
+// spend when the worker picks up the rows. Single-tenant trial has
+// 0-1 keys issued so the risk is bounded by the keyset's
+// trustworthiness. Becomes urgent before Phase 3 ships production
+// channel adapters (Bask, Intercom inbound at volume, email/SMS).
+// See PLAN.md "Security backlog (deferred from v0.4.x audit)" and
+// RELAI_VALIDATION_AUDIT.md §1.1.
 
 exports.handler = async function (event) {
   if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method not allowed' };

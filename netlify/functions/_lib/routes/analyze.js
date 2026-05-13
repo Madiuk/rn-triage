@@ -19,6 +19,13 @@
 // v0.3.4.
 //
 // Extracted from kb.js inline handler (v0.4.0).
+//
+// TODO(pre-multi-tenant): per-caller rate limit. Same insider-threat
+// shape as /triage but smaller blast radius (Haiku only, 1024 token
+// cap). Defer until /triage rate limiting lands; this endpoint
+// should get the same treatment in the same pass. See PLAN.md
+// "Security backlog (deferred from v0.4.x audit)" and
+// RELAI_VALIDATION_AUDIT.md §1.9.
 
 const { json } = require("../supabase");
 const { verifyUser, extractToken } = require("../auth");

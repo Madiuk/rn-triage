@@ -5,6 +5,36 @@
 // `_relai` telemetry envelope (latency, model, cost, usage). The
 // frontend persists that envelope onto the query_history row so we can
 // measure quality / cost / cache-hit-rate over time.
+//
+// TODO(pre-multi-tenant): validate body.system + body.messages shape.
+// Today an authenticated caller can send any system prompt + any
+// messages payload — the model allowlist and max_tokens cap are the
+// only constraints. A signed-in user can replace the persona, swap
+// to Opus, and drive Anthropic spend; the frontend assembles
+// BASE_PROMPT + KB as the system block but the server doesn't enforce
+// that contract. Single-tenant trial means insider-only threat
+// bounded by ANTHROPIC_API_KEY budget alerts. Becomes urgent at
+// multi-tenant rollout OR on any cost anomaly. Fix shape: hash-check
+// body.system against the expected BASE_PROMPT + KB block, bound
+// body.messages length and shape. See PLAN.md "Security backlog
+// (deferred from v0.4.x audit)" and RELAI_VALIDATION_AUDIT.md §1.8.
+//
+// TODO(pre-auto-send): the AI's structured output downstream
+// (clinical_routing_level, urgency, ai_confidence, draft_response)
+// is trusted as written. Prompt injection in patient_message can
+// produce semantically-wrong-but-syntactically-valid output — e.g.,
+// 'none' routing + 0.95 confidence + a soothing draft for a
+// clinically severe message. The CHECK constraints in migrations
+// 0012-0014 catch shape drift but NOT semantic correctness. Today
+// the patient-safety backstop is the staff member who reviews the
+// draft before sending. The moment "send" becomes auto-send, this
+// becomes urgent: add a second-pass Haiku classifier checking for
+// routing/severity/confidence mismatches against the message AND
+// server-side enum + range revalidation mirroring the DB CHECKs.
+// Brad's call on the trigger — v0.4.1 era he noted the AI is "so
+// young it's making the same mistakes I am not using for patient
+// replies." See PLAN.md "Security backlog" and
+// RELAI_VALIDATION_AUDIT.md §4.1.
 
 const { computeTriageCost } = require("../../data/triage-lib");
 
