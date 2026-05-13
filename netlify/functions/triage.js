@@ -36,7 +36,12 @@
 // replies." See PLAN.md "Security backlog" and
 // RELAI_VALIDATION_AUDIT.md §4.1.
 
-const { computeTriageCost } = require("../../data/triage-lib");
+const {
+  computeTriageCost,
+  parseTriageJSON,
+  normalizeTriageOutput,
+  diffNormalization,
+} = require("../../data/triage-lib");
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
@@ -138,6 +143,50 @@ exports.handler = async function (event) {
       return { statusCode: 502, body: JSON.stringify({ error: "Upstream returned malformed JSON." }) };
     }
 
+    // Server-side validation of the AI's classification output.
+    // The browser also runs normalizeTriageOutput, but the proxy is
+    // the only chokepoint a client can't bypass. Pattern matches the
+    // client exactly (coerce-with-safe-defaults via the shared
+    // helper) and records what drifted in _relai.validation for AI-
+    // drift telemetry. See PLAN.md "S3. AI output semantic trust."
+    //
+    // On hard parse failure (Anthropic 200 + valid envelope, but
+    // content text not parseable as JSON), the original content is
+    // passed through verbatim. The client's parseTriageJSON has a
+    // brace-fallback for prose-wrapped JSON, and runTriage's catch
+    // in app.js renders an actionable error notice when both layers
+    // fail. When auto-send arrives (PLAN.md S3 trigger), the policy
+    // here changes from coerce to reject.
+    let validation = null;
+    try {
+      const blocks = Array.isArray(parsed.content) ? parsed.content : [];
+      const rawText = blocks.map(function (b) { return (b && b.text) || ""; }).join("");
+      if (!rawText) {
+        validation = { parse_failed: true, reason: "empty_content" };
+      } else {
+        const aiParsed = parseTriageJSON(rawText);
+        // Snapshot BEFORE normalize — normalizeTriageOutput is
+        // shallow-copy and mutates review_request.confidence on the
+        // input. Diffing against the post-normalize reference would
+        // miss confidence-clamp drift.
+        const aiParsedSnapshot = JSON.parse(JSON.stringify(aiParsed));
+        const normalized = normalizeTriageOutput(aiParsed);
+        validation = diffNormalization(aiParsedSnapshot, normalized);
+        if (blocks[0] && typeof blocks[0] === "object") {
+          parsed.content = [
+            Object.assign({}, blocks[0], { type: "text", text: JSON.stringify(normalized) }),
+          ];
+        }
+      }
+    } catch (e) {
+      console.error("triage.validate:", e.message);
+      validation = { parse_failed: true, reason: "unparseable_text" };
+    }
+    if (validation) {
+      // Surface drift / parse failures in Netlify function logs.
+      console.warn("triage.validation:", JSON.stringify(validation));
+    }
+
     parsed._relai = {
       model: body.model,
       latency_ms: latencyMs,
@@ -145,6 +194,7 @@ exports.handler = async function (event) {
       // Echo the usage block at top level for convenience — clients
       // shouldn't have to know that Anthropic nests it.
       usage: parsed.usage || null,
+      validation: validation,
     };
 
     return {

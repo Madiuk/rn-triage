@@ -118,6 +118,48 @@ function normalizeTriageOutput(parsed) {
   return out;
 }
 
+// Compare an AI-emitted parsed-triage object to its normalized form
+// and return a structured record of which clinically-meaningful
+// fields drifted. Used by the /triage proxy to populate the
+// `_relai.validation` envelope for AI-drift telemetry. Returns null
+// when nothing tracked drifted (suppresses noise on clean responses).
+//
+// NOTE on the snapshot requirement: normalizeTriageOutput is shallow-
+// copy and mutates nested objects (notably review_request.confidence).
+// Callers that want to diff against the AI's raw output must snapshot
+// the parsed object BEFORE normalize, e.g. via
+// `JSON.parse(JSON.stringify(parsed))`. Passing the post-normalize
+// reference would miss confidence-clamp drift.
+//
+// Boolean and array coercions are shape fixes, not value drifts —
+// intentionally not tracked here.
+function diffNormalization(rawParsed, normalized) {
+  if (!rawParsed || !normalized || typeof rawParsed !== 'object' || typeof normalized !== 'object') {
+    return null;
+  }
+  var drifts = [];
+  var scalarFields = ['urgency', 'clinical_routing_level', 'clinical_category', 'routed_to'];
+  for (var i = 0; i < scalarFields.length; i++) {
+    var f = scalarFields[i];
+    var before = rawParsed[f];
+    var after = normalized[f];
+    if (before !== after && (before != null || after != null)) {
+      drifts.push({ field: f, received: before, coerced_to: after });
+    }
+  }
+  var rrBefore = rawParsed.review_request;
+  var rrAfter = normalized.review_request;
+  if (rrBefore && rrAfter && typeof rrBefore === 'object' && typeof rrAfter === 'object') {
+    if (rrBefore.context !== rrAfter.context && (rrBefore.context != null || rrAfter.context != null)) {
+      drifts.push({ field: 'review_request.context', received: rrBefore.context, coerced_to: rrAfter.context });
+    }
+    if (typeof rrBefore.confidence === 'number' && rrBefore.confidence !== rrAfter.confidence) {
+      drifts.push({ field: 'review_request.confidence', received: rrBefore.confidence, coerced_to: rrAfter.confidence });
+    }
+  }
+  return drifts.length > 0 ? { drifts: drifts } : null;
+}
+
 // Helper: case-insensitive trim match against a list of canonical
 // values. Returns the canonical value or null if no match. Used by
 // normalizeTriageOutput.
@@ -423,6 +465,7 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     parseTriageJSON,
     normalizeTriageOutput,
+    diffNormalization,
     classifyMessage,
     computeUrgencyScore,
     priorityTier,

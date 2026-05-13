@@ -288,6 +288,139 @@ describe('triage proxy — _relai telemetry envelope', () => {
   });
 });
 
+describe('triage proxy — server-side validation (S3a)', () => {
+  // The proxy runs normalizeTriageOutput on the AI's content[0].text
+  // before returning to the client. This is the chokepoint a client
+  // can't bypass — defense-in-depth against a bypassed/malformed
+  // client write to query_history. The pattern is coerce-with-safe-
+  // defaults (matching the client-side normalizer exactly); drift is
+  // recorded in _relai.validation for telemetry. See PLAN.md "S3."
+
+  it('replaces content[0].text with canonical normalized JSON', async () => {
+    installFetchMock(defaultRoutes({
+      anthropicResponse: { status: 200, body: anthropicOK({
+        content: [{ type: 'text', text: '{"urgency":"URGENT","clinical_routing_level":"SEVERE","draft_response":"call patient"}' }],
+      }) },
+    }));
+    const res = await triage.handler(makeEvent({ body: { model: 'claude-sonnet-4-6', max_tokens: 600 } }));
+    uninstallFetchMock();
+    const parsed = JSON.parse(res.body);
+    const aiJson = JSON.parse(parsed.content[0].text);
+    assert.equal(aiJson.urgency, 'urgent');
+    assert.equal(aiJson.clinical_routing_level, 'severe');
+    assert.equal(aiJson.draft_response, 'call patient');
+  });
+
+  it('records each drift in _relai.validation.drifts', async () => {
+    installFetchMock(defaultRoutes({
+      anthropicResponse: { status: 200, body: anthropicOK({
+        content: [{ type: 'text', text: '{"urgency":"URGENT","clinical_routing_level":"SEVERE","draft_response":"hi"}' }],
+      }) },
+    }));
+    const res = await triage.handler(makeEvent({ body: { model: 'claude-sonnet-4-6', max_tokens: 600 } }));
+    uninstallFetchMock();
+    const parsed = JSON.parse(res.body);
+    assert.ok(parsed._relai.validation, 'validation envelope missing');
+    const fields = parsed._relai.validation.drifts.map(function (d) { return d.field; });
+    assert.ok(fields.includes('urgency'), 'urgency drift missing');
+    assert.ok(fields.includes('clinical_routing_level'), 'clinical_routing_level drift missing');
+    const u = parsed._relai.validation.drifts.find(function (d) { return d.field === 'urgency'; });
+    assert.equal(u.received, 'URGENT');
+    assert.equal(u.coerced_to, 'urgent');
+  });
+
+  it('clamps out-of-range confidence and records drift', async () => {
+    installFetchMock(defaultRoutes({
+      anthropicResponse: { status: 200, body: anthropicOK({
+        content: [{ type: 'text', text: '{"urgency":"urgent","clinical_routing_level":"none","review_request":{"confidence":1.5,"context":"routing"},"draft_response":"hi"}' }],
+      }) },
+    }));
+    const res = await triage.handler(makeEvent({ body: { model: 'claude-sonnet-4-6', max_tokens: 600 } }));
+    uninstallFetchMock();
+    const parsed = JSON.parse(res.body);
+    const aiJson = JSON.parse(parsed.content[0].text);
+    assert.equal(aiJson.review_request.confidence, 1, 'confidence not clamped in content');
+    const drift = parsed._relai.validation.drifts.find(function (d) { return d.field === 'review_request.confidence'; });
+    assert.ok(drift, 'confidence drift not recorded');
+    assert.equal(drift.received, 1.5);
+    assert.equal(drift.coerced_to, 1);
+  });
+
+  it('passes content through verbatim with parse_failed on unparseable AI text', async () => {
+    installFetchMock(defaultRoutes({
+      anthropicResponse: { status: 200, body: anthropicOK({
+        content: [{ type: 'text', text: 'I am sorry, I cannot help with that.' }],
+      }) },
+    }));
+    const res = await triage.handler(makeEvent({ body: { model: 'claude-sonnet-4-6', max_tokens: 600 } }));
+    uninstallFetchMock();
+    assert.equal(res.statusCode, 200, 'parse failure should not change status code');
+    const parsed = JSON.parse(res.body);
+    assert.equal(parsed._relai.validation.parse_failed, true);
+    assert.equal(parsed._relai.validation.reason, 'unparseable_text');
+    // Content preserved verbatim — the client's parseTriageJSON has
+    // a brace-fallback and runTriage's catch renders a readable
+    // error if that also fails.
+    assert.equal(parsed.content[0].text, 'I am sorry, I cannot help with that.');
+  });
+
+  it('records empty_content when content array is empty', async () => {
+    installFetchMock(defaultRoutes({
+      anthropicResponse: { status: 200, body: anthropicOK({ content: [] }) },
+    }));
+    const res = await triage.handler(makeEvent({ body: { model: 'claude-sonnet-4-6', max_tokens: 600 } }));
+    uninstallFetchMock();
+    const parsed = JSON.parse(res.body);
+    assert.equal(parsed._relai.validation.parse_failed, true);
+    assert.equal(parsed._relai.validation.reason, 'empty_content');
+  });
+
+  it('validation is null when AI emits clean canonical values', async () => {
+    installFetchMock(defaultRoutes({
+      anthropicResponse: { status: 200, body: anthropicOK({
+        content: [{ type: 'text', text: '{"urgency":"routine","clinical_routing_level":"none","draft_response":"hi"}' }],
+      }) },
+    }));
+    const res = await triage.handler(makeEvent({ body: { model: 'claude-sonnet-4-6', max_tokens: 600 } }));
+    uninstallFetchMock();
+    const parsed = JSON.parse(res.body);
+    assert.equal(parsed._relai.validation, null);
+  });
+
+  it('canonicalizes clinical_category casing', async () => {
+    installFetchMock(defaultRoutes({
+      anthropicResponse: { status: 200, body: anthropicOK({
+        content: [{ type: 'text', text: '{"urgency":"routine","clinical_routing_level":"none","clinical_category":"side effects","draft_response":"hi"}' }],
+      }) },
+    }));
+    const res = await triage.handler(makeEvent({ body: { model: 'claude-sonnet-4-6', max_tokens: 600 } }));
+    uninstallFetchMock();
+    const parsed = JSON.parse(res.body);
+    const aiJson = JSON.parse(parsed.content[0].text);
+    assert.equal(aiJson.clinical_category, 'Side Effects');
+    const drift = parsed._relai.validation.drifts.find(function (d) { return d.field === 'clinical_category'; });
+    assert.equal(drift.received, 'side effects');
+    assert.equal(drift.coerced_to, 'Side Effects');
+  });
+
+  it('preserves unknown clinical_category trimmed (does not silently coerce)', async () => {
+    // Matches the existing client-side design: unknown categories
+    // pass through so staff can see what the AI returned. The
+    // validation envelope records no drift for trim-only changes
+    // because there's nothing the diff function tracks differently.
+    installFetchMock(defaultRoutes({
+      anthropicResponse: { status: 200, body: anthropicOK({
+        content: [{ type: 'text', text: '{"urgency":"routine","clinical_routing_level":"none","clinical_category":"Bizarre Category","draft_response":"hi"}' }],
+      }) },
+    }));
+    const res = await triage.handler(makeEvent({ body: { model: 'claude-sonnet-4-6', max_tokens: 600 } }));
+    uninstallFetchMock();
+    const parsed = JSON.parse(res.body);
+    const aiJson = JSON.parse(parsed.content[0].text);
+    assert.equal(aiJson.clinical_category, 'Bizarre Category');
+  });
+});
+
 describe('triage proxy — forwards Anthropic auth + cache headers', () => {
   it('sends x-api-key and anthropic-version to upstream', async () => {
     installFetchMock(defaultRoutes());
