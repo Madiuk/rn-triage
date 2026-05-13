@@ -152,17 +152,127 @@ exports.handler = async function(event) {
     }
 
     // ── POST /auth/invite ─────────────────────────────────────────────────
+    //
+    // Earlier this endpoint had NO caller auth at all — anyone with the
+    // URL could POST { email, company_id, role: 'Clinical', is_admin:
+    // true } and create a confirmed Supabase user attached to any
+    // tenant with any role. That's full tenant takeover with one curl.
+    // RELAI_VALIDATION_AUDIT.md flagged it as the highest-severity
+    // finding in the function set.
+    //
+    // The gates added below, in order:
+    //   1. Bearer token required + verified against Supabase Auth.
+    //   2. Caller's profile lookup; is_admin = true required.
+    //   3. Caller must have a resolved company_id (no orphan admins
+    //      inviting into nothing).
+    //   4. Body key allowlist — refuses unknown fields like
+    //      is_admin / is_super_user that a future caller might try
+    //      to slip through. Today's defense against tomorrow's
+    //      privilege-escalation refactor.
+    //   5. role allowlist — Clinical | Non-Clinical | staff.
+    //   6. company_id forced to caller's tenant. If body sends a
+    //      different company_id, refuse explicitly (cross-tenant
+    //      invite) rather than silently overriding.
+    //
+    // Side effects (admin/users create, profile PATCH, company_members
+    // insert) do NOT run until every gate above has passed.
     if (path.includes('/invite') && method === 'POST') {
       if (!serviceH) return { statusCode: 500, headers: CORS, body: JSON.stringify({ error: 'SUPABASE_SERVICE_KEY not configured' }) };
 
-      const body = JSON.parse(event.body || '{}');
-      const { email, company_id, role = 'staff' } = body;
-      if (!email) return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'email required' }) };
+      // 1. Bearer token + Supabase Auth verification.
+      if (!token) {
+        return { statusCode: 401, headers: CORS, body: JSON.stringify({ error: 'Authentication required.' }) };
+      }
+      const callerRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, { headers: userH });
+      const caller = await callerRes.json();
+      if (!caller || !caller.id) {
+        return { statusCode: 401, headers: CORS, body: JSON.stringify({ error: 'Invalid token' }) };
+      }
 
+      // 2. Profile lookup → admin gate. Service key + explicit id
+      //    filter so we don't depend on RLS configuration. Missing
+      //    profile is treated as non-admin (fail closed).
+      const callerProfRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/profiles?id=eq.${caller.id}&select=is_admin,is_super_user,company_id`,
+        { headers: serviceH }
+      );
+      const callerProfiles = await callerProfRes.json();
+      const callerProfile = Array.isArray(callerProfiles) && callerProfiles[0] ? callerProfiles[0] : null;
+      if (!callerProfile || !callerProfile.is_admin) {
+        return {
+          statusCode: 403,
+          headers: CORS,
+          body: JSON.stringify({ error: 'Admin access required.', code: 'admin_only' }),
+        };
+      }
+
+      // 3. Caller must have a tenant. Without one we can't determine
+      //    where the invite lands, and forcing a fallback would let
+      //    an unattached admin invite into arbitrary tenants.
+      const callerCompanyId = callerProfile.company_id;
+      if (!callerCompanyId) {
+        return {
+          statusCode: 400,
+          headers: CORS,
+          body: JSON.stringify({ error: 'Caller has no company_id; cannot invite into a tenant.' }),
+        };
+      }
+
+      // 4. Parse body with explicit error path (not the outer catch's
+      //    500). Enforce key allowlist defensively.
+      let body;
+      try { body = JSON.parse(event.body || '{}'); }
+      catch (e) {
+        return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'Invalid JSON body.' }) };
+      }
+      const ALLOWED_BODY_KEYS = new Set(['email', 'role', 'company_id']);
+      for (const k of Object.keys(body)) {
+        if (!ALLOWED_BODY_KEYS.has(k)) {
+          return {
+            statusCode: 400,
+            headers: CORS,
+            body: JSON.stringify({ error: 'Unexpected body key: ' + k }),
+          };
+        }
+      }
+      const { email } = body;
+      if (!email) {
+        return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'email required' }) };
+      }
+
+      // 5. role allowlist. 'staff' is preserved as the legacy default
+      //    (profiles.role still accepts it per 0001_baseline) so this
+      //    gate is non-breaking for legitimate admin callers.
+      const role = body.role || 'staff';
+      const ALLOWED_ROLES = new Set(['Clinical', 'Non-Clinical', 'staff']);
+      if (!ALLOWED_ROLES.has(role)) {
+        return {
+          statusCode: 400,
+          headers: CORS,
+          body: JSON.stringify({ error: "role must be 'Clinical', 'Non-Clinical', or 'staff'." }),
+        };
+      }
+
+      // 6. Tenant is the CALLER's. If body included a different
+      //    company_id, refuse explicitly — silent override would
+      //    mask the caller's intent to do something they aren't
+      //    allowed to do.
+      if ('company_id' in body && body.company_id && body.company_id !== callerCompanyId) {
+        return {
+          statusCode: 403,
+          headers: CORS,
+          body: JSON.stringify({ error: 'Cross-tenant invite refused. You may only invite into your own tenant.', code: 'cross_tenant' }),
+        };
+      }
+      const company_id = callerCompanyId;
+
+      // Side effects start here. All three writes use the service
+      // key — admin/users requires it; profiles + company_members do
+      // too because RLS denies user-JWT writes.
       const r = await fetch(`${SUPABASE_URL}/auth/v1/admin/users`, {
         method: 'POST',
         headers: serviceH,
-        body: JSON.stringify({ email, email_confirm: true, user_metadata: { role, company_id: company_id || null } })
+        body: JSON.stringify({ email, email_confirm: true, user_metadata: { role, company_id } })
       });
       const newUser = await r.json();
       if (!newUser.id) {
@@ -172,16 +282,17 @@ exports.handler = async function(event) {
       await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${newUser.id}`, {
         method: 'PATCH',
         headers: { ...serviceH, 'Prefer': 'return=minimal' },
-        body: JSON.stringify({ role, company_id: company_id || null })
+        body: JSON.stringify({ role, company_id })
       });
 
-      if (company_id) {
-        await fetch(`${SUPABASE_URL}/rest/v1/company_members`, {
-          method: 'POST',
-          headers: { ...serviceH, 'Prefer': 'return=minimal' },
-          body: JSON.stringify({ company_id, user_id: newUser.id, role })
-        });
-      }
+      // company_id is guaranteed non-null by the earlier gate, so the
+      // original `if (company_id)` wrapper around this insert is no
+      // longer needed.
+      await fetch(`${SUPABASE_URL}/rest/v1/company_members`, {
+        method: 'POST',
+        headers: { ...serviceH, 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ company_id, user_id: newUser.id, role })
+      });
 
       return { statusCode: 200, headers: CORS, body: JSON.stringify({ success: true, user_id: newUser.id, email }) };
     }
