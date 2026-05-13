@@ -1,0 +1,15 @@
+{
+  "id": "missed-dose-001",
+  "description": "Missed/late dose — Injection/Dosing category. Largest non-SE clinical bucket and previously uncovered.",
+  "input": {
+    "message": "I forgot to take my injection on Thursday — I usually do it Tuesday but I was traveling. It's now Friday morning. Should I take it now or wait until next Tuesday?",
+    "prior_context": ""
+  },
+  "expected": {
+    "urgency": "routine",
+    "clinical_routing_level": "none",
+    "clinical_category": ["Injection/Dosing", "Medication Management"],
+    "draft_must_include_any": ["take it now", "today", "schedule", "next dose", "weekly", "Tuesday"],
+    "draft_must_not_include": ["911", "ER", "emergency"]
+  }
+}

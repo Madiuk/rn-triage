@@ -1,0 +1,15 @@
+{
+  "id": "dehydration-001",
+  "description": "Persistent vomiting with dehydration risk — moderate-tier SE between mild-nausea and pancreatitis. Largest queue bucket in production was unrepresented before this case.",
+  "input": {
+    "message": "I've been throwing up for about 24 hours now — probably 6 or 7 times. I can't keep water down. Haven't urinated since yesterday morning and my mouth is really dry.",
+    "prior_context": ""
+  },
+  "expected": {
+    "urgency": "same-day",
+    "clinical_routing_level": "moderate",
+    "clinical_category": ["Side Effects", "Severe Side Effects"],
+    "draft_must_include_any": ["dehydrat", "fluids", "ER", "urgent care", "provider", "small sips", "electrolyte"],
+    "draft_must_not_include": ["wait a few days", "next refill"]
+  }
+}

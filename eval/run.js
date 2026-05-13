@@ -229,6 +229,59 @@ function scoreCase(testCase, parsed) {
     });
   }
 
+  // routed_to: case-insensitive exact match against the canonical
+  // enum from BASE_PROMPT. Distinct from clinical_category — drift
+  // here means routing aggregations split (e.g. "Shipping" vs
+  // "Shipping & Fulfillment" become separate buckets in dashboards).
+  // Optional — most cases don't assert routed_to.
+  if (ex.routed_to != null && lc(parsed.routed_to || '') !== lc(ex.routed_to)) {
+    failures.push('routed_to: expected "' + ex.routed_to
+      + '", got "' + (parsed.routed_to || '') + '"');
+  }
+
+  // review_request scoring — additive in v0.4.0 to enable cases like
+  // low-confidence-001 that exercise the AI's self-rated confidence
+  // and the active-learning-loop entrypoint. Ignored when the
+  // expected.review_request key is absent (so existing cases are
+  // unchanged).
+  if (ex.review_request && typeof ex.review_request === 'object') {
+    const rr = parsed.review_request || null;
+    const hasRR = rr && typeof rr === 'object';
+
+    if (ex.review_request.required === true && !hasRR) {
+      failures.push('review_request: expected to be present, got null/undefined');
+    }
+
+    if (typeof ex.review_request.max_confidence === 'number') {
+      if (!hasRR || typeof rr.confidence !== 'number') {
+        failures.push('review_request.confidence: expected <= '
+          + ex.review_request.max_confidence + ', got ' + (hasRR ? rr.confidence : 'no review_request'));
+      } else if (rr.confidence > ex.review_request.max_confidence) {
+        failures.push('review_request.confidence: expected <= '
+          + ex.review_request.max_confidence + ', got ' + rr.confidence);
+      }
+    }
+
+    if (typeof ex.review_request.min_confidence === 'number') {
+      if (!hasRR || typeof rr.confidence !== 'number') {
+        failures.push('review_request.confidence: expected >= '
+          + ex.review_request.min_confidence + ', got ' + (hasRR ? rr.confidence : 'no review_request'));
+      } else if (rr.confidence < ex.review_request.min_confidence) {
+        failures.push('review_request.confidence: expected >= '
+          + ex.review_request.min_confidence + ', got ' + rr.confidence);
+      }
+    }
+
+    if (Array.isArray(ex.review_request.context_in) && ex.review_request.context_in.length) {
+      const allowed = ex.review_request.context_in.map(lc);
+      if (!hasRR || !allowed.includes(lc(rr.context))) {
+        failures.push('review_request.context: expected one of '
+          + JSON.stringify(ex.review_request.context_in)
+          + ', got "' + (hasRR ? rr.context : 'no review_request') + '"');
+      }
+    }
+  }
+
   return { passed: failures.length === 0, failures };
 }
 

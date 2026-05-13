@@ -1,0 +1,16 @@
+{
+  "id": "low-confidence-001",
+  "description": "Deliberately ambiguous one-line message that should trigger the AI's review_request — the active learning loop's entrypoint. Exercises the AI's self-rated confidence threshold (set to <0.75 in BASE_PROMPT) and the review_request shape. Uses the new expected.review_request scoring rule (max_confidence + context_in) introduced alongside this case.",
+  "input": {
+    "message": "Is it ok to take this with that other thing my doctor mentioned?",
+    "prior_context": ""
+  },
+  "expected": {
+    "urgency": "routine",
+    "draft_must_include_any": ["clarif", "more info", "specific", "which medication", "could you", "can you"],
+    "review_request": {
+      "max_confidence": 0.75,
+      "context_in": ["routing", "severity", "category", "kb_gap", "protocol"]
+    }
+  }
+}

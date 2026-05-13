@@ -1,0 +1,15 @@
+{
+  "id": "general-hours-001",
+  "description": "Pure General Inquiry — operational question with no clinical content. Confirms the AI does not over-promote vague messages into clinical categories. The non_clinical_flag should be true and clinical_routing_level=none.",
+  "input": {
+    "message": "Hi, are your offices open on Memorial Day? I'm trying to plan a follow-up call.",
+    "prior_context": ""
+  },
+  "expected": {
+    "urgency": "routine",
+    "clinical_routing_level": "none",
+    "non_clinical_flag": true,
+    "non_clinical_items_includes": ["General Inquiry"],
+    "draft_must_not_include": ["911", "ER", "emergency", "side effect", "injection", "dose"]
+  }
+}

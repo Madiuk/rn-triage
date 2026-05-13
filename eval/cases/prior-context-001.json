@@ -1,0 +1,15 @@
+{
+  "id": "prior-context-001",
+  "description": "Same patient as mild-nausea-001, three turns into the conversation — already received the standard nausea education (ginger, small frequent meals, hydration). The new message is asking about a related but distinct concern. Exercises the prior-context wrapper that was the subject of v0.3.16's bugfix and currently has zero behavioral coverage. Pass criterion: AI does NOT repeat the education already given.",
+  "input": {
+    "message": "It's been a few more days. The nausea is still mild but now I'm noticing my appetite is way down — I'm eating maybe a third of what I normally do. Should I be worried about that?",
+    "prior_context": "Patient: I've had some mild nausea on and off for the past couple of days but I can still eat my regular meals. Is this normal?\n\nNurse: Mild nausea is one of the most common early side effects and usually settles within a couple of weeks. A few things that help: small frequent meals instead of large ones, sipping ginger tea or eating ginger candies, and staying well hydrated between meals rather than during. Avoid heavy/fatty foods. If it worsens, becomes persistent vomiting, or you can't keep fluids down, message us back right away.\n\nPatient: Thanks — I'll try the ginger and smaller meals. I'll keep an eye on it."
+  },
+  "expected": {
+    "urgency": "routine",
+    "clinical_routing_level": "mild",
+    "clinical_category": ["Side Effects", "Stall/Lack of Results", "Medication Management"],
+    "draft_must_include_any": ["appetite", "expected", "normal", "eat enough", "protein", "calorie", "hydration"],
+    "draft_must_not_include": ["try ginger", "ginger tea", "ginger candies", "small frequent meals"]
+  }
+}
