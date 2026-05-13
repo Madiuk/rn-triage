@@ -5,6 +5,13 @@ const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
 
+// First-admin bootstrap helper. Lives in _lib so the kb.js router
+// can share it later if needed; for now only /auth/profile calls it.
+// See _lib/auth.js for the rationale (closes the manual UPDATE
+// step that bit v0.4.1 — a fresh tenant has no super-user until
+// someone runs SQL; bootstrap eliminates that step).
+const { maybeBootstrapFirstAdmin } = require('./_lib/auth');
+
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
@@ -101,6 +108,19 @@ exports.handler = async function(event) {
           const inserted = await insertRes.json();
           profile = Array.isArray(inserted) ? inserted[0] : inserted;
         } catch(e) { console.error('auth.createProfile:', e.message); }
+      }
+
+      // Bootstrap the first admin in the tenant if none exists yet.
+      // This is the missing step from migration 0010 — without it,
+      // a fresh tenant has no super-user and the admin/settings/
+      // categories endpoints (super_user_only) are unreachable. The
+      // helper is a no-op when any super-user already exists, when
+      // the profile has no company_id, or when the lookup fails
+      // (fails closed). Mutates `profile` in place on success so
+      // the response below reflects the new flags without re-fetch.
+      // Internally try/catch-wrapped — won't throw out to here.
+      if (profile) {
+        await maybeBootstrapFirstAdmin(user, profile, hdr);
       }
 
       // Update last_seen silently

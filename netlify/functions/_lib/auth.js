@@ -95,9 +95,103 @@ function extractToken(event) {
   return (event.headers.authorization || "").replace(/^Bearer\s+/i, "").trim();
 }
 
+// First-admin bootstrap (v0.4.2). When a user signs in and there
+// are zero super-users in their tenant, auto-promote them to
+// is_admin=true + is_super_user=true. One-time event per tenant.
+//
+// Why: the v0.3.27 setup required running migration 0010 AND a
+// manual UPDATE to elevate the first user. The migration is
+// reasonable (DB schema change); the UPDATE is a manual step
+// that's easy to forget — and easy to confuse with the migration
+// itself. (See v0.4.1 changelog where Brad asked "I thought I'd
+// be the admin/super user?" after running just the migration.)
+// Bootstrap eliminates the manual UPDATE for every future tenant.
+//
+// Safety:
+//   - Only fires when ZERO super-users exist in the tenant. If
+//     anyone is already super-user, bootstrap does nothing — so
+//     a later admin demoting themselves CAN'T trigger
+//     re-promotion of an arbitrary user.
+//   - Requires a known company_id. If the caller has no
+//     company_id resolved (unattached profile, no companies
+//     row), bootstrap skips.
+//   - Writes an audit_log entry so the promotion is visible
+//     in the audit trail.
+//   - Race: two users signing in at the same instant could BOTH
+//     pass the "no super_user" check before either is promoted.
+//     They'd both end up super-user. Acceptable — the worst
+//     outcome is two legitimate first-time admins in a tenant
+//     that genuinely had no admin, which is benign.
+//
+// Mutates the passed-in `profile` object in place (sets is_admin
+// and is_super_user on it) so the caller's response reflects
+// the new state without a re-fetch. Returns true if promoted,
+// false if not.
+async function maybeBootstrapFirstAdmin(user, profile, headers) {
+  if (!user || !user.id) return false;
+  if (!profile) return false;
+  if (profile.is_super_user) return false;       // already super-user
+  if (!profile.company_id) return false;          // no tenant scope
+  try {
+    // Check: are there any super-users in this tenant?
+    const checkRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/profiles?company_id=eq.${encodeURIComponent(profile.company_id)}&is_super_user=eq.true&select=id&limit=1`,
+      { headers }
+    );
+    if (!checkRes.ok) {
+      // If we can't check, fail closed — don't promote on a
+      // failed lookup, that's the dangerous direction.
+      console.error("auth.maybeBootstrapFirstAdmin.check:", checkRes.status);
+      return false;
+    }
+    const existing = await checkRes.json();
+    if (Array.isArray(existing) && existing.length > 0) return false;
+
+    // No super-user in this tenant — promote.
+    const promoteRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/profiles?id=eq.${encodeURIComponent(user.id)}`,
+      {
+        method: "PATCH",
+        headers: { ...headers, "Prefer": "return=minimal" },
+        body: JSON.stringify({ is_admin: true, is_super_user: true }),
+      }
+    );
+    if (!promoteRes.ok) {
+      console.error("auth.maybeBootstrapFirstAdmin.promote:", promoteRes.status);
+      return false;
+    }
+
+    // Mutate the in-memory profile so the response reflects the
+    // new state without another round-trip.
+    profile.is_admin = true;
+    profile.is_super_user = true;
+
+    // Audit log — best-effort, doesn't block the response.
+    fetch(`${SUPABASE_URL}/rest/v1/audit_log`, {
+      method: "POST",
+      headers: { ...headers, "Prefer": "return=minimal" },
+      body: JSON.stringify({
+        company_id: profile.company_id,
+        actor_id: user.id,
+        event_type: "auth.first_admin_bootstrap",
+        entity_type: "profiles",
+        entity_id: user.id,
+        payload: { reason: "no_super_user_in_tenant" },
+      }),
+    }).catch(e => console.error("auth.maybeBootstrapFirstAdmin.audit:", e.message));
+
+    console.log("auth.firstAdminBootstrap: promoted user", user.id, "in tenant", profile.company_id);
+    return true;
+  } catch (e) {
+    console.error("auth.maybeBootstrapFirstAdmin:", e.message);
+    return false;
+  }
+}
+
 module.exports = {
   verifyUser,
   resolveCompanyId,
   resolveProfile,
   extractToken,
+  maybeBootstrapFirstAdmin,
 };
