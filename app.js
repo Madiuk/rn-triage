@@ -182,6 +182,7 @@ async function authFetch(url, opts){
     try { showToast('Session expired — redirecting to login...', 'warn'); } catch(e) {}
     setTimeout(function(){
       localStorage.removeItem('relai_session');
+      clearCachedProfile();
       window.location.href = '/login.html';
     }, 1500);
   }
@@ -260,6 +261,104 @@ function getFullKB(){
 }
 
 // ── AUTH ──────────────────────────────────────────────────────────────────────
+
+// Profile cache (localStorage). Lets the chip, dept badge, brand
+// tenant label, and Admin tab paint instantly on hard refresh — the
+// authoritative /auth/profile call still runs and reconciles, so a
+// stale flag at most flashes for the round-trip. Cleared on sign-out,
+// on session expiry, and on any /auth/profile response that says the
+// user is no longer valid.
+//
+// Why this is safe for is_admin / is_super_user: those flags are
+// only UI hints — every admin endpoint re-checks server-side against
+// the persisted profile (see netlify/functions/_lib/auth.js).
+const PROFILE_CACHE_KEY = 'relai_profile_cache';
+
+function readCachedProfile(){
+  try {
+    var raw = localStorage.getItem(PROFILE_CACHE_KEY);
+    if(!raw) return null;
+    var c = JSON.parse(raw);
+    return c && c.user && c.user.id ? c : null;
+  } catch(e){ return null; }
+}
+function writeCachedProfile(user, profile){
+  try { localStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify({ user: user, profile: profile })); }
+  catch(e){ console.error('writeCachedProfile:', e.message); }
+}
+function clearCachedProfile(){
+  try { localStorage.removeItem(PROFILE_CACHE_KEY); } catch(e){}
+}
+
+// Decode (not verify) a JWT payload. Used solely to extract email/id
+// for an instant placeholder render on the first-ever sign-in — when
+// the cache is empty but the JWT is already in localStorage. Nothing
+// security-sensitive depends on the result; the authoritative profile
+// still comes from /auth/profile.
+function decodeJwtPayload(token){
+  try {
+    var parts = token.split('.');
+    if(parts.length < 2) return null;
+    var b64 = parts[1].replace(/-/g,'+').replace(/_/g,'/');
+    return JSON.parse(atob(b64));
+  } catch(e){ return null; }
+}
+
+// Idempotent: paints the topbar chip, dept badge, brand tenant, and
+// Admin tab visibility from a (user, profile) pair. Safe to call
+// multiple times — second call (reconciliation after network) cleanly
+// overwrites the first call (optimistic render from cache/JWT).
+function applyProfileUI(user, profile){
+  var name = (profile && profile.full_name)
+    || (user && user.email ? user.email.split('@')[0] : 'Staff');
+  var initials = name.split(' ').map(function(n){return n[0];}).join('').substring(0,2).toUpperCase();
+
+  var chipEl = document.getElementById('staffChipName');
+  var avatarEl = document.getElementById('chipAvatar');
+  if(chipEl) chipEl.textContent = name.split(' ')[0];
+  if(avatarEl) avatarEl.textContent = initials;
+
+  var brandTenantEl = document.getElementById('brandTenant');
+  if(brandTenantEl){
+    var tenantName = (profile && profile.company_name)
+      || tenantValue(profile && profile.tenant, 'brand.name');
+    if(tenantName) brandTenantEl.textContent = tenantName;
+  }
+
+  var dept = (profile && profile.role) || '';
+  var deptBadge = document.getElementById('staffDeptBadge');
+  if(deptBadge){
+    if(dept === 'Clinical'){
+      deptBadge.textContent = 'RN';
+      deptBadge.style.display = '';
+      deptBadge.style.background = 'var(--blue-m)';
+      deptBadge.style.color = 'var(--blue)';
+      if(avatarEl) avatarEl.style.background = 'var(--blue)';
+    } else if(dept === 'Non-Clinical'){
+      deptBadge.textContent = 'CS';
+      deptBadge.style.display = '';
+      deptBadge.style.background = 'var(--amber-l)';
+      deptBadge.style.color = 'var(--amber)';
+      if(avatarEl) avatarEl.style.background = 'var(--amber)';
+    } else {
+      // Reconciliation path: a previously-painted badge must hide if
+      // the authoritative role is neither Clinical nor Non-Clinical.
+      deptBadge.style.display = 'none';
+    }
+  }
+
+  // Admin tab: explicitly toggle in both directions so the
+  // reconciliation pass demotes a stale cached is_admin=true.
+  var adminBtn = document.getElementById('adminTabBtn');
+  if(adminBtn){
+    if(profile && profile.is_admin) adminBtn.classList.remove('hidden');
+    else adminBtn.classList.add('hidden');
+  }
+
+  window.currentNurse = name;
+  window.currentDepartment = dept;
+}
+
 async function initAuth(){
   // Step 1: if magic link token arrived in URL hash, save it first
   var hash = window.location.hash;
@@ -283,6 +382,31 @@ async function initAuth(){
     window.location.href = '/login.html';
     return;
   }
+
+  // Step 3: optimistic render. Two sources, in priority order:
+  //   1. Cached profile from the last successful /auth/profile call —
+  //      full fidelity (chip name, dept badge, admin tab, brand tenant).
+  //   2. JWT payload — first-ever sign-in has no cache yet; the JWT
+  //      still gives us an email-prefix name and avatar initial.
+  // Either way the network call below reconciles. If the cached user
+  // doesn't match the JWT's `sub`, treat the cache as stale (e.g. a
+  // different user signed in without sign-out clearing the cache).
+  var jwt = decodeJwtPayload(session.access_token);
+  var cached = readCachedProfile();
+  if(cached && jwt && cached.user.id !== jwt.sub){
+    cached = null;
+    clearCachedProfile();
+  }
+  var paintedFromCache = false;
+  if(cached){
+    currentUser = cached.user;
+    currentProfile = cached.profile;
+    applyProfileUI(currentUser, currentProfile);
+    paintedFromCache = true;
+  } else if(jwt && jwt.email){
+    applyProfileUI({ id: jwt.sub, email: jwt.email }, null);
+  }
+
   try{
     // authFetch (v0.3.12) auto-refreshes a stale JWT on 401. If we
     // get here after the user's been gone >1 hour, the original
@@ -294,52 +418,15 @@ async function initAuth(){
     var data = await r.json();
     if(!data.user || !data.user.id){
       localStorage.removeItem('relai_session');
+      clearCachedProfile();
       window.location.href = '/login.html';
       return;
     }
     currentUser = data.user;
     currentProfile = data.profile;
-    // Set chip
-    var name = (currentProfile&&currentProfile.full_name) || currentUser.email.split('@')[0];
-    var initials = name.split(' ').map(function(n){return n[0];}).join('').substring(0,2).toUpperCase();
-    var chipEl = document.getElementById('staffChipName');
-    var avatarEl = document.getElementById('chipAvatar');
-      if(chipEl) chipEl.textContent = name.split(' ')[0]; // first name only
-    if(avatarEl) avatarEl.textContent = initials;
-    // Update topbar tenant label from tenant config (falls back to defaults).
-    var brandTenantEl = document.getElementById('brandTenant');
-    if(brandTenantEl){
-      var tenantName = (currentProfile && currentProfile.company_name)
-        || tenantValue(currentProfile && currentProfile.tenant, 'brand.name');
-      brandTenantEl.textContent = tenantName;
-    }
-    // Store name and department globally
-    var dept = (currentProfile&&currentProfile.role)||'';
-    window.currentNurse = name;
-    window.currentDepartment = dept;
-    // Show dept badge on chip
-    var deptBadge = document.getElementById('staffDeptBadge');
-    if(deptBadge){
-      if(dept==='Clinical'){
-        deptBadge.textContent='RN';
-        deptBadge.style.display='';
-        deptBadge.style.background='var(--blue-m)';
-        deptBadge.style.color='var(--blue)';
-        if(avatarEl) avatarEl.style.background='var(--blue)';
-      } else if(dept==='Non-Clinical'){
-        deptBadge.textContent='CS';
-        deptBadge.style.display='';
-        deptBadge.style.background='var(--amber-l)';
-        deptBadge.style.color='var(--amber)';
-        if(avatarEl) avatarEl.style.background='var(--amber)';
-      }
-    }
-    // v0.3.27: reveal the Admin tab if the user has the flag.
-    // Default-hidden in the HTML; only flipped on for admins.
-    if (currentProfile && currentProfile.is_admin) {
-      var adminBtn = document.getElementById('adminTabBtn');
-      if (adminBtn) adminBtn.classList.remove('hidden');
-    }
+    applyProfileUI(currentUser, currentProfile);
+    writeCachedProfile(currentUser, currentProfile);
+
     // v0.3.27: prefetch the non-clinical handoff template so the
     // first clinical-tier render for a non-clinical user has it
     // ready without a fetch-on-render flicker. For clinical users
@@ -348,10 +435,15 @@ async function initAuth(){
     loadHandoffTemplate();
   }catch(e){
     console.error('initAuth:', e.message);
-    // Network error — don't redirect, allow offline use
-    window.currentNurse = 'Staff';
-    var chipEl = document.getElementById('staffChipName');
-    if(chipEl) chipEl.textContent = 'Offline';
+    // Network error — don't redirect, allow offline use. If we
+    // already painted from cache, leave that visible (it's better
+    // than overwriting with "Offline"). Only fall back when the
+    // user has no cache to fall back on.
+    if(!paintedFromCache){
+      window.currentNurse = 'Staff';
+      var chipEl = document.getElementById('staffChipName');
+      if(chipEl) chipEl.textContent = 'Offline';
+    }
   }
 }
 
@@ -429,6 +521,7 @@ function signOut(){
   isSigningOut = true;
   var token = getToken();
   localStorage.removeItem('relai_session');
+  clearCachedProfile();
   if(token){
     // Fire-and-forget. The /auth/signout endpoint only updates
     // last_seen — nothing security-critical, so we don't need to
