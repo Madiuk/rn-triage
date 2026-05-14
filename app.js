@@ -347,12 +347,18 @@ function applyProfileUI(user, profile){
     }
   }
 
-  // Admin tab: explicitly toggle in both directions so the
-  // reconciliation pass demotes a stale cached is_admin=true.
+  // Admin tab + admin help section: explicitly toggle in both
+  // directions so the reconciliation pass demotes a stale cached
+  // is_admin=true.
   var adminBtn = document.getElementById('adminTabBtn');
   if(adminBtn){
     if(profile && profile.is_admin) adminBtn.classList.remove('hidden');
     else adminBtn.classList.add('hidden');
+  }
+  var adminHelp = document.getElementById('helpAdminSection');
+  if(adminHelp){
+    if(profile && profile.is_admin) adminHelp.classList.remove('hidden');
+    else adminHelp.classList.add('hidden');
   }
 
   window.currentNurse = name;
