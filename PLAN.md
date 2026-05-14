@@ -163,6 +163,18 @@ likely-universal across future tenants):
   binary `Clinical / Non-Clinical` role over time. Migration: keep
   `role` populated for backwards compat; add capabilities; deprecate
   `role` once UI fully reads from capabilities.
+  - **Foundation already laid (mig 0017, 2026-05-13):**
+    `profiles.title` decouples the display credential from `role`
+    (a doctor is `role='Clinical', title='MD'`, an NP is `'NP'`,
+    future vertical-agnostic tenants use whatever credential
+    matters to them). `query_history.{user_role, user_title}` and
+    `review_requests.{resolved_by_role, resolved_by_title}` snapshot
+    the editing staff's credential at write time, even if their
+    role/title later changes. Not yet read by analytics or the
+    prompt — just rails for future segmentation. Per-role learning
+    pools, role-aware aggregations, and capability flags replacing
+    binary `role` remain deferred until a tenant actually has more
+    than one clinical credential in active use.
 - The queue filter for a given staff member = `category_preferences`
   ∩ `categories where requires_clinical_authorization is satisfied by
   the staffer's capabilities`. Defaults from `RELAI_DEFAULTS.categories`
@@ -484,3 +496,4 @@ CHECKs (commit 28f6eb3), `query_history` explicit RLS deny baseline
 | 2026-05-10 | Release codename "Juno" for v0.3.0 | Significant releases get a short codename alongside the SemVer number, in alphabetical order. Juno is the first waypoint — the foundation. Tooling/tags continue to use the SemVer (`v0.3.0`); the codename is for talking-about-it shorthand and CHANGELOG headers. Next release: "K…". |
 | 2026-05-10 | Known schema drift: `review_requests.created_by` declared in 0001 but missing in production | Migration 0008's first attempt failed at the review_requests UPDATE because production schema doesn't have the column despite source declaring it. PostgREST has been silently dropping `created_by` on every review insert (Supabase config tolerates unknown fields). Functionally invisible because the application never reads created_by — the `triage_id` linkage to `query_history.user_id` carries the same information. 0008 was rewritten to use the triage_id chain so the backfill works regardless. The drift is not load-bearing; reconciliation is deferred to whenever something actually consumes `created_by`. If it ever matters, the fix is `alter table public.review_requests add column if not exists created_by uuid` plus a backfill via the same triage_id chain. |
 | 2026-05-10 | Intercom is the first channel adapter built (inbound) — ahead of Bask in priority | Big Easy's owner indicated they want to use Intercom for customer service. That changes the strategic position from "Bask is the first integration" to "Intercom-or-Bask, whichever lands first." Intercom has more public documentation than Bask and is broadly applicable across tenants (most customer-service-platform users in any vertical can adopt Intercom), so the adapter has reusable value beyond Big Easy. Inbound webhook is built and tested; outbound (posting replies back via the Conversations API) is deferred until worker.js does real triage and staff has a queue UI. Bask remains in the roadmap and uses the same channel-pluggable architecture; whenever their webhook contract is published, that adapter slots in alongside intercom.js. |
+| 2026-05-13 | Per-staff `title` field + snapshot role/title on `query_history` + `review_requests` (mig 0017) | The display label "Clinical Staff (RN)" was hardcoded against the role enum and lied the moment a doctor signed in. Migration 0017 adds `profiles.title` (free text, backfilled 'RN'/'CSR' for existing rows) and drives the badge/profile-drawer label from it — a doctor reads "Clinical Staff (MD)" without a code change. Permissions stay on `role`; title is display + analytics-snapshot only. The companion snapshot columns (`query_history.{user_role, user_title}`, `review_requests.{resolved_by_role, resolved_by_title}`) lay the rail for future per-role learning segmentation: written here, not yet read. Per-role training pools, capability flags replacing binary `role`, role-aware analytics, and vertical-agnostic role naming explicitly deferred to multi-tenant — not useful work today because BEWL has only one clinical credential in active use (no MDs trialing). |

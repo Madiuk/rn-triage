@@ -238,12 +238,20 @@ async function handle(event) {
         }
       }
 
+      // resolved_by_role / resolved_by_title (migration 0017):
+      // server-forced from the verified profile so a future per-role
+      // KB-promotion or training-segmentation pipeline can rely on
+      // the credential the resolver actually held at resolution
+      // time — even if their role/title changes later. Not yet
+      // read; just laying the rail.
       const patch = {
         status: "resolved",
         answer: body.answer || "",
         applied_to: appliedTo,
         resolved_by: user.id,                              // forced from JWT
         resolved_by_name: body.resolved_by_name || null,
+        resolved_by_role: callerProfile ? callerProfile.role || null : null,
+        resolved_by_title: callerProfile ? callerProfile.title || null : null,
         resolved_at: new Date().toISOString(),
       };
       // Tenant-scope the PATCH WHERE — defense-in-depth on top

@@ -117,14 +117,19 @@
     }
     var badge = document.getElementById('staffDeptBadge');
     if (badge) {
+      // Same title-first / role-fallback logic as applyProfileUI in
+      // app.js (migration 0017). Duplicated here because this paint
+      // runs before app.js loads; keep the two in sync if the rule
+      // changes.
+      var title = profile.title || '';
       if (profile.role === 'Clinical') {
-        badge.textContent = 'RN';
+        badge.textContent = title || 'RN';
         badge.style.display = '';
         badge.style.background = 'var(--blue-m)';
         badge.style.color = 'var(--blue)';
         if (avatar) avatar.style.background = 'var(--blue)';
       } else if (profile.role === 'Non-Clinical') {
-        badge.textContent = 'CS';
+        badge.textContent = title || 'CS';
         badge.style.display = '';
         badge.style.background = 'var(--amber-l)';
         badge.style.color = 'var(--amber)';

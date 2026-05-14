@@ -69,15 +69,20 @@ async function resolveCompanyId(user) {
 // checks happen against the persisted source of truth, not
 // whatever the client claims.
 //
-// Returns: { id, full_name, company_id, role, is_admin,
+// Returns: { id, full_name, company_id, role, title, is_admin,
 // is_super_user } or null. Role values match production data:
 // 'Clinical' | 'Non-Clinical' (also tolerates the legacy 'staff'
-// default = no clinical authorization per permissions.js).
+// default = no clinical authorization per permissions.js). Title
+// is the free-text display credential ('RN', 'MD', 'NP', 'CSR',
+// etc.) introduced in migration 0017 — decoupled from role so a
+// doctor (`role='Clinical', title='MD'`) is no longer mislabeled
+// as an RN. Title is for display + snapshot-on-write rails only;
+// permissions stay on `role`.
 async function resolveProfile(user) {
   if (!user || !user.id) return null;
   try {
     const r = await fetch(
-      `${SUPABASE_URL}/rest/v1/profiles?id=eq.${user.id}&select=id,company_id,role,is_admin,is_super_user,full_name`,
+      `${SUPABASE_URL}/rest/v1/profiles?id=eq.${user.id}&select=id,company_id,role,title,is_admin,is_super_user,full_name`,
       { headers: writeHeaders() }
     );
     const profiles = await r.json();

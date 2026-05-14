@@ -49,7 +49,7 @@ async function handleUsers(event, ctx) {
     }
     // Get profile rows for the tenant
     const profilesRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/profiles?company_id=eq.${encodeURIComponent(callerCompanyId)}&select=id,full_name,role,is_admin,is_super_user,last_seen,created_at&order=created_at.asc`,
+      `${SUPABASE_URL}/rest/v1/profiles?company_id=eq.${encodeURIComponent(callerCompanyId)}&select=id,full_name,role,title,is_admin,is_super_user,last_seen,created_at&order=created_at.asc`,
       { headers: writeHeaders() }
     );
     const profileRows = await profilesRes.json();
@@ -121,6 +121,23 @@ async function handleUsers(event, ctx) {
           });
         }
         patch.is_super_user = body.is_super_user;
+      }
+      if ('title' in body) {
+        // Free-text display credential (migration 0017). Allow
+        // null to clear. Trim and bound at 24 chars; no DB CHECK
+        // (see migration comment). Length cap kept in sync with
+        // /auth/invite's identical validation.
+        if (body.title === null) {
+          patch.title = null;
+        } else if (typeof body.title !== 'string') {
+          return json(400, { error: "title must be a string or null." });
+        } else {
+          const t = body.title.trim();
+          if (t.length > 24) {
+            return json(400, { error: "title must be 24 characters or fewer." });
+          }
+          patch.title = t.length === 0 ? null : t;
+        }
       }
       if (Object.keys(patch).length === 0) {
         return json(400, { error: "No fields to update." });

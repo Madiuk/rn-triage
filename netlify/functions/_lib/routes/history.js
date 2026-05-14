@@ -370,13 +370,19 @@ async function handle(event) {
         return json(r.status, responseText);
       }
       default: {
-        // Insert. Force user_id and company_id from the verified
-        // JWT so a malicious client can't insert query_history rows
-        // that look like they came from someone else or from
-        // another tenant.
+        // Insert. Force user_id, company_id, and the role/title
+        // snapshot from the server-verified profile so a malicious
+        // client can't insert query_history rows that look like
+        // they came from someone else, from another tenant, or
+        // with a fabricated credential. Same hardening pattern
+        // applies to all four. user_role/user_title were added
+        // in migration 0017 as the rail for future per-role
+        // learning segmentation — written here, not yet read.
         const insertBody = Object.assign({}, body, {
           user_id: user.id,
           company_id: callerCompanyId || body.company_id || null,
+          user_role: callerProfile ? callerProfile.role || null : null,
+          user_title: callerProfile ? callerProfile.title || null : null,
         });
         const r = await fetch(base, { method: "POST", headers: wHdr, body: JSON.stringify(insertBody) });
         return json(r.status, await r.text());

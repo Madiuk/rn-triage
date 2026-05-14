@@ -60,7 +60,7 @@ exports.handler = async function(event) {
       let profile = null;
       try {
         const profRes = await fetch(
-          `${SUPABASE_URL}/rest/v1/profiles?id=eq.${user.id}&select=id,full_name,role,company_id,triages_completed,last_seen,is_admin,is_super_user`,
+          `${SUPABASE_URL}/rest/v1/profiles?id=eq.${user.id}&select=id,full_name,role,title,company_id,triages_completed,last_seen,is_admin,is_super_user`,
           { headers: hdr }
         );
         const profiles = await profRes.json();
@@ -245,7 +245,7 @@ exports.handler = async function(event) {
       catch (e) {
         return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'Invalid JSON body.' }) };
       }
-      const ALLOWED_BODY_KEYS = new Set(['email', 'role', 'company_id']);
+      const ALLOWED_BODY_KEYS = new Set(['email', 'role', 'company_id', 'title']);
       for (const k of Object.keys(body)) {
         if (!ALLOWED_BODY_KEYS.has(k)) {
           return {
@@ -271,6 +271,24 @@ exports.handler = async function(event) {
           headers: CORS,
           body: JSON.stringify({ error: "role must be 'Clinical', 'Non-Clinical', or 'staff'." }),
         };
+      }
+
+      // 5b. title — optional free-text credential (migration 0017).
+      //     Length-bounded at the app layer (no DB CHECK; see
+      //     migration comment). Trim whitespace; reject if >24
+      //     chars after trim. Null/undefined are fine — the
+      //     migration backfills 'RN'/'CSR' on the profile PATCH
+      //     callsite below only if no title was provided.
+      let title = null;
+      if ('title' in body && body.title != null) {
+        if (typeof body.title !== 'string') {
+          return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'title must be a string.' }) };
+        }
+        title = body.title.trim();
+        if (title.length > 24) {
+          return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'title must be 24 characters or fewer.' }) };
+        }
+        if (title.length === 0) title = null;
       }
 
       // 6. Tenant is the CALLER's. If body included a different
@@ -299,10 +317,12 @@ exports.handler = async function(event) {
         return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: newUser.message || 'Failed to create user' }) };
       }
 
+      const profilePatch = { role, company_id };
+      if (title != null) profilePatch.title = title;
       await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${newUser.id}`, {
         method: 'PATCH',
         headers: { ...serviceH, 'Prefer': 'return=minimal' },
-        body: JSON.stringify({ role, company_id })
+        body: JSON.stringify(profilePatch)
       });
 
       // company_id is guaranteed non-null by the earlier gate, so the

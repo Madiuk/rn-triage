@@ -326,16 +326,20 @@ function applyProfileUI(user, profile){
   }
 
   var dept = (profile && profile.role) || '';
+  var title = (profile && profile.title) || '';
   var deptBadge = document.getElementById('staffDeptBadge');
   if(deptBadge){
     if(dept === 'Clinical'){
-      deptBadge.textContent = 'RN';
+      // Prefer the per-user title (migration 0017) so a doctor reads
+      // 'MD', an NP reads 'NP', etc. Fall back to 'RN' for legacy
+      // rows that haven't been backfilled yet.
+      deptBadge.textContent = title || 'RN';
       deptBadge.style.display = '';
       deptBadge.style.background = 'var(--blue-m)';
       deptBadge.style.color = 'var(--blue)';
       if(avatarEl) avatarEl.style.background = 'var(--blue)';
     } else if(dept === 'Non-Clinical'){
-      deptBadge.textContent = 'CS';
+      deptBadge.textContent = title || 'CS';
       deptBadge.style.display = '';
       deptBadge.style.background = 'var(--amber-l)';
       deptBadge.style.color = 'var(--amber)';
@@ -460,8 +464,15 @@ function openProfile(){
   var initials = name.split(' ').map(function(n){return n[0];}).join('').substring(0,2).toUpperCase();
   var email = currentUser.email||'';
   var role = (currentProfile&&currentProfile.role)||'staff';
-  // Format role for display: 'Clinical' or 'Non-Clinical' with department context
-  var roleLabel = role==='Clinical'?'Clinical Staff (RN)':role==='Non-Clinical'?'Non-Clinical Staff':role.charAt(0).toUpperCase()+role.slice(1);
+  var profTitle = (currentProfile && currentProfile.title) || '';
+  // Format role for display. The parenthetical comes from the
+  // per-user title (migration 0017) — null/empty hides the
+  // parenthetical so a Clinical user without a title reads
+  // "Clinical Staff" cleanly instead of lying with "(RN)".
+  var roleLabel;
+  if(role==='Clinical')        roleLabel = profTitle ? ('Clinical Staff ('+profTitle+')')         : 'Clinical Staff';
+  else if(role==='Non-Clinical') roleLabel = profTitle ? ('Non-Clinical Staff ('+profTitle+')') : 'Non-Clinical Staff';
+  else                          roleLabel = role.charAt(0).toUpperCase()+role.slice(1);
   var company = (currentProfile && currentProfile.company_name)
     || tenantValue(currentProfile && currentProfile.tenant, 'brand.name');
   document.getElementById('profileAvatar').textContent = initials;
@@ -2782,6 +2793,14 @@ async function loadAdminUsers() {
           '<option value="Clinical"'+(u.role==='Clinical'?' selected':'')+'>Clinical</option>'+
           '<option value="Non-Clinical"'+(u.role==='Non-Clinical'?' selected':'')+'>Non-Clinical</option>'+
         '</select>';
+      // Free-text title input (migration 0017). Blur-saves the
+      // trimmed value via updateUserRole(...) which routes through
+      // POST /admin/users action=update_role. 24-char cap mirrors
+      // server-side validation in admin.js.
+      var titleInput =
+        '<input type="text" class="admin-title-input" maxlength="24" '+
+          'placeholder="Title" value="'+esc(u.title || '')+'" '+
+          'onblur="updateUserRole(\''+esc(u.id)+'\', \'title\', this.value.trim())" />';
       var adminToggle =
         '<label class="admin-flag-toggle">'+
           '<input type="checkbox" '+(u.is_admin?'checked':'')+
@@ -2801,7 +2820,7 @@ async function loadAdminUsers() {
           '<div class="admin-user-email">'+esc(u.email || '(no email)')+'</div>'+
         '</div>'+
         '<div class="admin-user-controls">'+
-          roleSel+adminToggle+suToggle+
+          titleInput+roleSel+adminToggle+suToggle+
         '</div>'+
       '</div>';
     }).join('');
