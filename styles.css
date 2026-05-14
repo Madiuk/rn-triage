@@ -265,6 +265,9 @@ textarea::placeholder{color:var(--gray-400);}
 .profile-action{width:100%;padding:10px;background:var(--gray-100);border:none;border-radius:8px;font-family:var(--sans);font-size:var(--fs-sm);font-weight:600;color:var(--gray-700);cursor:pointer;text-align:left;}
 .profile-action.danger{background:var(--red-l);border:1.5px solid var(--red-m);color:var(--red);}
 .profile-action.warn{background:var(--red-l);border:1.5px solid var(--red-m);color:var(--red);display:flex;align-items:center;justify-content:space-between;}
+.profile-action.attn{background:var(--blue-l);border:1.5px solid var(--blue-m);color:var(--blue);display:flex;align-items:center;justify-content:space-between;}
+.profile-action.attn:hover{background:var(--blue-m);}
+.profile-action.attn .profile-badge{background:var(--blue);}
 .profile-badge{background:var(--red);color:white;border-radius:10px;padding:1px 7px;font-size:11px;}
 
 /* TOPBAR brand + chip ———————————————————————————————————————————— */

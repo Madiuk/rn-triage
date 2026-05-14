@@ -1046,8 +1046,12 @@ function switchTab(name,btn){
   document.getElementById('tab-'+name).classList.add('active');
   if(btn) btn.classList.add('active');
   if(name==='kb')loadKBFromServer();
-  if(name==='history')loadReviews();
+  if(name==='worklist')loadReviews();
   if(name==='admin')loadAdminTab();
+  // Note: 'history' intentionally does not auto-load. Inquiry History
+  // is manual-load only — the user clicks the Load button when they
+  // want records. Auto-fetching on tab open is the kind of speculative
+  // overhead the user explicitly does not want.
 }
 
 // TRIAGE
@@ -2484,10 +2488,14 @@ async function deleteHistoryEntry(id){
   }
 }
 
-function goToClarifications(){
+function goToWorklist(){
   closeProfile();
-  var histBtn = document.getElementById('historyTabBtn');
-  if(histBtn) switchTab('history', histBtn);
+  switchTab('worklist', null);
+}
+
+function goToInquiryHistory(){
+  closeProfile();
+  switchTab('history', null);
 }
 
 async function saveReviewRequest(reviewRequest, patientMsg, aiDraft, triageId){

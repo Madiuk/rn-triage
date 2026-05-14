@@ -36,7 +36,8 @@
   <div class="profile-foot">
     <button class="profile-action hidden" id="adminTabBtn" onclick="goToAdminFromProfile()">&#9881; Admin</button>
     <button class="profile-action" onclick="openHelpFromProfile()">&#10067; Help &amp; Guide</button>
-    <button class="profile-action warn" onclick="goToClarifications()"><span>&#9888; Pending Review Items</span><span id="profileBadgeCount" class="profile-badge"></span></button>
+    <button class="profile-action attn" onclick="goToWorklist()"><span>&#9783; AI Review Worklist</span><span id="profileBadgeCount" class="profile-badge"></span></button>
+    <button class="profile-action" onclick="goToInquiryHistory()">&#128203; Inquiry History</button>
     <button class="profile-action danger" onclick="signOut()">&#8594; Sign Out</button>
   </div>
 </div>
@@ -50,10 +51,9 @@
     </div>
   </div>
   <div class="tab-nav">
-    <button class="tab-btn active" onclick="switchTab('triage',this)">Inquiry</button>
+    <button class="tab-btn active" onclick="switchTab('triage',this)">Triage</button>
     <button class="tab-btn" onclick="switchTab('kb',this)">Knowledge Base</button>
     <button class="tab-btn hidden" id="helpTabBtn" onclick="switchTab('help',this)">Help &amp; Guide</button>
-    <button class="tab-btn hidden" id="historyTabBtn" onclick="switchTab('history',this)">&#8226;&#8226;&#8226;</button>
   </div>
   <div class="topbar-right">
     <div class="nurse-chip" onclick="openProfile()" title="Your profile">
@@ -365,7 +365,7 @@
           <div class="help-section-title">Inquiries &amp; Stats</div>
           <div class="help-faq">
             <button class="help-faq-q" onclick="toggleFaq(this)"><span>Where do I see what I've been doing?</span><span class="help-arrow">&#9660;</span></button>
-            <div class="help-faq-a">Open your profile (click the chip in the top-right corner) for your workspace info. For the team-wide view, click <strong>Pending Review Items</strong> in the same dropdown. That opens the Inquiries page, which has three parts in order: AI-flagged review items at the top (clarifications waiting on a clinical answer), then aggregate stats and a per-staff breakdown (total inquiries, average priority score, escalation rate, edit rate, average time per inquiry), then the full record list.</div>
+            <div class="help-faq-a">Open your profile (click the chip in the top-right corner) for your workspace info. From there, <strong>AI Review Worklist</strong> opens the clarifications the AI flagged and is waiting on a clinical answer for. <strong>Inquiry History</strong> opens the team-wide view: aggregate stats and a per-staff breakdown (total inquiries, average priority score, escalation rate, edit rate, average time per inquiry), then the full record list. Inquiry History doesn't auto-load — click <strong>Load</strong> when you want to fetch records.</div>
           </div>
           <div class="help-faq">
             <button class="help-faq-q" onclick="toggleFaq(this)"><span>What does "Escalated" mean in the stats?</span><span class="help-arrow">&#9660;</span></button>
@@ -462,10 +462,13 @@
   </div>
 </div>
 
-<!-- HISTORY TAB -->
-<div class="tab-panel" id="tab-history">
+<!-- AI REVIEW WORKLIST TAB — the clarifications worklist split off
+     from the combined history page in v0.4.x. Auto-refreshes via
+     loadReviews() when switchTab('worklist', ...) is called. The
+     paired Inquiry History tab below is intentionally manual-load
+     only — no auto-fetch on tab open. -->
+<div class="tab-panel" id="tab-worklist">
   <div class="history-wrap">
-    <!-- AI Clarifications Section -->
     <div class="review-section">
       <div class="review-section-row">
         <h2>AI Needs Your Input</h2>
@@ -476,7 +479,11 @@
         <div class="review-empty">No pending items. The AI is learning well.</div>
       </div>
     </div>
+  </div>
+</div>
 
+<div class="tab-panel" id="tab-history">
+  <div class="history-wrap">
     <div class="history-head">
       <div>
         <h2>Inquiries</h2>
