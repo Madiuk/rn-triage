@@ -192,7 +192,7 @@ textarea::placeholder{color:var(--gray-400);}
 .help-faq-q.open{color:var(--blue);background:var(--blue-l);}
 .help-arrow{font-size:11px;color:var(--gray-400);flex-shrink:0;transition:transform .2s;}
 .help-faq-q.open .help-arrow{transform:rotate(180deg);color:var(--blue);}
-.help-faq-a{display:none;padding:0 20px 16px;font-size:var(--fs-sm);color:var(--gray-700);line-height:1.8;}
+.help-faq-a{display:none;padding:8px 20px 16px;font-size:var(--fs-sm);color:var(--gray-700);line-height:1.8;}
 .help-faq-a.open{display:block;}
 @media(max-width:900px){.help-quickref-grid{grid-template-columns:1fr;}.help-cols{grid-template-columns:1fr;}}
 
@@ -291,7 +291,10 @@ textarea::placeholder{color:var(--gray-400);}
 .profile-action.attn:hover{background:var(--blue-m);border-color:var(--blue-m);}
 .profile-action.attn .profile-badge{background:var(--blue);}
 .profile-foot-sep{height:1px;background:var(--gray-200);margin:4px 2px;}
-.profile-badge{background:var(--blue);color:white;border-radius:10px;padding:1px 7px;font-size:11px;font-weight:700;}
+/* Hidden by default — updateReviewBadge() flips it to inline-block
+   only when there's a pending count, so an empty span never shows
+   as a stray dash. */
+.profile-badge{display:none;background:var(--blue);color:white;border-radius:10px;padding:1px 7px;font-size:11px;font-weight:700;}
 
 /* TOPBAR brand + chip ———————————————————————————————————————————— */
 .brand-mini-icon{font-size:17px;font-weight:800;letter-spacing:-1px;font-family:var(--sans);}

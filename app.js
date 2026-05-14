@@ -351,18 +351,12 @@ function applyProfileUI(user, profile){
     }
   }
 
-  // Admin tab + admin help section: explicitly toggle in both
-  // directions so the reconciliation pass demotes a stale cached
-  // is_admin=true.
+  // Admin tab: explicitly toggle in both directions so the
+  // reconciliation pass demotes a stale cached is_admin=true.
   var adminBtn = document.getElementById('adminTabBtn');
   if(adminBtn){
     if(profile && profile.is_admin) adminBtn.classList.remove('hidden');
     else adminBtn.classList.add('hidden');
-  }
-  var adminHelp = document.getElementById('helpAdminSection');
-  if(adminHelp){
-    if(profile && profile.is_admin) adminHelp.classList.remove('hidden');
-    else adminHelp.classList.add('hidden');
   }
 
   window.currentNurse = name;
@@ -2546,9 +2540,10 @@ function updateReviewBadge(count){
   }
   if(profBadge){
     profBadge.textContent = count > 0 ? String(count) : '';
-    // Hide the badge element entirely at zero — an empty padded
-    // span still renders as a stray colored pill otherwise.
-    profBadge.style.display = count > 0 ? '' : 'none';
+    // Show the badge ONLY when there's a count. The CSS default is
+    // display:none, so an empty padded span never renders as a
+    // stray colored pill — even before this function first runs.
+    profBadge.style.display = count > 0 ? 'inline-block' : 'none';
   }
   // Flag the worklist row only when there's something to do: the
   // .attn accent draws the eye when count > 0, calm otherwise.
