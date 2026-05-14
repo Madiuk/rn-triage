@@ -25,6 +25,8 @@ body{background:var(--gray-100);color:var(--gray-900);font-family:var(--sans);fo
 .brand-name{font-size:var(--fs-md);font-weight:700;letter-spacing:-.3px;}
 .brand-sub{font-size:var(--fs-xs);color:var(--gray-500);margin-top:1px;}
 .topbar-right{display:flex;align-items:center;gap:12px;}
+.help-bubble{width:30px;height:30px;border-radius:50%;background:var(--gray-100);border:1.5px solid var(--gray-200);color:var(--gray-600);font-size:var(--fs-base);font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .12s,border-color .12s,color .12s;}
+.help-bubble:hover{background:var(--blue-l);border-color:var(--blue-m);color:var(--blue);}
 .nurse-chip{display:flex;align-items:center;gap:7px;padding:6px 14px;background:var(--blue-l);border:1.5px solid var(--blue-m);border-radius:20px;font-size:var(--fs-sm);font-weight:600;color:var(--blue);cursor:pointer;position:relative;}
 .hidden{display:none !important;}
 .nurse-chip:hover{background:var(--blue-m);}
@@ -269,13 +271,23 @@ textarea::placeholder{color:var(--gray-400);}
 .profile-company{font-size:var(--fs-sm);color:var(--gray-700);padding:8px 0;border-bottom:1px solid var(--gray-100);}
 .profile-stats{font-size:var(--fs-sm);color:var(--gray-700);padding:4px 0;}
 .profile-foot{padding:16px 24px;border-top:1px solid var(--gray-100);display:flex;flex-direction:column;gap:8px;}
-.profile-action{width:100%;padding:10px;background:var(--gray-100);border:none;border-radius:8px;font-family:var(--sans);font-size:var(--fs-sm);font-weight:600;color:var(--gray-700);cursor:pointer;text-align:left;}
-.profile-action.danger{background:var(--red-l);border:1.5px solid var(--red-m);color:var(--red);}
-.profile-action.warn{background:var(--red-l);border:1.5px solid var(--red-m);color:var(--red);display:flex;align-items:center;justify-content:space-between;}
-.profile-action.attn{background:var(--blue-l);border:1.5px solid var(--blue-m);color:var(--blue);display:flex;align-items:center;justify-content:space-between;}
-.profile-action.attn:hover{background:var(--blue-m);}
+/* All drawer actions share one neutral resting state — color is a
+   signal, not decoration. Hover lifts every row so the eye gets
+   oriented on whatever it's pointing at. */
+.profile-action{width:100%;padding:10px 12px;background:var(--gray-50);border:1px solid var(--gray-200);border-radius:8px;font-family:var(--sans);font-size:var(--fs-sm);font-weight:600;color:var(--gray-700);cursor:pointer;text-align:left;display:flex;align-items:center;justify-content:space-between;gap:8px;transition:background .12s,border-color .12s,color .12s;}
+.profile-action:hover{background:var(--gray-100);border-color:var(--gray-300);}
+/* Sign Out: the exit. Red text only — set apart by the separator
+   above it, not by being a loud red block. */
+.profile-action.danger{color:var(--red);}
+.profile-action.danger:hover{background:var(--red-l);border-color:var(--red-m);}
+/* .attn is applied by updateReviewBadge ONLY when the worklist has
+   pending items — a calm row when there's nothing to do, an
+   eye-drawing accent when there is. */
+.profile-action.attn{background:var(--blue-l);border-color:var(--blue-m);color:var(--blue);}
+.profile-action.attn:hover{background:var(--blue-m);border-color:var(--blue-m);}
 .profile-action.attn .profile-badge{background:var(--blue);}
-.profile-badge{background:var(--red);color:white;border-radius:10px;padding:1px 7px;font-size:11px;}
+.profile-foot-sep{height:1px;background:var(--gray-200);margin:4px 2px;}
+.profile-badge{background:var(--blue);color:white;border-radius:10px;padding:1px 7px;font-size:11px;font-weight:700;}
 
 /* TOPBAR brand + chip ———————————————————————————————————————————— */
 .brand-mini-icon{font-size:17px;font-weight:800;letter-spacing:-1px;font-family:var(--sans);}
@@ -483,6 +495,9 @@ textarea::placeholder{color:var(--gray-400);}
 .admin-user-email{font-size:var(--fs-xs);color:var(--gray-500);margin-top:2px;}
 .admin-user-controls{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
 .admin-role-select{padding:5px 8px;border:1.5px solid var(--gray-200);border-radius:6px;font-family:var(--sans);font-size:var(--fs-xs);background:var(--white);}
+.admin-title-input{width:80px;padding:5px 8px;border:1.5px solid var(--gray-200);border-radius:6px;font-family:var(--sans);font-size:var(--fs-xs);background:var(--white);color:var(--gray-800);}
+.admin-title-input:focus{outline:none;border-color:var(--blue);}
+.admin-title-input::placeholder{color:var(--gray-400);}
 .admin-flag-toggle{display:flex;align-items:center;gap:6px;font-size:var(--fs-xs);color:var(--gray-700);cursor:pointer;user-select:none;}
 .admin-flag-toggle input[type="checkbox"]{cursor:pointer;}
 .admin-flag-readonly{font-size:var(--fs-xs);color:var(--gray-400);font-weight:600;}

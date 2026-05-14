@@ -511,17 +511,6 @@ function closeProfile(){
   document.getElementById('profileOverlay').classList.remove('show');
 }
 
-function openHelpFromProfile(){
-  closeProfile();
-  // Find and click help tab
-  var tabs = document.querySelectorAll('.tab-btn');
-  tabs.forEach(function(t){
-    if(t.textContent.includes('Help')){
-      t.click();
-    }
-  });
-}
-
 function goToAdminFromProfile(){
   closeProfile();
   switchTab('admin', null);
@@ -2550,11 +2539,23 @@ async function loadReviews(){
 function updateReviewBadge(count){
   var badge = document.getElementById('clarificationBadge');
   var profBadge = document.getElementById('profileBadgeCount');
+  var worklistBtn = document.getElementById('worklistBtn');
   if(badge){
     badge.style.display = count > 0 ? 'flex' : 'none';
     badge.textContent = count > 9 ? '9+' : String(count);
   }
-  if(profBadge) profBadge.textContent = count > 0 ? String(count) : '';
+  if(profBadge){
+    profBadge.textContent = count > 0 ? String(count) : '';
+    // Hide the badge element entirely at zero — an empty padded
+    // span still renders as a stray colored pill otherwise.
+    profBadge.style.display = count > 0 ? '' : 'none';
+  }
+  // Flag the worklist row only when there's something to do: the
+  // .attn accent draws the eye when count > 0, calm otherwise.
+  if(worklistBtn){
+    if(count > 0) worklistBtn.classList.add('attn');
+    else worklistBtn.classList.remove('attn');
+  }
 }
 
 function renderReviews(pending){
