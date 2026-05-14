@@ -76,7 +76,16 @@ function aggregateQualityRows(rows) {
 
   for (const row of rows) {
     const overrode = !!(row.urgency_override && row.urgency_override !== row.urgency_original);
-    const wasCorrected = !!(row.actual_response_sent || row.correction_note);
+    // "Corrected" means the response text genuinely changed —
+    // edit_distance > 0. A verbatim paste-back (staff sent the AI
+    // draft as-is) sets actual_response_sent + correction_note but
+    // has edit_distance = 0; counting it would inflate
+    // correction_rate. For legacy rows with no edit_distance,
+    // fall back to the older heuristic. Mirrors the frontend's
+    // wasEdited() predicate in app.js so the two never disagree.
+    const wasCorrected = row.edit_distance != null
+      ? row.edit_distance > 0
+      : !!(row.actual_response_sent || row.correction_note);
     if (overrode) urgencyOverrides++;
     if (wasCorrected) corrected++;
     if (row.upvoted)   upvoted++;

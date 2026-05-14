@@ -103,7 +103,10 @@ describe('aggregateQualityRows', () => {
     assert.equal(r.urgency_override_rate, 0.3333);
   });
 
-  it('treats either actual_response_sent or correction_note as a correction', () => {
+  it('treats either actual_response_sent or correction_note as a correction (legacy rows, no edit_distance)', () => {
+    // Legacy rows predate the edit_distance column. With no
+    // edit_distance present, the aggregator falls back to the
+    // older heuristic: any saved actual-sent or note counts.
     const rows = [
       { actual_response_sent: 'edited reply' },
       { correction_note: 'changed wording' },
@@ -111,6 +114,21 @@ describe('aggregateQualityRows', () => {
     ];
     const r = aggregateQualityRows(rows);
     assert.equal(r.correction_rate, 0.6667);
+  });
+
+  it('does not count a verbatim paste-back (edit_distance 0) as a correction', () => {
+    // Staff who paste the AI draft back unchanged have
+    // actual_response_sent + correction_note populated, but
+    // edit_distance = 0 — nothing actually changed. Counting it
+    // would inflate correction_rate and make the AI look worse
+    // than it is. Only the genuinely-edited row should count.
+    const rows = [
+      { actual_response_sent: 'AI draft, verbatim', correction_note: 'Staff sent the AI draft as-is — no edits.', edit_distance: 0 },
+      { actual_response_sent: 'genuinely reworded', correction_note: 'reworded the closing', edit_distance: 42 },
+      { actual_response_sent: null, correction_note: null, edit_distance: null },
+    ];
+    const r = aggregateQualityRows(rows);
+    assert.equal(r.correction_rate, 0.3333);
   });
 
   it('averages ai_confidence and edit_distance, ignoring nulls', () => {
