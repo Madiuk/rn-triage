@@ -505,6 +505,11 @@ function openHelpFromProfile(){
   });
 }
 
+function goToAdminFromProfile(){
+  closeProfile();
+  switchTab('admin', null);
+}
+
 function signOut(){
   // v0.4.1: NOT async. Earlier this used `await fetch(...)` which
   // opened a multi-hundred-millisecond window during which any
@@ -1039,7 +1044,7 @@ function switchTab(name,btn){
   document.querySelectorAll('.tab-panel').forEach(function(p){p.classList.remove('active');});
   document.querySelectorAll('.tab-btn').forEach(function(b){b.classList.remove('active');});
   document.getElementById('tab-'+name).classList.add('active');
-  btn.classList.add('active');
+  if(btn) btn.classList.add('active');
   if(name==='kb')loadKBFromServer();
   if(name==='history')loadReviews();
   if(name==='admin')loadAdminTab();

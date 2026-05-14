@@ -34,6 +34,7 @@
          metrics later once we decide what's actually worth showing. -->
   </div>
   <div class="profile-foot">
+    <button class="profile-action hidden" id="adminTabBtn" onclick="goToAdminFromProfile()">&#9881; Admin</button>
     <button class="profile-action" onclick="openHelpFromProfile()">&#10067; Help &amp; Guide</button>
     <button class="profile-action warn" onclick="goToClarifications()"><span>&#9888; Pending Review Items</span><span id="profileBadgeCount" class="profile-badge"></span></button>
     <button class="profile-action danger" onclick="signOut()">&#8594; Sign Out</button>
@@ -51,7 +52,6 @@
   <div class="tab-nav">
     <button class="tab-btn active" onclick="switchTab('triage',this)">Inquiry</button>
     <button class="tab-btn" onclick="switchTab('kb',this)">Knowledge Base</button>
-    <button class="tab-btn hidden" id="adminTabBtn" onclick="switchTab('admin',this)">Admin</button>
     <button class="tab-btn hidden" id="helpTabBtn" onclick="switchTab('help',this)">Help &amp; Guide</button>
     <button class="tab-btn hidden" id="historyTabBtn" onclick="switchTab('history',this)">&#8226;&#8226;&#8226;</button>
   </div>
