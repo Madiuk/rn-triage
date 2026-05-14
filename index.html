@@ -278,47 +278,46 @@
           <div class="help-qr-num">1</div>
           <div>
             <div class="help-qr-label">Sign in</div>
-            <div class="help-qr-desc">Relai sends you a one-time sign-in link by email (a "magic link"). No password. Click the link from your email and you're in. Your admin creates your account before your first sign-in &mdash; if you've never received an invite, ask them.</div>
+            <div class="help-qr-desc">Click the sign-in link in the email Relai sends you.</div>
           </div>
         </div>
         <div class="help-qr-item">
           <div class="help-qr-num">2</div>
           <div>
             <div class="help-qr-label">Paste the patient message</div>
-            <div class="help-qr-desc">Drop the patient's current message into the left box on the Triage tab. If it's a reply to an ongoing conversation, click <strong>Add Prior Context</strong> and add each earlier turn &mdash; pick the speaker, type what they said, click <strong>+ Add turn</strong> for the next one. Oldest at top, newest reply at the bottom.</div>
+            <div class="help-qr-desc">Drop it into the Triage tab. If it's a reply, click <strong>Add Prior Context</strong> first.</div>
           </div>
         </div>
         <div class="help-qr-item">
           <div class="help-qr-num">3</div>
           <div>
             <div class="help-qr-label">Click Analyze</div>
-            <div class="help-qr-desc">The AI reads the message against your Knowledge Base and returns a classification, routing decision, and a draft response (for clinical staff) or a handoff template (for non-clinical staff handling clinical content). Usually takes 5&ndash;15 seconds.</div>
+            <div class="help-qr-desc">The AI returns a classification, routing, and a draft response. 5&ndash;15 seconds.</div>
           </div>
         </div>
         <div class="help-qr-item">
           <div class="help-qr-num">4</div>
           <div>
             <div class="help-qr-label">Check the results top to bottom</div>
-            <div class="help-qr-desc"><strong>Classification card</strong> &mdash; urgency and category. <strong>Routing card</strong> &mdash; appears when part of the message also needs another team; share the internal note with them through your usual handoff method. <strong>Generated Response</strong> &mdash; copy and send to patient.</div>
+            <div class="help-qr-desc">Classification &rarr; routing &rarr; generated response. Fix anything wrong before sending.</div>
           </div>
         </div>
         <div class="help-qr-item">
           <div class="help-qr-num">5</div>
           <div>
             <div class="help-qr-label">Teach the AI if you edited</div>
-            <div class="help-qr-desc">If you changed the draft before sending, paste what you actually sent into <strong>What was sent to the patient</strong> and click <strong>Submit &amp; Learn</strong>. Only do this when you made changes. Sending the draft verbatim is already a positive signal &mdash; don't paste it back.</div>
+            <div class="help-qr-desc">If you changed the draft, paste what you sent into <strong>What was sent</strong> and click <strong>Submit &amp; Learn</strong>.</div>
           </div>
         </div>
       </div>
     </div>
-    <div class="help-section">
+    <div class="help-section spotlight">
       <div class="help-section-title">First-Day Walkthrough</div>
       <div class="help-faq">
         <button class="help-faq-q" onclick="toggleFaq(this)"><span>I just signed in &mdash; what do I do first?</span><span class="help-arrow">&#9660;</span></button>
         <div class="help-faq-a">
-          You'll land on the <strong>Triage</strong> tab. Top right is your profile chip with your initial and your role (RN for clinical, CS for non-clinical). Click the chip to open your profile drawer &mdash; that's where the <strong>AI Review Worklist</strong>, <strong>Inquiry History</strong>, <strong>Help &amp; Guide</strong>, and <strong>Sign Out</strong> live.<br><br>
-          For your first triage, pick a recent patient message from your usual channel (email, chat, whatever you normally use), paste it into the message box, and click <strong>Analyze</strong>. Read the result top to bottom. The first one or two will feel slower than typing a reply yourself; the time is in reading the AI's draft and judging whether to send it as-is or edit. After ten or so messages it'll feel quicker than typing from scratch.<br><br>
-          Don't worry about the buttons you don't recognize yet &mdash; the rest of this guide covers them. Worth knowing today: the <strong>Knowledge Base</strong> tab is where the AI's policies and protocols live, and any edits you make there take effect on the very next message.
+          You land on the <strong>Triage</strong> tab. Top right is your profile chip &mdash; click it for the <strong>AI Review Worklist</strong>, <strong>Inquiry History</strong>, <strong>Help &amp; Guide</strong>, and <strong>Sign Out</strong>.<br><br>
+          For your first triage, paste a recent patient message, click <strong>Analyze</strong>, and read the result top to bottom. The <strong>Knowledge Base</strong> tab holds the AI's policies and protocols &mdash; edits there take effect on the next message.
         </div>
       </div>
     </div>
@@ -359,77 +358,6 @@
           </div>
         </div>
         <div class="help-section">
-          <div class="help-section-title">AI Review Worklist</div>
-          <div class="help-faq">
-            <button class="help-faq-q" onclick="toggleFaq(this)"><span>What is the AI Review Worklist?</span><span class="help-arrow">&#9660;</span></button>
-            <div class="help-faq-a">When the AI is uncertain about something &mdash; an unclear category, a routing question, low confidence on its own draft &mdash; it flags the message for a clinician to weigh in. Those flagged items collect in the worklist. The badge on the profile button shows the count. Clear the worklist as part of your normal workflow; the resolutions feed back into the Knowledge Base.</div>
-          </div>
-          <div class="help-faq">
-            <button class="help-faq-q" onclick="toggleFaq(this)"><span>How do I resolve a clarification?</span><span class="help-arrow">&#9660;</span></button>
-            <div class="help-faq-a">Open the worklist, read the AI's question and the original patient message, then type the answer. Choose what kind of resolution it is: a one-off correction (just this case), a <strong>KB gap</strong> (this needs to become part of the standing knowledge base), or a <strong>protocol</strong> (a new if/then rule). KB-gap and protocol resolutions auto-promote into the Knowledge Base &mdash; the next time a similar message comes in, the AI already knows.</div>
-          </div>
-          <div class="help-faq">
-            <button class="help-faq-q" onclick="toggleFaq(this)"><span>What happens after I resolve one?</span><span class="help-arrow">&#9660;</span></button>
-            <div class="help-faq-a">The item disappears from the worklist and the badge count drops. If you marked it as a KB gap or a protocol, a new entry appears in the Knowledge Base under the appropriate section. You can edit or delete that entry later from the KB tab if you change your mind.</div>
-          </div>
-        </div>
-        <div class="help-section">
-          <div class="help-section-title">Knowledge Base</div>
-          <div class="help-faq">
-            <button class="help-faq-q" onclick="toggleFaq(this)"><span>What is the Knowledge Base?</span><span class="help-arrow">&#9660;</span></button>
-            <div class="help-faq-a">Everything the AI reads before responding to a patient message &mdash; protocols, side effect guidance, routing rules, urgency thresholds, and response templates. Any change takes effect immediately on the next triage.</div>
-          </div>
-          <div class="help-faq">
-            <button class="help-faq-q" onclick="toggleFaq(this)"><span>Which KB section should I use?</span><span class="help-arrow">&#9660;</span></button>
-            <div class="help-faq-a"><strong>Side Effects</strong> &mdash; education and management guidance.<br><strong>Templates</strong> &mdash; response frameworks for common messages.<br><strong>Protocols</strong> &mdash; if/then decision logic.<br><strong>Rules &amp; Notes</strong> &mdash; urgency thresholds, severity rules. Edit carefully.<br><strong>Routing</strong> &mdash; when and how to escalate or route.<br><strong>URLs</strong> &mdash; links you reference in patient responses.</div>
-          </div>
-          <div class="help-faq">
-            <button class="help-faq-q" onclick="toggleFaq(this)"><span>How do I add a new entry?</span><span class="help-arrow">&#9660;</span></button>
-            <div class="help-faq-a">Open the <strong>Knowledge Base</strong> tab, pick the section, click <strong>+ Add</strong>. Give it a clear title (the AI sees the title too &mdash; "Nausea on semaglutide week 2" beats "Nausea note") and write the body. Save and the next triage uses it. Most KB entries originate from worklist resolutions; manual entries are for things you know the AI will need before the first patient asks.</div>
-          </div>
-          <div class="help-faq">
-            <button class="help-faq-q" onclick="toggleFaq(this)"><span>What makes a good entry?</span><span class="help-arrow">&#9660;</span></button>
-            <div class="help-faq-a">Specific, short, and unambiguous. The AI reads every entry on every message, so vague guidance ("be careful with patients on insulin") doesn't help &mdash; concrete conditions do ("If the patient mentions injecting more than the prescribed dose, escalate to clinical and ask about timing and amount"). Avoid contradicting other entries; if you're updating a rule, edit the existing entry rather than adding a second one.</div>
-          </div>
-        </div>
-        <div class="help-section">
-          <div class="help-section-title">Glossary</div>
-          <div class="help-faq">
-            <button class="help-faq-q" onclick="toggleFaq(this)"><span>Definitions of key terms</span><span class="help-arrow">&#9660;</span></button>
-            <div class="help-faq-a">
-              <strong>Urgency</strong> &mdash; Routine / Same Day / URGENT. How fast the patient needs a reply.<br><br>
-              <strong>Severity</strong> &mdash; Mild / Moderate / Severe. How serious a flagged side effect is. Only shown when a side effect is detected.<br><br>
-              <strong>Priority score</strong> &mdash; A 1&ndash;10 number combining severity, clinical content, and urgency. Used to sort the queue. Higher = more pressing.<br><br>
-              <strong>Confidence gate</strong> &mdash; The AI's internal threshold for "I'm sure enough to recommend this." Below it, the message goes to the AI Review Worklist instead of straight to a draft response.<br><br>
-              <strong>Edit distance</strong> &mdash; Character-level difference between the AI's draft and what you actually sent. Used to compute Edit Rate.<br><br>
-              <strong>Escalation</strong> &mdash; Routing a message to clinical when non-clinical staff received it (or when the AI detected clinical content above non-clinical's scope).<br><br>
-              <strong>KB promotion</strong> &mdash; When a worklist resolution becomes a permanent Knowledge Base entry, so the AI handles similar messages on its own next time.<br><br>
-              <strong>Handoff template</strong> &mdash; The standardized acknowledgment a non-clinical staff member sends the patient when escalating clinical content. Configured by admins.
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="help-col">
-        <div class="help-section">
-          <div class="help-section-title">Teaching the AI</div>
-          <div class="help-faq">
-            <button class="help-faq-q" onclick="toggleFaq(this)"><span>How does "What was sent to the patient" work?</span><span class="help-arrow">&#9660;</span></button>
-            <div class="help-faq-a">After sending your response, if you changed the draft, paste what you actually sent and click <strong>Submit &amp; Learn</strong>. The AI compares the two versions and saves a learning note. If you sent the draft verbatim, skip this entirely.</div>
-          </div>
-          <div class="help-faq">
-            <button class="help-faq-q" onclick="toggleFaq(this)"><span>How do I correct a wrong category?</span><span class="help-arrow">&#9660;</span></button>
-            <div class="help-faq-a">Click the correct category pill in the Classification card (Clinical or Non-Clinical), then click <strong>Save</strong>. Each correction is stored and builds a dataset that improves the AI's classification accuracy over time.</div>
-          </div>
-          <div class="help-faq">
-            <button class="help-faq-q" onclick="toggleFaq(this)"><span>What if I entered the wrong correction?</span><span class="help-arrow">&#9660;</span></button>
-            <div class="help-faq-a">Go to <strong>Knowledge Base &rarr; Corrections tab</strong> and click <strong>Load Response Corrections</strong>. Find the incorrect entry and click <strong>Delete</strong>.</div>
-          </div>
-          <div class="help-faq">
-            <button class="help-faq-q" onclick="toggleFaq(this)"><span>What about thumbs up / thumbs down?</span><span class="help-arrow">&#9660;</span></button>
-            <div class="help-faq-a">Use them to flag whether the draft was usable as-is. Thumbs up = good response, send the draft. Thumbs down = needs work &mdash; followed by a correction. Both feed into the dataset.</div>
-          </div>
-        </div>
-        <div class="help-section">
           <div class="help-section-title">Inquiry History &amp; Stats</div>
           <div class="help-faq">
             <button class="help-faq-q" onclick="toggleFaq(this)"><span>Where do I see what I've been doing?</span><span class="help-arrow">&#9660;</span></button>
@@ -458,40 +386,6 @@
           <div class="help-faq">
             <button class="help-faq-q" onclick="toggleFaq(this)"><span>Can I delete a wrong entry?</span><span class="help-arrow">&#9660;</span></button>
             <div class="help-faq-a">Yes. Each row has a small <strong>&times;</strong> on the right edge &mdash; click it to delete that inquiry permanently. The confirmation dialog quotes the message back to you before anything is destroyed. Three checkpoints stand between you and an accidental delete: the Message column preview, optional click-to-expand, and the confirm dialog itself. KB entries already promoted from a deleted inquiry are <em>not</em> removed &mdash; the lesson the AI learned survives. Non-clinical staff can only delete non-clinical-tier rows.</div>
-          </div>
-        </div>
-        <div class="help-section">
-          <div class="help-section-title">Roles &amp; Escalation</div>
-          <div class="help-faq">
-            <button class="help-faq-q" onclick="toggleFaq(this)"><span>What's the difference between clinical and non-clinical roles?</span><span class="help-arrow">&#9660;</span></button>
-            <div class="help-faq-a"><strong>Clinical staff</strong> (RNs/MDs) handle anything &mdash; clinical questions, non-clinical questions, escalations from non-clinical. <strong>Non-clinical staff</strong> (CSRs) handle non-clinical inquiries (Billing, Shipping, Account, etc.) and General Inquiry. When they receive clinical content, they hit <strong>Escalate to Clinical</strong> and the nursing team picks it up. Severity (mild/moderate/severe), clinical category selection, and editing clinical drafts are all clinical-only.</div>
-          </div>
-          <div class="help-faq">
-            <button class="help-faq-q" onclick="toggleFaq(this)"><span>I'm non-clinical and got a clinical message. What do I do?</span><span class="help-arrow">&#9660;</span></button>
-            <div class="help-faq-a">Paste the patient message and click <strong>Analyze</strong>. If the AI flags clinical content, you'll see a handoff card with the patient message and a generic acknowledgment ("I've passed your message to our nursing team..."). Copy the acknowledgment, send it to the patient through your usual channel, then click <strong>Mark as Escalated</strong>. The nursing team sees the inquiry in their queue and replies directly.</div>
-          </div>
-          <div class="help-faq">
-            <button class="help-faq-q" onclick="toggleFaq(this)"><span>Can non-clinical staff change categories or severity?</span><span class="help-arrow">&#9660;</span></button>
-            <div class="help-faq-a">Non-clinical staff can edit <strong>non-clinical categories</strong> (Billing, Shipping, etc.) but cannot touch <strong>clinical categories</strong> or <strong>severity</strong>. Severity isn't editable from the UI by anyone &mdash; it's set by the AI. If non-clinical sees clinical content the AI missed, they hit Escalate to Clinical rather than picking a clinical category themselves.</div>
-          </div>
-        </div>
-        <div class="help-section hidden" id="helpAdminSection">
-          <div class="help-section-title">Admin Tasks</div>
-          <div class="help-faq">
-            <button class="help-faq-q" onclick="toggleFaq(this)"><span>How do I add a new staff member?</span><span class="help-arrow">&#9660;</span></button>
-            <div class="help-faq-a">Open the <strong>Admin</strong> tab from your profile drawer. In the <strong>Users</strong> section, click <strong>+ Invite</strong>, enter the new user's email, and pick their role (Clinical or Non-Clinical). They'll receive a magic-link email and become active on first sign-in. You stay scoped to your own tenant &mdash; you can't invite someone into another workspace.</div>
-          </div>
-          <div class="help-faq">
-            <button class="help-faq-q" onclick="toggleFaq(this)"><span>How do I change someone's role or admin flag?</span><span class="help-arrow">&#9660;</span></button>
-            <div class="help-faq-a">In the Admin tab's Users list, each row has the user's current role and admin flag. Change either and the update saves immediately. Setting <strong>admin</strong> on someone gives them access to the Admin tab; <strong>super-user</strong> (a higher tier) unlocks tenant-wide settings like category clinical-gating and the handoff template &mdash; only existing super-users can grant super-user.</div>
-          </div>
-          <div class="help-faq">
-            <button class="help-faq-q" onclick="toggleFaq(this)"><span>What's the Categories section for?</span><span class="help-arrow">&#9660;</span></button>
-            <div class="help-faq-a">Super-user only. Each category has an <strong>is_clinical</strong> flag. Categories flagged as clinical can only be selected (or corrected to) by clinical staff; non-clinical staff see only the non-clinical ones in their dropdown. Use this to tighten which messages each role can fully handle.</div>
-          </div>
-          <div class="help-faq">
-            <button class="help-faq-q" onclick="toggleFaq(this)"><span>What's the Non-clinical handoff template?</span><span class="help-arrow">&#9660;</span></button>
-            <div class="help-faq-a">Super-user only. The body of the generic acknowledgment a non-clinical staff member sends to the patient when escalating clinical content (e.g. "Thanks for your message &mdash; I've passed it to our nursing team and they'll be in touch shortly"). Their personal greeting and signoff are added automatically at send time, so keep this body-only. Save once and every non-clinical escalation uses it until you change it again.</div>
           </div>
         </div>
         <div class="help-section">
@@ -530,6 +424,111 @@
               <strong>Ignoring the routing card</strong> &mdash; if a non-clinical item is flagged, the internal note needs to reach the support team via your usual handoff method. Don't paste it into the patient-facing reply.<br><br>
               <strong>Entering the wrong thing in the patient-message field or in "What was sent to the patient"</strong> &mdash; this pollutes the AI's learning signal. Two ways to fix: delete the whole entry from the Inquiry History list (&times; on the row) when the entire row is garbage, or open <strong>Knowledge Base &rarr; Corrections tab</strong> when only the correction note is wrong.<br><br>
               <strong>Pasting the AI's draft back into "What was sent" when you didn't change it</strong> &mdash; this looks like a heavy edit to the system and skews Edit Rate down. Only paste back when you actually changed the draft.
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="help-col">
+        <div class="help-section">
+          <div class="help-section-title">AI Review Worklist</div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>What is the AI Review Worklist?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a">When the AI is uncertain about something &mdash; an unclear category, a routing question, low confidence on its own draft &mdash; it flags the message for a clinician to weigh in. Those flagged items collect in the worklist. The badge on the profile button shows the count. Clear the worklist as part of your normal workflow; the resolutions feed back into the Knowledge Base.</div>
+          </div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>How do I resolve a clarification?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a">Open the worklist, read the AI's question and the original patient message, then type the answer. Choose what kind of resolution it is: a one-off correction (just this case), a <strong>KB gap</strong> (this needs to become part of the standing knowledge base), or a <strong>protocol</strong> (a new if/then rule). KB-gap and protocol resolutions auto-promote into the Knowledge Base &mdash; the next time a similar message comes in, the AI already knows.</div>
+          </div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>What happens after I resolve one?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a">The item disappears from the worklist and the badge count drops. If you marked it as a KB gap or a protocol, a new entry appears in the Knowledge Base under the appropriate section. You can edit or delete that entry later from the KB tab if you change your mind.</div>
+          </div>
+        </div>
+        <div class="help-section">
+          <div class="help-section-title">Teaching the AI</div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>How does "What was sent to the patient" work?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a">After sending your response, if you changed the draft, paste what you actually sent and click <strong>Submit &amp; Learn</strong>. The AI compares the two versions and saves a learning note. If you sent the draft verbatim, skip this entirely.</div>
+          </div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>How do I correct a wrong category?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a">Click the correct category pill in the Classification card (Clinical or Non-Clinical), then click <strong>Save</strong>. Each correction is stored and builds a dataset that improves the AI's classification accuracy over time.</div>
+          </div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>What if I entered the wrong correction?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a">Go to <strong>Knowledge Base &rarr; Corrections tab</strong> and click <strong>Load Response Corrections</strong>. Find the incorrect entry and click <strong>Delete</strong>.</div>
+          </div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>What about thumbs up / thumbs down?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a">Use them to flag whether the draft was usable as-is. Thumbs up = good response, send the draft. Thumbs down = needs work &mdash; followed by a correction. Both feed into the dataset.</div>
+          </div>
+        </div>
+        <div class="help-section">
+          <div class="help-section-title">Knowledge Base</div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>What is the Knowledge Base?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a">Everything the AI reads before responding to a patient message &mdash; protocols, side effect guidance, routing rules, urgency thresholds, and response templates. Any change takes effect immediately on the next triage.</div>
+          </div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>Which KB section should I use?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a"><strong>Side Effects</strong> &mdash; education and management guidance.<br><strong>Templates</strong> &mdash; response frameworks for common messages.<br><strong>Protocols</strong> &mdash; if/then decision logic.<br><strong>Rules &amp; Notes</strong> &mdash; urgency thresholds, severity rules. Edit carefully.<br><strong>Routing</strong> &mdash; when and how to escalate or route.<br><strong>URLs</strong> &mdash; links you reference in patient responses.</div>
+          </div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>How do I add a new entry?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a">Open the <strong>Knowledge Base</strong> tab, pick the section, click <strong>+ Add</strong>. Give it a clear title (the AI sees the title too &mdash; "Nausea on semaglutide week 2" beats "Nausea note") and write the body. Save and the next triage uses it. Most KB entries originate from worklist resolutions; manual entries are for things you know the AI will need before the first patient asks.</div>
+          </div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>What makes a good entry?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a">Specific, short, and unambiguous. The AI reads every entry on every message, so vague guidance ("be careful with patients on insulin") doesn't help &mdash; concrete conditions do ("If the patient mentions injecting more than the prescribed dose, escalate to clinical and ask about timing and amount"). Avoid contradicting other entries; if you're updating a rule, edit the existing entry rather than adding a second one.</div>
+          </div>
+        </div>
+        <div class="help-section">
+          <div class="help-section-title">Roles &amp; Escalation</div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>What's the difference between clinical and non-clinical roles?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a"><strong>Clinical staff</strong> (RNs/MDs) handle anything &mdash; clinical questions, non-clinical questions, escalations from non-clinical. <strong>Non-clinical staff</strong> (CSRs) handle non-clinical inquiries (Billing, Shipping, Account, etc.) and General Inquiry. When they receive clinical content, they hit <strong>Escalate to Clinical</strong> and the nursing team picks it up. Severity (mild/moderate/severe), clinical category selection, and editing clinical drafts are all clinical-only.</div>
+          </div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>I'm non-clinical and got a clinical message. What do I do?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a">Paste the patient message and click <strong>Analyze</strong>. If the AI flags clinical content, you'll see a handoff card with the patient message and a generic acknowledgment ("I've passed your message to our nursing team..."). Copy the acknowledgment, send it to the patient through your usual channel, then click <strong>Mark as Escalated</strong>. The nursing team sees the inquiry in their queue and replies directly.</div>
+          </div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>Can non-clinical staff change categories or severity?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a">Non-clinical staff can edit <strong>non-clinical categories</strong> (Billing, Shipping, etc.) but cannot touch <strong>clinical categories</strong> or <strong>severity</strong>. Severity isn't editable from the UI by anyone &mdash; it's set by the AI. If non-clinical sees clinical content the AI missed, they hit Escalate to Clinical rather than picking a clinical category themselves.</div>
+          </div>
+        </div>
+        <div class="help-section hidden" id="helpAdminSection">
+          <div class="help-section-title">Admin Tasks</div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>How do I add a new staff member?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a">Open the <strong>Admin</strong> tab from your profile drawer. In the <strong>Users</strong> section, click <strong>+ Invite</strong>, enter the new user's email, and pick their role (Clinical or Non-Clinical). They'll receive a magic-link email and become active on first sign-in. You stay scoped to your own tenant &mdash; you can't invite someone into another workspace.</div>
+          </div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>How do I change someone's role or admin flag?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a">In the Admin tab's Users list, each row has the user's current role and admin flag. Change either and the update saves immediately. Setting <strong>admin</strong> on someone gives them access to the Admin tab; <strong>super-user</strong> (a higher tier) unlocks tenant-wide settings like category clinical-gating and the handoff template &mdash; only existing super-users can grant super-user.</div>
+          </div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>What's the Categories section for?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a">Super-user only. Each category has an <strong>is_clinical</strong> flag. Categories flagged as clinical can only be selected (or corrected to) by clinical staff; non-clinical staff see only the non-clinical ones in their dropdown. Use this to tighten which messages each role can fully handle.</div>
+          </div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>What's the Non-clinical handoff template?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a">Super-user only. The body of the generic acknowledgment a non-clinical staff member sends to the patient when escalating clinical content (e.g. "Thanks for your message &mdash; I've passed it to our nursing team and they'll be in touch shortly"). Their personal greeting and signoff are added automatically at send time, so keep this body-only. Save once and every non-clinical escalation uses it until you change it again.</div>
+          </div>
+        </div>
+        <div class="help-section">
+          <div class="help-section-title">Glossary</div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>Definitions of key terms</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a">
+              <strong>Urgency</strong> &mdash; Routine / Same Day / URGENT. How fast the patient needs a reply.<br><br>
+              <strong>Severity</strong> &mdash; Mild / Moderate / Severe. How serious a flagged side effect is. Only shown when a side effect is detected.<br><br>
+              <strong>Priority score</strong> &mdash; A 1&ndash;10 number combining severity, clinical content, and urgency. Used to sort the queue. Higher = more pressing.<br><br>
+              <strong>Confidence gate</strong> &mdash; The AI's internal threshold for "I'm sure enough to recommend this." Below it, the message goes to the AI Review Worklist instead of straight to a draft response.<br><br>
+              <strong>Edit distance</strong> &mdash; Character-level difference between the AI's draft and what you actually sent. Used to compute Edit Rate.<br><br>
+              <strong>Escalation</strong> &mdash; Routing a message to clinical when non-clinical staff received it (or when the AI detected clinical content above non-clinical's scope).<br><br>
+              <strong>KB promotion</strong> &mdash; When a worklist resolution becomes a permanent Knowledge Base entry, so the AI handles similar messages on its own next time.<br><br>
+              <strong>Handoff template</strong> &mdash; The standardized acknowledgment a non-clinical staff member sends the patient when escalating clinical content. Configured by admins.
             </div>
           </div>
         </div>
