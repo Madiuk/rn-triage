@@ -58,6 +58,24 @@ function makeResponse({ status = 200, body = null, headers = {} }) {
 }
 
 function makeEvent({ method = 'POST', body = null, token = 'fake-bearer-token' } = {}) {
+  // For object bodies, inject defaults for the new contract gates
+  // (body.messages + body.system) so existing tests stay focused on
+  // the specific behavior they were asserting. Tests that exercise
+  // the new validation/assembly paths supply these fields explicitly.
+  if (body && typeof body === 'object' && !Array.isArray(body)) {
+    if (body.messages === undefined) {
+      body = Object.assign({}, body, {
+        messages: [{ role: 'user', content: 'a test patient message that is long enough to be realistic' }],
+      });
+    }
+    if (body.system === undefined) {
+      // String form is a valid Anthropic `system` shape — the proxy
+      // forwards it verbatim. Using a string here (rather than the
+      // production multi-block array) makes it obvious in test
+      // captures that the assembly path was bypassed.
+      body = Object.assign({}, body, { system: 'pre-assembled-test-system' });
+    }
+  }
   return {
     httpMethod: method,
     path: '/.netlify/functions/triage',
@@ -451,5 +469,263 @@ describe('triage proxy — forwards Anthropic auth + cache headers', () => {
     uninstallFetchMock();
     assert.deepEqual(sent.system, sysBlocks);
     assert.deepEqual(sent.messages, [{ role: 'user', content: 'I have nausea' }]);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────
+// Commit B of #2: message shape validation + server-side system
+// assembly. The proxy is now the only source of truth for the
+// system block. The client may still send body.system today (Commit
+// C cuts that over); when absent, the proxy assembles from BASE_PROMPT
+// + tenant KB + recent staff examples.
+// ─────────────────────────────────────────────────────────────────
+
+const { BASE_PROMPT } = require('../data/base-prompt');
+const { RELAI_DEFAULTS } = require('../data/defaults');
+
+// Route set for the server-assembly path. Mocks the four supabase
+// calls the proxy makes when body.system is absent (profile,
+// kb_entries, query_history) plus the upstream Anthropic call.
+function assemblyRoutes(overrides = {}) {
+  return [
+    {
+      match: (url) => url.includes('/auth/v1/user'),
+      respond: () => ({ status: 200, body: { id: 'user-1', email: 't@x' } }),
+    },
+    {
+      match: (url) => url.includes('/rest/v1/profiles'),
+      respond: () => ({ status: 200, body: overrides.profile || [{ company_id: 'company-1' }] }),
+    },
+    {
+      match: (url) => url.includes('/rest/v1/kb_entries'),
+      respond: () => ({ status: 200, body: overrides.kb || [
+        { section: 'notes', name: 'Rule A', text: 'Always escalate chest pain.' },
+        { section: 'routing', name: 'R1', text: 'Severe → urgent.' },
+      ] }),
+    },
+    {
+      match: (url) => url.includes('/rest/v1/query_history'),
+      respond: () => ({ status: 200, body: overrides.history || [] }),
+    },
+    {
+      match: (url) => url.includes('api.anthropic.com/v1/messages'),
+      respond: () => ({ status: 200, body: anthropicOK() }),
+    },
+  ];
+}
+
+// Build a request body that exercises the server-assembly path —
+// explicitly omits `system`. makeEvent's default-injection only fills
+// in when `system` is undefined, so the explicit `system: undefined`
+// here is necessary to opt out.
+function assemblyEvent(extras = {}) {
+  const body = Object.assign(
+    { model: 'claude-sonnet-4-6', max_tokens: 600, messages: [{ role: 'user', content: 'I have nausea' }] },
+    extras
+  );
+  // Build event manually — bypass makeEvent's auto-inject so we
+  // genuinely send no `system`.
+  return {
+    httpMethod: 'POST',
+    path: '/.netlify/functions/triage',
+    body: JSON.stringify(body),
+    headers: { authorization: 'Bearer fake-bearer-token' },
+  };
+}
+
+describe('triage proxy — message shape validation', () => {
+  it('rejects request with no messages array with 400', async () => {
+    installFetchMock(defaultRoutes());
+    // Bypass makeEvent's default-inject by hand-crafting body.
+    const res = await triage.handler({
+      httpMethod: 'POST',
+      headers: { authorization: 'Bearer fake' },
+      body: JSON.stringify({ model: 'claude-sonnet-4-6', system: 's' }),
+    });
+    uninstallFetchMock();
+    assert.equal(res.statusCode, 400);
+    assert.ok(JSON.parse(res.body).error.includes('exactly one message'));
+  });
+
+  it('rejects empty messages array with 400', async () => {
+    installFetchMock(defaultRoutes());
+    const res = await triage.handler({
+      httpMethod: 'POST',
+      headers: { authorization: 'Bearer fake' },
+      body: JSON.stringify({ model: 'claude-sonnet-4-6', system: 's', messages: [] }),
+    });
+    uninstallFetchMock();
+    assert.equal(res.statusCode, 400);
+  });
+
+  it('rejects multiple messages with 400', async () => {
+    installFetchMock(defaultRoutes());
+    const res = await triage.handler({
+      httpMethod: 'POST',
+      headers: { authorization: 'Bearer fake' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6', system: 's',
+        messages: [
+          { role: 'user', content: 'a' },
+          { role: 'assistant', content: 'b' },
+        ],
+      }),
+    });
+    uninstallFetchMock();
+    assert.equal(res.statusCode, 400);
+  });
+
+  it('rejects assistant-role message with 400', async () => {
+    installFetchMock(defaultRoutes());
+    const res = await triage.handler({
+      httpMethod: 'POST',
+      headers: { authorization: 'Bearer fake' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6', system: 's',
+        messages: [{ role: 'assistant', content: 'a' }],
+      }),
+    });
+    uninstallFetchMock();
+    assert.equal(res.statusCode, 400);
+    assert.ok(JSON.parse(res.body).error.includes('role: "user"'));
+  });
+
+  it('rejects non-string message content with 400', async () => {
+    installFetchMock(defaultRoutes());
+    const res = await triage.handler({
+      httpMethod: 'POST',
+      headers: { authorization: 'Bearer fake' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6', system: 's',
+        // Anthropic accepts an array-of-blocks content shape too,
+        // but triage is one-shot text input only — anything other
+        // than a string content is a client bug.
+        messages: [{ role: 'user', content: [{ type: 'text', text: 'a' }] }],
+      }),
+    });
+    uninstallFetchMock();
+    assert.equal(res.statusCode, 400);
+  });
+
+  it('rejects message content > 8192 chars with 400', async () => {
+    installFetchMock(defaultRoutes());
+    const res = await triage.handler({
+      httpMethod: 'POST',
+      headers: { authorization: 'Bearer fake' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6', system: 's',
+        messages: [{ role: 'user', content: 'x'.repeat(8193) }],
+      }),
+    });
+    uninstallFetchMock();
+    assert.equal(res.statusCode, 400);
+    assert.ok(JSON.parse(res.body).error.includes('8192'));
+  });
+
+  it('accepts message content at exactly the 8192-char cap', async () => {
+    installFetchMock(defaultRoutes());
+    const res = await triage.handler({
+      httpMethod: 'POST',
+      headers: { authorization: 'Bearer fake' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6', system: 's',
+        messages: [{ role: 'user', content: 'x'.repeat(8192) }],
+      }),
+    });
+    uninstallFetchMock();
+    assert.equal(res.statusCode, 200);
+  });
+});
+
+describe('triage proxy — server-side system assembly', () => {
+  it('assembles BASE_PROMPT + KB + (empty examples) when body.system is absent', async () => {
+    installFetchMock(assemblyRoutes());
+    await triage.handler(assemblyEvent());
+    const sent = JSON.parse(captured.find(c => c.url.includes('api.anthropic.com')).opts.body);
+    uninstallFetchMock();
+    assert.ok(Array.isArray(sent.system), 'system must be an array of blocks');
+    assert.equal(sent.system.length, 2, 'no examples block when history is empty');
+    assert.equal(sent.system[0].text, BASE_PROMPT);
+    assert.equal(sent.system[0].cache_control.type, 'ephemeral');
+    assert.equal(sent.system[1].cache_control.type, 'ephemeral');
+    assert.ok(sent.system[1].text.includes('=== CLINICAL RULES (read first) ==='));
+    assert.ok(sent.system[1].text.includes('Always escalate chest pain.'));
+    assert.ok(sent.system[1].text.includes('=== ROUTING RULES ==='));
+  });
+
+  it('includes a third uncached examples block when qualifying history rows exist', async () => {
+    installFetchMock(assemblyRoutes({
+      history: [{
+        actual_response_sent: 'Sorry to hear that — try taking it with food and message us back if it persists.',
+        draft_response: 'Take with food.',
+        patient_message: 'I have been feeling nauseous since starting the medication last Tuesday.',
+        edit_distance: 80,
+      }],
+    }));
+    await triage.handler(assemblyEvent());
+    const sent = JSON.parse(captured.find(c => c.url.includes('api.anthropic.com')).opts.body);
+    uninstallFetchMock();
+    assert.equal(sent.system.length, 3);
+    assert.equal(sent.system[2].cache_control, undefined, 'examples block must be uncached');
+    assert.ok(sent.system[2].text.startsWith('=== RECENT STAFF EDITS'));
+    assert.ok(sent.system[2].text.includes('EXAMPLE 1'));
+  });
+
+  it('returns 500 when KB returns zero rows for the tenant', async () => {
+    installFetchMock(assemblyRoutes({ kb: [] }));
+    const res = await triage.handler(assemblyEvent());
+    uninstallFetchMock();
+    // KB is safety-critical — empty KB means no routing rules, no
+    // clinical guidance, no style. Don't silently triage with just
+    // BASE_PROMPT.
+    assert.equal(res.statusCode, 500);
+    assert.ok(JSON.parse(res.body).error.includes('KB unavailable'));
+  });
+
+  it('returns 500 when the caller has no resolvable company_id', async () => {
+    installFetchMock(assemblyRoutes({ profile: [] }));
+    const res = await triage.handler(assemblyEvent());
+    uninstallFetchMock();
+    assert.equal(res.statusCode, 500);
+    assert.ok(JSON.parse(res.body).error.includes('company_id'));
+  });
+
+  it('forwards body.system verbatim when client supplies it (transitional)', async () => {
+    // Commit C makes this strict (rejects body.system). Until then,
+    // a client that still sends body.system gets its blocks forwarded
+    // as-is — preserves the live flow during the staged cutover.
+    installFetchMock(defaultRoutes());
+    const sysBlocks = [{ type: 'text', text: 'client-assembled', cache_control: { type: 'ephemeral' } }];
+    await triage.handler({
+      httpMethod: 'POST',
+      headers: { authorization: 'Bearer fake' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6', max_tokens: 600,
+        system: sysBlocks,
+        messages: [{ role: 'user', content: 'msg' }],
+      }),
+    });
+    const sent = JSON.parse(captured.find(c => c.url.includes('api.anthropic.com')).opts.body);
+    uninstallFetchMock();
+    assert.deepEqual(sent.system, sysBlocks);
+  });
+
+  it('does NOT call Supabase profile/KB/history when body.system is present', async () => {
+    // Cost guard: if every triage hit the assembly path unnecessarily,
+    // each call would do three extra Supabase round-trips. Verify the
+    // transitional path short-circuits before those queries.
+    installFetchMock(defaultRoutes());
+    await triage.handler({
+      httpMethod: 'POST',
+      headers: { authorization: 'Bearer fake' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6', max_tokens: 600,
+        system: 'present',
+        messages: [{ role: 'user', content: 'msg' }],
+      }),
+    });
+    const supabaseHits = captured.filter(c => c.url.includes('/rest/v1/'));
+    uninstallFetchMock();
+    assert.equal(supabaseHits.length, 0, 'no /rest/v1/ calls when body.system is present');
   });
 });

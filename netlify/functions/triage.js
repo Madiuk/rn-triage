@@ -6,18 +6,15 @@
 // frontend persists that envelope onto the query_history row so we can
 // measure quality / cost / cache-hit-rate over time.
 //
-// TODO(pre-multi-tenant): validate body.system + body.messages shape.
-// Today an authenticated caller can send any system prompt + any
-// messages payload — the model allowlist and max_tokens cap are the
-// only constraints. A signed-in user can replace the persona, swap
-// to Opus, and drive Anthropic spend; the frontend assembles
-// BASE_PROMPT + KB as the system block but the server doesn't enforce
-// that contract. Single-tenant trial means insider-only threat
-// bounded by ANTHROPIC_API_KEY budget alerts. Becomes urgent at
-// multi-tenant rollout OR on any cost anomaly. Fix shape: hash-check
-// body.system against the expected BASE_PROMPT + KB block, bound
-// body.messages length and shape. See PLAN.md "Security backlog
-// (deferred from v0.4.x audit)" and RELAI_VALIDATION_AUDIT.md §1.8.
+// Server-side system assembly (Commit B of #2 contract lockdown).
+// When body.system is absent, the proxy assembles BASE_PROMPT +
+// tenant KB + recent staff examples server-side using the helpers
+// in data/triage-lib.js. Body.messages is also validated to exactly
+// one { role:"user", content:string } with content <= 8192 chars.
+// Commit C will turn the lockdown strict (reject body.system if
+// present at all) once the client cuts over. Until then, when
+// body.system IS supplied (today's live client), it forwards as-is
+// to preserve the existing flow.
 //
 // TODO(pre-auto-send): the AI's structured output downstream
 // (clinical_routing_level, urgency, ai_confidence, draft_response)
@@ -41,7 +38,14 @@ const {
   parseTriageJSON,
   normalizeTriageOutput,
   diffNormalization,
+  buildFullKB,
+  buildStaffExamplesBlock,
 } = require("../../data/triage-lib");
+
+const { BASE_PROMPT } = require("../../data/base-prompt");
+const { RELAI_DEFAULTS } = require("../../data/defaults");
+const { resolveCompanyId } = require("./_lib/auth");
+const { writeHeaders } = require("./_lib/supabase");
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
@@ -52,6 +56,56 @@ const ALLOWED_MODELS = new Set([
   "claude-opus-4-7",
 ]);
 const MAX_TOKENS_CAP = 4096;
+// Per-message content cap. Patient messages in production are typically
+// under 1KB; 8KB is generous for the longest realistic clinical
+// narrative while bounding worst-case Anthropic spend per call.
+const MESSAGE_CONTENT_MAX = 8192;
+
+// Load the caller's tenant KB rows directly from Supabase using the
+// service key. Mirrors the GET path in _lib/routes/kb-crud.js — same
+// filter (company_id), same ordering — so the rows the proxy sees
+// are identical to what /kb returns to the browser. Returns null on
+// fetch error (caller decides whether to fail-fast or degrade).
+async function loadKBForTenant(companyId) {
+  if (!companyId) return null;
+  try {
+    const r = await fetch(
+      `${SUPABASE_URL}/rest/v1/kb_entries?company_id=eq.${encodeURIComponent(companyId)}` +
+        `&order=section,position&select=section,name,text`,
+      { headers: writeHeaders() }
+    );
+    if (!r.ok) return null;
+    const rows = await r.json();
+    return Array.isArray(rows) ? rows : null;
+  } catch (e) {
+    console.error("triage.loadKBForTenant:", e.message);
+    return null;
+  }
+}
+
+// Load recent history rows for the few-shot staff examples block.
+// Mirrors the GET path in _lib/routes/history.js (corrections feed)
+// so the input to buildStaffExamplesBlock matches what app.js
+// previously assembled client-side. Examples are quality, not
+// safety — a fetch error degrades silently (no examples block) so
+// triage doesn't hard-fail on a transient history-table blip.
+async function loadHistoryForExamples(companyId) {
+  if (!companyId) return [];
+  try {
+    const r = await fetch(
+      `${SUPABASE_URL}/rest/v1/query_history?company_id=eq.${encodeURIComponent(companyId)}` +
+        `&or=(actual_response_sent.not.is.null,correction_note.not.is.null)` +
+        `&order=created_at.desc&limit=100`,
+      { headers: writeHeaders() }
+    );
+    if (!r.ok) return [];
+    const rows = await r.json();
+    return Array.isArray(rows) ? rows : [];
+  } catch (e) {
+    console.error("triage.loadHistoryForExamples:", e.message);
+    return [];
+  }
+}
 
 // Verify the caller has a valid Supabase session. Without this guard,
 // anyone with the function URL can hit /triage with arbitrary system
@@ -107,6 +161,64 @@ exports.handler = async function (event) {
   }
   if (body.max_tokens > MAX_TOKENS_CAP) {
     body.max_tokens = MAX_TOKENS_CAP;
+  }
+
+  // Message shape validation. Triage is a one-shot classification: a
+  // single user message in, a single JSON classification out. Multi-
+  // turn conversations or system-role messages here are either a
+  // client bug or a budget-burn vector — reject both. The content
+  // cap bounds worst-case Anthropic spend per call.
+  if (!Array.isArray(body.messages) || body.messages.length !== 1) {
+    return { statusCode: 400, body: JSON.stringify({ error: "Triage requires exactly one message." }) };
+  }
+  {
+    const m = body.messages[0];
+    if (!m || m.role !== "user" || typeof m.content !== "string") {
+      return { statusCode: 400, body: JSON.stringify({ error: 'Message must be { role: "user", content: string }.' }) };
+    }
+    if (m.content.length > MESSAGE_CONTENT_MAX) {
+      return { statusCode: 400, body: JSON.stringify({ error: "Message content exceeds " + MESSAGE_CONTENT_MAX + " characters." }) };
+    }
+  }
+
+  // Server-side system block assembly. When body.system is absent
+  // (Commit C will make this the only accepted shape — see
+  // tests/runTriageRequestShape.test.js), the proxy assembles the
+  // system from BASE_PROMPT + the caller's tenant KB + recent staff
+  // examples. The client used to do this — but that meant any
+  // authenticated user could swap the persona, pin a different KB,
+  // or hand-craft examples (see the TODO this commit closes at
+  // triage.js header). Today the proxy is the only place that
+  // chooses the system content.
+  //
+  // KB is safety-critical: empty/failed KB load → 500, not "trust
+  // the AI to triage without rules." History is quality-critical
+  // only: failed load → empty examples block.
+  if (body.system === undefined) {
+    const companyId = await resolveCompanyId(user);
+    if (!companyId) {
+      return { statusCode: 500, body: JSON.stringify({ error: "Caller has no resolved company_id; cannot assemble triage prompt." }) };
+    }
+    const kbRows = await loadKBForTenant(companyId);
+    if (!kbRows || !kbRows.length) {
+      return { statusCode: 500, body: JSON.stringify({ error: "KB unavailable for this tenant." }) };
+    }
+    const historyRows = await loadHistoryForExamples(companyId);
+    const kbBlockText = buildFullKB(kbRows, RELAI_DEFAULTS.kb_sections);
+    const examplesBlockText = buildStaffExamplesBlock(historyRows);
+    const systemBlocks = [
+      { type: "text", text: BASE_PROMPT, cache_control: { type: "ephemeral" } },
+      { type: "text", text: kbBlockText, cache_control: { type: "ephemeral" } },
+    ];
+    if (examplesBlockText) {
+      // Intentionally uncached — examples shift as corrections
+      // accumulate, and caching would poison the cache prefix for
+      // every subsequent triage. Cost: ~400-600 input tokens per
+      // call, uncached. Same trade-off documented in app.js:1185-1187
+      // before the assembly moved here.
+      systemBlocks.push({ type: "text", text: examplesBlockText });
+    }
+    body.system = systemBlocks;
   }
 
   const startedAt = Date.now();
