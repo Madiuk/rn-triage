@@ -70,12 +70,25 @@ const MESSAGE_CONTENT_MAX = 8192;
 async function loadKBForTenant(companyId) {
   if (!companyId) return null;
   try {
+    // PostgREST column alias: `text:content` returns the `content`
+    // column under the field name `text`, matching the in-memory
+    // shape buildFullKB / formatKBSection expect. A bare `text`
+    // here would 400 ("column kb_entries.text does not exist")
+    // and collapse to "KB unavailable for this tenant."
     const r = await fetch(
       `${SUPABASE_URL}/rest/v1/kb_entries?company_id=eq.${encodeURIComponent(companyId)}` +
-        `&order=section,position&select=section,name,text`,
+        `&order=section,position&select=section,name,text:content`,
       { headers: writeHeaders() }
     );
-    if (!r.ok) return null;
+    if (!r.ok) {
+      // Distinguish a Supabase/PostgREST error from a tenant that
+      // genuinely has zero KB rows. Without this log both states
+      // were indistinguishable in production.
+      let detail = "";
+      try { detail = (await r.text()).slice(0, 200); } catch (e) { /* ignore */ }
+      console.error("triage.loadKBForTenant: kb_entries fetch failed", r.status, detail);
+      return null;
+    }
     const rows = await r.json();
     return Array.isArray(rows) ? rows : null;
   } catch (e) {

@@ -702,6 +702,33 @@ describe('triage proxy — server-side system assembly', () => {
     assert.equal(res.statusCode, 500);
     assert.ok(JSON.parse(res.body).error.includes('company_id'));
   });
+
+  // Pins the exact PostgREST SELECT clause the proxy uses for KB
+  // rows. The kb_entries table column is `content`; a bare
+  // `select=...,text` returned a 400 from PostgREST and collapsed
+  // to "KB unavailable for this tenant" in production. The proxy
+  // must alias via `text:content` so the response field is named
+  // `text` (which buildFullKB / formatKBSection expect) while
+  // pulling from the real column. Without this assertion the
+  // happy-path mocks return `{text: ...}` directly and silently
+  // mask a future re-introduction of the typo.
+  it('queries kb_entries with the text:content PostgREST alias', async () => {
+    installFetchMock(defaultRoutes());
+    const res = await triage.handler(makeEvent({
+      body: {
+        model: 'claude-sonnet-4-6', max_tokens: 600,
+        messages: [{ role: 'user', content: 'msg' }],
+      },
+    }));
+    uninstallFetchMock();
+    assert.equal(res.statusCode, 200);
+    const kbCall = captured.find(c => c.url.includes('/rest/v1/kb_entries'));
+    assert.ok(kbCall, 'expected the proxy to fetch kb_entries');
+    assert.ok(
+      kbCall.url.includes('select=section,name,text:content'),
+      'kb_entries SELECT must alias `content` as `text`; got: ' + kbCall.url
+    );
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────
