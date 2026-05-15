@@ -525,6 +525,201 @@ function buildStaffExamplesBlock(historyRows) {
     + examples;
 }
 
+// ─────────────────────────────────────────────────────────────────
+// Clinical tripwires + strict output validation (#1 patient-safety
+// defenses; second-pass Haiku check sits in triage.js behind a
+// feature flag).
+// ─────────────────────────────────────────────────────────────────
+//
+// The tripwire list is a deterministic, last-resort safety net for
+// the case where the AI's classification disagrees with what a human
+// triager would obviously call urgent. False positives cost staff
+// ~30 seconds of review; false negatives can cost a life. The
+// trade-off is explicit. List was curated 2026-05 alongside Brad
+// Madiuk (RN) for Big Easy Weight Loss; update as production data
+// reveals misses or noisy phrases.
+//
+// Pattern matching: case-insensitive substring scan against the
+// entire request payload (patient message + any prior context the
+// wrapper carries). Substring rather than \b-anchored to catch
+// embedded forms like "chestpain" — false positives are cheap; misses
+// are expensive. Phrase order in arrays does not matter; longer
+// phrases are checked first so a more specific match wins.
+//
+// Severity assignment by category: ALL tripwires force urgency to
+// 'urgent' AND clinical_routing_level to 'severe'. We don't try to
+// distinguish severity gradients here — that's what the AI is for;
+// the tripwire's job is the floor.
+const TRIPWIRE_PATTERNS = [
+  {
+    category: 'cardiac',
+    phrases: [
+      'chest pain', 'chest pressure', 'chest tightness', 'crushing chest',
+      "can't catch my breath", 'cant catch my breath',
+      "can't breathe", 'cant breathe', 'shortness of breath',
+      'passed out', 'fainted', 'syncope', 'lost consciousness',
+    ],
+  },
+  {
+    category: 'anaphylaxis',
+    phrases: [
+      'throat closing', 'throat is closing', "can't swallow", 'cant swallow',
+      'swelling face', 'swelling tongue', 'tongue swelling', 'face swelling',
+      'hives all over', 'anaphylaxis', 'anaphylactic',
+      'epi pen', 'epipen', 'epinephrine',
+    ],
+  },
+  {
+    category: 'neurological',
+    phrases: [
+      'stroke', 'slurred speech', 'face drooping', 'face is drooping',
+      'sudden weakness', "can't move arm", 'cant move arm',
+      "can't move leg", 'cant move leg',
+      'sudden severe headache', 'worst headache',
+      'seizure', 'seizing', 'having a seizure',
+    ],
+  },
+  {
+    category: 'self_harm',
+    phrases: [
+      'suicidal', 'suicide', 'kill myself', 'end my life',
+      'want to die', 'harm myself', 'hurt myself',
+      'overdose', 'overdosed',
+    ],
+  },
+  {
+    category: 'pregnancy',
+    phrases: [
+      'vaginal bleeding', 'lost the baby', "can't feel the baby", 'cant feel the baby',
+    ],
+  },
+  {
+    category: 'gi_emergency',
+    phrases: [
+      'blood in stool', 'vomiting blood', 'throwing up blood',
+      'black stool', 'tarry stool',
+    ],
+  },
+  {
+    category: 'severe_pain',
+    phrases: [
+      'cannot stop vomiting', "can't stop vomiting", 'cant stop vomiting',
+      'vomiting for hours', 'severe abdominal pain',
+    ],
+  },
+  {
+    category: 'glp1_danger',
+    // Big Easy Weight Loss is a GLP-1-focused clinic. These are the
+    // specific failure modes that warrant immediate escalation.
+    phrases: [
+      'pancreatitis', 'gallbladder attack',
+      "can't keep water down", 'cant keep water down',
+      'signs of dehydration', 'severely dehydrated',
+    ],
+  },
+];
+
+// Scan text for the longest matching tripwire phrase. Returns null
+// on no match. Phrase comparison is case-insensitive; the
+// longest-first ordering means "chest pressure" wins over a
+// hypothetical "chest" if both were in the list. We don't return
+// multiple matches — the first hit forces escalation, which is the
+// only signal that matters.
+function scanTripwires(text) {
+  if (!text || typeof text !== 'string') return null;
+  var lower = text.toLowerCase();
+  // Build a flat list with length, sort longest-first so we return
+  // the most specific match.
+  var flat = [];
+  for (var i = 0; i < TRIPWIRE_PATTERNS.length; i++) {
+    var cat = TRIPWIRE_PATTERNS[i].category;
+    var phrases = TRIPWIRE_PATTERNS[i].phrases;
+    for (var j = 0; j < phrases.length; j++) {
+      flat.push({ category: cat, phrase: phrases[j] });
+    }
+  }
+  flat.sort(function(a, b){ return b.phrase.length - a.phrase.length; });
+  for (var k = 0; k < flat.length; k++) {
+    if (lower.indexOf(flat[k].phrase) !== -1) {
+      return { matched: true, category: flat[k].category, keyword: flat[k].phrase };
+    }
+  }
+  return null;
+}
+
+// Strict enum/range validation of the AI's parsed triage output.
+// Distinct from normalizeTriageOutput (which coerces drift to canon)
+// and diffNormalization (which records what was coerced). This
+// helper REJECTS drift instead of repairing it — caller routes the
+// message to human review on { valid: false }.
+//
+// Returns { valid: true } on success, or { valid: false, reason, field }
+// describing the first violation. Order of checks matters: missing
+// required fields (the most common drift) are reported before enum
+// violations, before range violations.
+function validateTriageOutput(parsed) {
+  if (!parsed || typeof parsed !== 'object') {
+    return { valid: false, reason: 'not_an_object', field: null };
+  }
+  var URGENCY_ENUM = { routine: 1, 'same-day': 1, urgent: 1 };
+  var ROUTING_ENUM = { severe: 1, moderate: 1, mild: 1, none: 1 };
+  if (typeof parsed.urgency !== 'string' || !URGENCY_ENUM[parsed.urgency]) {
+    return { valid: false, reason: 'invalid_urgency', field: 'urgency' };
+  }
+  if (typeof parsed.clinical_routing_level !== 'string' || !ROUTING_ENUM[parsed.clinical_routing_level]) {
+    return { valid: false, reason: 'invalid_clinical_routing_level', field: 'clinical_routing_level' };
+  }
+  if (parsed.ai_confidence != null) {
+    if (typeof parsed.ai_confidence !== 'number' || isNaN(parsed.ai_confidence)) {
+      return { valid: false, reason: 'invalid_ai_confidence_type', field: 'ai_confidence' };
+    }
+    if (parsed.ai_confidence < 0 || parsed.ai_confidence > 1) {
+      return { valid: false, reason: 'ai_confidence_out_of_range', field: 'ai_confidence' };
+    }
+  }
+  if (typeof parsed.draft_response !== 'string' || !parsed.draft_response.length) {
+    return { valid: false, reason: 'missing_draft_response', field: 'draft_response' };
+  }
+  return { valid: true };
+}
+
+// Apply a tripwire match by escalating the triage output to severe/
+// urgent and replacing the draft_response with a clinical-review
+// warning. The original AI fields are preserved in
+// `ai_original_output` so staff can see what the model produced
+// before override.
+//
+// This function MUTATES the input for caller convenience (consistent
+// with normalizeTriageOutput), but the mutated fields are documented
+// and the original snapshot is preserved.
+function applyTripwireOverride(parsed, tripwire) {
+  if (!parsed || typeof parsed !== 'object' || !tripwire || !tripwire.matched) {
+    return parsed;
+  }
+  // Snapshot the AI's original urgency/routing/draft so reviewers
+  // can see what the model said before the override fired. Single
+  // shallow copy is enough — only primitives matter here.
+  parsed.ai_original_output = {
+    urgency: parsed.urgency,
+    clinical_routing_level: parsed.clinical_routing_level,
+    draft_response: parsed.draft_response,
+  };
+  parsed.urgency = 'urgent';
+  parsed.clinical_routing_level = 'severe';
+  parsed.tripwire_triggered = tripwire.keyword;
+  parsed.tripwire_category = tripwire.category;
+  parsed.route_to_human_review = true;
+  parsed.route_reason = 'tripwire';
+  // Replace the draft so staff can't accidentally hit "send" on a
+  // routine-tone reply that the AI generated before we escalated.
+  // The marker is intentionally non-sendable text — a human must
+  // write the actual response.
+  parsed.draft_response =
+    "[CLINICAL TRIPWIRE: '" + tripwire.keyword + "' detected (" + tripwire.category +
+    "). Review the patient message and respond manually — do not send the original AI draft as-is.]";
+  return parsed;
+}
+
 // Node export hook — no-op in the browser.
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
@@ -546,5 +741,9 @@ if (typeof module !== 'undefined' && module.exports) {
     formatKBSection,
     buildFullKB,
     buildStaffExamplesBlock,
+    TRIPWIRE_PATTERNS,
+    scanTripwires,
+    validateTriageOutput,
+    applyTripwireOverride,
   };
 }
