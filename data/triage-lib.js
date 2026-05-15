@@ -460,6 +460,71 @@ function resultIsClinical(d) {
   return false;
 }
 
+// ─────────────────────────────────────────────────────────────────
+// KB & staff-examples system-block assembly
+// ─────────────────────────────────────────────────────────────────
+//
+// These helpers exist so the triage proxy can assemble its own
+// system blocks from server-side data — closing the TODO at
+// triage.js:9-20 (client-controlled persona swap). They MUST
+// produce byte-identical output to app.js's getKBSection /
+// getFullKB / getStaffExamplesBlock so the kb_version hash
+// (simpleHash of the rendered KB) stays stable when the assembly
+// moves server-side. The unit tests in tests/buildFullKB.test.js
+// and tests/buildStaffExamplesBlock.test.js pin this byte parity.
+
+// Render one KB section: matches app.js:211-219. Returns '' when
+// the section has no entries — getFullKB filters empties out before
+// joining, so the section header is never emitted for an empty
+// section. Entry shape: { section, name, text, ... }.
+function formatKBSection(rows, sectionKey, label) {
+  if (!Array.isArray(rows)) return '';
+  var entries = rows.filter(function(r){ return r && r.section === sectionKey; });
+  if (!entries.length) return '';
+  return '=== ' + label + ' ===\n' + entries.map(function(e){
+    return '[' + e.name + ']\n' + e.text;
+  }).join('\n\n');
+}
+
+// Render the full KB string: matches app.js:257-261. kbSections is
+// the ordered section list from RELAI_DEFAULTS.kb_sections — passing
+// it in rather than reading it directly keeps this function pure
+// and testable in isolation.
+function buildFullKB(rows, kbSections) {
+  if (!Array.isArray(kbSections)) return '';
+  return kbSections
+    .map(function(s){ return formatKBSection(rows, s.key, s.label); })
+    .filter(Boolean)
+    .join('\n\n');
+}
+
+// Filter and format the few-shot staff examples block: matches the
+// filter at app.js:289-295 AND the format at app.js:302-313. Combined
+// here because the filter and format are coupled (top-3 of qualifying
+// rows). Returns '' when no rows qualify — caller decides whether to
+// append the block.
+function buildStaffExamplesBlock(historyRows) {
+  if (!Array.isArray(historyRows)) return '';
+  var picked = historyRows.filter(function(r){
+    return r
+      && r.actual_response_sent
+      && r.draft_response
+      && r.patient_message
+      && (r.edit_distance == null || r.edit_distance >= 40)
+      && r.patient_message.length >= 20;
+  }).slice(0, 3);
+  if (!picked.length) return '';
+  var examples = picked.map(function(r, idx){
+    return 'EXAMPLE ' + (idx+1) + '\n'
+      + 'Patient message: ' + JSON.stringify(r.patient_message) + '\n'
+      + 'AI draft (what you would have written): ' + JSON.stringify(r.draft_response) + '\n'
+      + 'What the nurse actually sent: ' + JSON.stringify(r.actual_response_sent);
+  }).join('\n\n');
+  return '=== RECENT STAFF EDITS -- match this voice in draft_response ===\n'
+    + 'These are real corrections from your team. The "what the nurse actually sent" version is what you should emulate: tone, sentence length, word choice, contractions, line breaks. The AI draft is shown for contrast so you can see the delta. Apply this voice to draft_response below. Match the nurse, not the prior AI.\n\n'
+    + examples;
+}
+
 // Node export hook — no-op in the browser.
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
@@ -478,5 +543,8 @@ if (typeof module !== 'undefined' && module.exports) {
     requiresClinicalAuthorization,
     resultIsClinical,
     TRIAGE_PRICING,
+    formatKBSection,
+    buildFullKB,
+    buildStaffExamplesBlock,
   };
 }
