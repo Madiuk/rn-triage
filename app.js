@@ -499,6 +499,10 @@ async function initAuth(){
       window.currentNurse = 'Staff';
       var chipEl = document.getElementById('staffChipName');
       if(chipEl) chipEl.textContent = 'Offline';
+    } else {
+      // Cached paint is visible but the user has no indication the
+      // network call failed. Quiet warn so they know data may be stale.
+      try { showToast('Working offline — using cached data', 'warn'); } catch(_) {}
     }
   }
 }
@@ -846,6 +850,11 @@ async function saveHistoryRecord(parsed,msg,telemetry){
     return Array.isArray(r)&&r[0]?r[0].id:null;
   }catch(e){
     console.error('saveHistoryRecord:', e.message);
+    // The triage row didn't save. Downstream actions (Save Categories,
+    // Submit & Learn, Save Timeframe) all depend on currentHistoryId
+    // and will silently no-op without it. Surface the failure so the
+    // user knows the AI's response wasn't persisted.
+    try { showToast('Could not save triage — please retry', 'error'); } catch(_) {}
     return null;
   }
 }
@@ -1580,6 +1589,7 @@ function copyHandoffTemplate() {
     });
   } catch (e) {
     console.error('copyHandoffTemplate:', e.message);
+    try { showToast('Copy failed — try again', 'error'); } catch(_) {}
   }
 }
 
@@ -2578,6 +2588,7 @@ async function saveReviewRequest(reviewRequest, patientMsg, aiDraft, triageId){
     loadReviews();
   }catch(e){
     console.error('saveReviewRequest:', e.message);
+    try { showToast('Could not save review request', 'error'); } catch(_) {}
   }
 }
 
@@ -2590,6 +2601,7 @@ async function loadReviews(){
     renderReviews(pending);
   }catch(e){
     console.error('loadReviews:', e.message);
+    try { showToast('Could not load reviews', 'error'); } catch(_) {}
   }
 }
 
@@ -2786,6 +2798,11 @@ async function dismissReview(id){
     setTimeout(function(){ loadReviews(); }, 300);
   }catch(e){
     console.error('dismissReview:', e.message);
+    // Card opacity was already set to 0 above; restore it so the user
+    // can see the review still exists and retry.
+    var card = document.getElementById('review-'+id);
+    if(card){ card.style.opacity=''; card.style.transition=''; }
+    try { showToast('Could not dismiss review', 'error'); } catch(_) {}
   }
 }
 
