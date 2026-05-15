@@ -41,7 +41,8 @@ const RELAI_DEFAULTS = {
     { key: 'sideeffects', label: 'SIDE EFFECT GUIDANCE' },
     { key: 'templates',   label: 'RESPONSE TEMPLATES' },
     { key: 'protocols',   label: 'PROTOCOLS' },
-    { key: 'urls',        label: 'URLS' }
+    { key: 'urls',        label: 'URLS' },
+    { key: 'style',       label: 'WRITING STYLE -- STRICT (these rules override any default formatting habits; apply them to draft_response and internal_note every time)' }
   ],
 
   // Per-category metadata. The flag we care about today is

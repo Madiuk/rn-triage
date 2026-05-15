@@ -218,6 +218,7 @@
             <option value="notes">Rules &amp; Notes</option>
             <option value="routing">Routing</option>
             <option value="urls">URLs &amp; Resources</option>
+            <option value="style">Writing Style</option>
           </select>
         </div>
         <textarea class="entry-content-area" id="entryContent" placeholder="Enter protocol, guidance, or template content..."></textarea>
@@ -236,6 +237,7 @@
       <button class="kb-tab" onclick="switchKBTab('notes',this)">Rules &amp; Notes <span class="kb-tab-count" id="cnt-notes"></span></button>
       <button class="kb-tab" onclick="switchKBTab('routing',this)">Routing <span class="kb-tab-count" id="cnt-routing"></span></button>
       <button class="kb-tab" onclick="switchKBTab('urls',this)">URLs <span class="kb-tab-count" id="cnt-urls"></span></button>
+      <button class="kb-tab" onclick="switchKBTab('style',this)">Writing Style <span class="kb-tab-count" id="cnt-style"></span></button>
       <button class="kb-tab" onclick="switchKBTab('corrections',this)">Corrections <span class="kb-tab-count" id="cnt-corrections"></span></button>
     </div>
     <div class="kb-search-row">
@@ -247,6 +249,7 @@
     <div id="kb-tab-notes" class="kb-tab-panel"><div id="notes-list"></div></div>
     <div id="kb-tab-routing" class="kb-tab-panel"><div id="routing-list"></div></div>
     <div id="kb-tab-urls" class="kb-tab-panel"><div id="urls-list"></div></div>
+    <div id="kb-tab-style" class="kb-tab-panel"><div id="style-list"></div></div>
     <div id="kb-tab-corrections" class="kb-tab-panel">
       <div class="corrections-toggle-row">
         <button class="btn-xs corrections-toggle" id="loadCorrectionsBtn" onclick="toggleCorrectionsPanel()">Load Response Corrections</button>
