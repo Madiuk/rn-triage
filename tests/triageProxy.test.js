@@ -730,6 +730,19 @@ function routesWithAIOutput(aiOutputJson, overrides = {}) {
           // model in body. The Haiku call is short and explicit.
           const body = opts && opts.body ? JSON.parse(opts.body) : {};
           if (body.model === 'claude-haiku-4-5') {
+            // Fail-open simulation: respond throws → installFetchMock
+            // surfaces the throw as a rejected fetch promise, which
+            // haikuSecondPass's catch folds to verdict 'unsure'.
+            if (overrides.haikuThrow) throw new Error('simulated haiku network error');
+            // HTTP-error fail-open: a non-2xx Haiku response triggers
+            // the !r.ok branch in haikuSecondPass, also folding to
+            // verdict 'unsure'.
+            if (overrides.haikuStatus && overrides.haikuStatus >= 400) {
+              return {
+                status: overrides.haikuStatus,
+                body: { type: 'error', error: { type: 'haiku_simulated_failure' } },
+              };
+            }
             const verdict = overrides.haikuVerdict || 'agree';
             return {
               status: 200,
@@ -903,6 +916,52 @@ describe('triage proxy — safety: tripwire override', () => {
   });
 });
 
+describe('triage proxy — safety: tripwire category coverage (end-to-end)', () => {
+  // The function-level scanTripwires test pins each phrase to its
+  // category. This block pins the proxy's USE of the function for
+  // every category beyond cardiac (already covered above). Catches a
+  // regression where applyTripwireOverride starts ignoring a category,
+  // or _relai.tripwire stops carrying the category through to the
+  // client envelope. One representative phrase per category — the
+  // function-level test exercises the rest of each category's phrase
+  // list.
+
+  const FIXTURES = [
+    { category: 'anaphylaxis',  message: 'Swelling tongue and lips since yesterday.' },
+    { category: 'neurological', message: 'Worst headache of my life.' },
+    { category: 'self_harm',    message: 'I feel suicidal.' },
+    { category: 'pregnancy',    message: 'Heavy vaginal bleeding since this morning.' },
+    { category: 'gi_emergency', message: 'Vomiting blood for the past hour.' },
+    { category: 'severe_pain',  message: 'Severe abdominal pain on the right side.' },
+    { category: 'glp1_danger',  message: 'Doctor said it might be pancreatitis.' },
+  ];
+
+  FIXTURES.forEach(function (fx) {
+    it('escalates ' + fx.category + ' tripwire through the proxy', async () => {
+      installFetchMock(routesWithAIOutput(VALID_AI_OUTPUT));
+      const res = await triage.handler(makeEvent({
+        body: {
+          model: 'claude-sonnet-4-6', max_tokens: 600,
+          messages: [{ role: 'user', content: fx.message }],
+        },
+      }));
+      uninstallFetchMock();
+      const body = JSON.parse(res.body);
+      assert.equal(body._relai.route_to_human_review, true, 'must route to review');
+      assert.equal(body._relai.route_reason, 'tripwire');
+      assert.equal(body._relai.tripwire.category, fx.category);
+      // Override stamped onto the content the client will read.
+      const overridden = JSON.parse(body.content[0].text);
+      assert.equal(overridden.urgency, 'urgent');
+      assert.equal(overridden.clinical_routing_level, 'severe');
+      assert.ok(overridden.draft_response.includes('CLINICAL TRIPWIRE'),
+        'draft must carry the tripwire warning marker for staff');
+      // Original AI output preserved for staff visibility.
+      assert.equal(overridden.ai_original_output.urgency, 'routine');
+    });
+  });
+});
+
 describe('triage proxy — safety: Haiku second-pass (feature-flagged)', () => {
   // The env var is read inside the handler, so we set/restore it
   // around each test rather than at require time.
@@ -999,5 +1058,97 @@ describe('triage proxy — safety: Haiku second-pass (feature-flagged)', () => {
     assert.equal(body._relai.haiku_second_pass.verdict, 'agree');
     // Haiku cost was added into the overall envelope.
     assert.ok(typeof body._relai.cost_usd === 'number' && body._relai.cost_usd > 0);
+  });
+
+  // Fail-open paths. The proxy's haikuSecondPass returns verdict
+  // 'unsure' on HTTP error and on fetch throw — never silently passes
+  // the triage as 'agree'. Patient-safety: a transient Haiku failure
+  // must route the message to human review, not let it bypass the
+  // second-pass entirely. A regression that swallowed Haiku errors
+  // (returning 'agree' or no verdict at all) would not be caught by
+  // any other test in this file.
+
+  it('fails open to "unsure" and routes to review when Haiku returns HTTP 500', async () => {
+    setFlag('true');
+    installFetchMock(routesWithAIOutput(VALID_AI_OUTPUT, { haikuStatus: 500 }));
+    const res = await triage.handler(makeEvent({
+      body: {
+        model: 'claude-sonnet-4-6', max_tokens: 600,
+        messages: [{ role: 'user', content: 'A routine question.' }],
+      },
+    }));
+    uninstallFetchMock();
+    setFlag(ORIG_FLAG);
+    const body = JSON.parse(res.body);
+    assert.equal(body._relai.route_to_human_review, true);
+    assert.equal(body._relai.route_reason, 'haiku_unsure');
+    assert.equal(body._relai.haiku_second_pass.verdict, 'unsure');
+    // Fail-open paths return cost_usd null since no usage block was
+    // parsed from the error response.
+    assert.equal(body._relai.haiku_second_pass.cost_usd, null);
+  });
+
+  it('fails open to "unsure" and routes to review when the Haiku fetch throws', async () => {
+    setFlag('true');
+    installFetchMock(routesWithAIOutput(VALID_AI_OUTPUT, { haikuThrow: true }));
+    const res = await triage.handler(makeEvent({
+      body: {
+        model: 'claude-sonnet-4-6', max_tokens: 600,
+        messages: [{ role: 'user', content: 'A routine question.' }],
+      },
+    }));
+    uninstallFetchMock();
+    setFlag(ORIG_FLAG);
+    const body = JSON.parse(res.body);
+    assert.equal(body._relai.route_to_human_review, true);
+    assert.equal(body._relai.route_reason, 'haiku_unsure');
+    assert.equal(body._relai.haiku_second_pass.verdict, 'unsure');
+    assert.equal(body._relai.haiku_second_pass.cost_usd, null);
+  });
+
+  // Flag is checked with strict-equality against the exact string
+  // "true" at triage.js#L423. Any other casing or representation
+  // ("True", "1", "yes", boolean true if Netlify ever serialized one)
+  // silently leaves the second-pass disabled. This is the
+  // intended behavior — but it's worth pinning so a future loosening
+  // ("any truthy value") would surface as a test failure rather than
+  // an accidentally-always-on second-pass in production.
+
+  it('does NOT call Haiku when flag is "True" (strict-equality requires exact lowercase "true")', async () => {
+    setFlag('True');
+    installFetchMock(routesWithAIOutput(VALID_AI_OUTPUT, { haikuVerdict: 'agree' }));
+    await triage.handler(makeEvent({
+      body: {
+        model: 'claude-sonnet-4-6', max_tokens: 600,
+        messages: [{ role: 'user', content: 'Routine question.' }],
+      },
+    }));
+    const haikuCalls = captured.filter(c => {
+      if (!c.url.includes('api.anthropic.com')) return false;
+      const b = c.opts && c.opts.body ? JSON.parse(c.opts.body) : {};
+      return b.model === 'claude-haiku-4-5';
+    });
+    uninstallFetchMock();
+    setFlag(ORIG_FLAG);
+    assert.equal(haikuCalls.length, 0, 'flag must use exact-string "true" match');
+  });
+
+  it('does NOT call Haiku when flag is "1"', async () => {
+    setFlag('1');
+    installFetchMock(routesWithAIOutput(VALID_AI_OUTPUT, { haikuVerdict: 'agree' }));
+    await triage.handler(makeEvent({
+      body: {
+        model: 'claude-sonnet-4-6', max_tokens: 600,
+        messages: [{ role: 'user', content: 'Routine question.' }],
+      },
+    }));
+    const haikuCalls = captured.filter(c => {
+      if (!c.url.includes('api.anthropic.com')) return false;
+      const b = c.opts && c.opts.body ? JSON.parse(c.opts.body) : {};
+      return b.model === 'claude-haiku-4-5';
+    });
+    uninstallFetchMock();
+    setFlag(ORIG_FLAG);
+    assert.equal(haikuCalls.length, 0);
   });
 });
