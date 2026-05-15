@@ -19,6 +19,13 @@
 // internal call site so the rest of the system (worker.js, queue UI)
 // can be built against it.
 //
+// TODO (audit log): When Bask publishes their inbound webhook contract
+// and we wire the inbound path here (or in ingest.js with channel=
+// 'bask'), capture the raw payload to inbound_raw_event BEFORE parsing
+// — for replay/debug/audit. Deferred while vendor isn't ready (designing
+// the table now would be blind to actual payload shapes). See memory:
+// project_audit_log_deferred.
+//
 // Expected invocation (server-side only, same-origin):
 //   POST /.netlify/functions/bask
 //   { triage_id, response_text, thread_external_id? }

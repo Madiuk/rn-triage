@@ -219,6 +219,12 @@ exports.handler = async function (event) {
     return { statusCode: 500, body: JSON.stringify({ error: 'INTERCOM_TENANT_COMPANY_ID not configured' }) };
   }
 
+  // TODO (audit log): Before Intercom webhooks process real production
+  // traffic, capture the raw payload to inbound_raw_event BEFORE
+  // parsing — for replay/debug/audit. Deferred while vendor traffic
+  // isn't live yet (designing the table now would be blind to actual
+  // payload shapes). See memory: project_audit_log_deferred.
+  //
   // Verify signature against the raw body. Netlify passes
   // event.body as a string; pass it directly to the HMAC.
   const rawBody = event.body || '';
