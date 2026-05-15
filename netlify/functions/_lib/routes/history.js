@@ -12,7 +12,7 @@
 //   POST /history        — action dispatcher:
 //                            update_urgency, update_category,
 //                            upvote, downvote, save_actual,
-//                            delete_correction, mark_escalated,
+//                            mark_escalated,
 //                            delete_entry, or default insert.
 //
 // Extracted from kb.js inline handler (v0.4.0). The role gates on
@@ -304,11 +304,6 @@ async function handle(event) {
           patch.edit_distance = body.edit_distance;
         }
         return patchById(patch);
-      }
-      case "delete_correction": {
-        const denial = await denyIfNonClinicalOnClinicalRow();
-        if (denial) return denial;
-        return patchById({ actual_response_sent: null, correction_note: null });
       }
       case "mark_escalated": {
         // Non-clinical staff hit "Escalate to clinical" when they

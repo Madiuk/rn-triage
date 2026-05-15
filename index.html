@@ -238,7 +238,6 @@
       <button class="kb-tab" onclick="switchKBTab('routing',this)">Routing <span class="kb-tab-count" id="cnt-routing"></span></button>
       <button class="kb-tab" onclick="switchKBTab('urls',this)">URLs <span class="kb-tab-count" id="cnt-urls"></span></button>
       <button class="kb-tab" onclick="switchKBTab('style',this)">Writing Style <span class="kb-tab-count" id="cnt-style"></span></button>
-      <button class="kb-tab" onclick="switchKBTab('corrections',this)">Corrections <span class="kb-tab-count" id="cnt-corrections"></span></button>
     </div>
     <div class="kb-search-row">
       <input type="text" class="kb-search" id="kbSearch" placeholder="Search entries..." oninput="filterKBEntries()">
@@ -250,14 +249,6 @@
     <div id="kb-tab-routing" class="kb-tab-panel"><div id="routing-list"></div></div>
     <div id="kb-tab-urls" class="kb-tab-panel"><div id="urls-list"></div></div>
     <div id="kb-tab-style" class="kb-tab-panel"><div id="style-list"></div></div>
-    <div id="kb-tab-corrections" class="kb-tab-panel">
-      <div class="corrections-toggle-row">
-        <button class="btn-xs corrections-toggle" id="loadCorrectionsBtn" onclick="toggleCorrectionsPanel()">Load Response Corrections</button>
-      </div>
-      <div id="corrections-panel" class="corrections-panel">
-        <div id="corrections-list"><div class="empty-state">Loading...</div></div>
-      </div>
-    </div>
     <div class="kb-actions">
       <button class="kb-save-btn" id="kbSaveBtn" onclick="saveKB()">
         <span id="kbSaveTxt">Save &amp; Sync to Team</span>
@@ -401,7 +392,7 @@
           </div>
           <div class="help-faq">
             <button class="help-faq-q" onclick="toggleFaq(this)"><span>What if I entered the wrong correction?</span><span class="help-arrow">&#9660;</span></button>
-            <div class="help-faq-a">Go to <strong>Knowledge Base &rarr; Corrections tab</strong> and click <strong>Load Response Corrections</strong>. Find the incorrect entry and click <strong>Delete</strong>.</div>
+            <div class="help-faq-a">Go to <strong>Inquiry History</strong>, find the row in question, and click the <strong>&times;</strong> on the right side to remove the entire entry. Per-correction edits aren&rsquo;t supported &mdash; the whole record goes, or it stays.</div>
           </div>
           <div class="help-faq">
             <button class="help-faq-q" onclick="toggleFaq(this)"><span>What about thumbs up / thumbs down?</span><span class="help-arrow">&#9660;</span></button>

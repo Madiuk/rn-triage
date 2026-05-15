@@ -1759,137 +1759,6 @@ function renderResults(d){
 }
 
 
-var correctionsLoaded = false;
-
-function toggleCorrectionsPanel(){
-  var panel=document.getElementById('corrections-panel');
-  var btn=document.getElementById('loadCorrectionsBtn');
-  var wasOpen=panel.classList.contains('show');
-  panel.classList.toggle('show');
-  var nowOpen=!wasOpen;
-  btn.textContent=nowOpen?'^ Hide':'v Load';
-  if(nowOpen&&!correctionsLoaded)loadCorrections();
-}
-
-async function loadCorrections(){
-  correctionsLoaded=true;
-  var list=document.getElementById('corrections-list');
-  list.innerHTML='<div class="empty-state">Loading corrections...</div>';
-  try{
-    var rows=await api('/history');
-    var withCorr=Array.isArray(rows)?rows.filter(function(r){return r.actual_response_sent||r.correction_note;}):[];
-    if(!withCorr.length){list.innerHTML='<div class="empty-state">No corrections saved yet.</div>';return;}
-    list.innerHTML='';
-    withCorr.forEach(function(r){
-      var date=new Date(r.created_at).toLocaleDateString();
-
-      // Build card with DOM so delete button closure works cleanly
-      var card=document.createElement('div');
-      card.style.cssText='border:1.5px solid var(--gray-200);border-radius:10px;margin-bottom:12px;overflow:hidden;';
-
-      // Header row
-      var hdr=document.createElement('div');
-      hdr.style.cssText='padding:9px 13px;background:var(--gray-50);border-bottom:1px solid var(--gray-200);display:flex;justify-content:space-between;align-items:center;gap:8px;';
-
-      var meta=document.createElement('div');
-      meta.style.cssText='display:flex;align-items:center;gap:10px;flex:1;min-width:0;';
-
-      var nameSpan=document.createElement('span');
-      nameSpan.style.cssText='font-size:var(--fs-xs);font-weight:600;color:var(--gray-700);';
-      nameSpan.textContent=r.nurse_name+' · '+date;
-
-      var catSpan=document.createElement('span');
-      catSpan.style.cssText='font-size:var(--fs-xs);color:var(--gray-500);';
-      catSpan.textContent=formatCategoryDisplay(r);
-
-      meta.appendChild(nameSpan);
-      meta.appendChild(catSpan);
-
-      var delBtn=document.createElement('button');
-      delBtn.textContent='Delete';
-      delBtn.style.cssText='padding:3px 10px;font-size:11px;font-weight:600;border:1.5px solid var(--red-m);border-radius:6px;background:var(--white);color:var(--red);cursor:pointer;flex-shrink:0;font-family:var(--sans);';
-      delBtn.addEventListener('click',function(){deleteCorrection(r.id,card,delBtn);});
-
-      hdr.appendChild(meta);
-      hdr.appendChild(delBtn);
-      card.appendChild(hdr);
-
-      // Body — side-by-side drafts
-      var body=document.createElement('div');
-      body.style.cssText='padding:12px 14px;display:grid;grid-template-columns:1fr 1fr;gap:12px;';
-
-      var draftDiv=document.createElement('div');
-      var draftLabel=document.createElement('div');
-      draftLabel.style.cssText='font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:6px;';
-      draftLabel.textContent='AI Draft';
-      var draftText=document.createElement('div');
-      draftText.style.cssText='font-size:var(--fs-xs);color:var(--gray-600);line-height:1.6;white-space:pre-wrap;';
-      var dr=r.draft_response||'';
-      draftText.textContent=dr.length>280?dr.substring(0,280)+'...':dr;
-      draftDiv.appendChild(draftLabel);
-      draftDiv.appendChild(draftText);
-
-      var sentDiv=document.createElement('div');
-      var sentLabel=document.createElement('div');
-      sentLabel.style.cssText='font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--teal);margin-bottom:6px;';
-      sentLabel.textContent='Actually Sent';
-      var sentText=document.createElement('div');
-      sentText.style.cssText='font-size:var(--fs-xs);color:var(--gray-700);line-height:1.6;white-space:pre-wrap;';
-      var sr=r.actual_response_sent||'';
-      sentText.textContent=sr.length>280?sr.substring(0,280)+'...':sr;
-      sentDiv.appendChild(sentLabel);
-      sentDiv.appendChild(sentText);
-
-      body.appendChild(draftDiv);
-      body.appendChild(sentDiv);
-      card.appendChild(body);
-
-      // Learning note if present
-      if(r.correction_note){
-        var noteRow=document.createElement('div');
-        noteRow.style.cssText='padding:8px 14px 12px;border-top:1px solid var(--gray-100);';
-        var noteLabel=document.createElement('div');
-        noteLabel.style.cssText='font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--orange);margin-bottom:4px;';
-        noteLabel.textContent='Learning note';
-        var noteText=document.createElement('div');
-        noteText.style.cssText='font-size:var(--fs-xs);color:var(--gray-700);line-height:1.6;';
-        noteText.textContent=r.correction_note;
-        noteRow.appendChild(noteLabel);
-        noteRow.appendChild(noteText);
-        card.appendChild(noteRow);
-      }
-
-      list.appendChild(card);
-    });
-  }catch(e){
-    console.error('loadCorrections:', e.message);
-    list.innerHTML='<div class="empty-state" style="color:var(--red);">Error: '+esc(e.message)+'</div>';
-  }
-}
-
-async function deleteCorrection(id,cardEl,btn){
-  if(!confirm('Delete this correction? This removes the learned note and cannot be undone.'))return;
-  btn.textContent='Deleting...';
-  btn.disabled=true;
-  try{
-    await api('/history','POST',{action:'delete_correction',id:id});
-    cardEl.style.opacity='0';
-    cardEl.style.transition='opacity .3s';
-    setTimeout(function(){
-      if(cardEl.parentNode)cardEl.parentNode.removeChild(cardEl);
-      var list=document.getElementById('corrections-list');
-      if(list&&!list.querySelector('div[style*="border"]')){
-        list.innerHTML='<div class="empty-state">No corrections saved yet.</div>';
-      }
-    },300);
-    showToast('Correction deleted');
-  }catch(e){
-    btn.textContent='Delete';
-    btn.disabled=false;
-    showToast('Error deleting correction');
-  }
-}
-
 async function saveCategoryTags(){
   var btn=document.getElementById('catSaveBtn');
   if(!btn) return;
@@ -1967,14 +1836,14 @@ function buildHistoryDetailHtml(r){
   var parts = [];
   // Always show patient_message — it's why the row exists.
   parts.push(
-    '<div class="history-detail-block">'+
+    '<div class="history-detail-block hd-patient">'+
       '<div class="history-detail-label">Patient Message</div>'+
       '<div class="history-detail-text">'+esc(r.patient_message || '(empty)')+'</div>'+
     '</div>'
   );
   if(r.draft_response){
     parts.push(
-      '<div class="history-detail-block">'+
+      '<div class="history-detail-block hd-draft">'+
         '<div class="history-detail-label">AI Draft Response</div>'+
         '<div class="history-detail-text">'+esc(r.draft_response)+'</div>'+
       '</div>'
@@ -1985,7 +1854,7 @@ function buildHistoryDetailHtml(r){
   // verbatim — showing it again is just noise.
   if(r.actual_response_sent && r.actual_response_sent !== r.draft_response){
     parts.push(
-      '<div class="history-detail-block">'+
+      '<div class="history-detail-block hd-sent">'+
         '<div class="history-detail-label">Sent to Patient</div>'+
         '<div class="history-detail-text">'+esc(r.actual_response_sent)+'</div>'+
       '</div>'
@@ -1993,7 +1862,7 @@ function buildHistoryDetailHtml(r){
   }
   if(r.internal_note){
     parts.push(
-      '<div class="history-detail-block">'+
+      '<div class="history-detail-block hd-note">'+
         '<div class="history-detail-label">Internal Note (Support Handoff)</div>'+
         '<div class="history-detail-text">'+esc(r.internal_note)+'</div>'+
       '</div>'
@@ -2001,7 +1870,7 @@ function buildHistoryDetailHtml(r){
   }
   if(Array.isArray(r.follow_up_questions) && r.follow_up_questions.length){
     parts.push(
-      '<div class="history-detail-block">'+
+      '<div class="history-detail-block hd-follow">'+
         '<div class="history-detail-label">Follow-up Questions</div>'+
         '<ul class="history-detail-list">'+
           r.follow_up_questions.map(function(q){
@@ -2013,7 +1882,7 @@ function buildHistoryDetailHtml(r){
   }
   if(r.correction_note){
     parts.push(
-      '<div class="history-detail-block">'+
+      '<div class="history-detail-block hd-note">'+
         '<div class="history-detail-label">Correction Note</div>'+
         '<div class="history-detail-text">'+esc(r.correction_note)+'</div>'+
       '</div>'

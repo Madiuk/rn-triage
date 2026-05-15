@@ -354,12 +354,8 @@ textarea::placeholder{color:var(--gray-400);}
    responsive variant); the earlier 4-column override was dead. */
 .history-empty{text-align:center;padding:40px;color:var(--gray-400);font-size:var(--fs-sm);}
 
-/* KB Add Entry submit row + corrections panel ————————————————————— */
+/* KB Add Entry submit row ————————————————————— */
 .entry-submit-row{display:flex;justify-content:flex-end;}
-.corrections-toggle-row{padding:10px 0 14px;}
-.corrections-toggle{font-size:var(--fs-sm);padding:8px 16px;}
-.corrections-panel{display:none;}
-.corrections-panel.show{display:block;}
 .kb-import-label{cursor:pointer;}
 .kb-import-input{display:none;}
 .help-sev-severe{color:var(--red);}
@@ -429,12 +425,24 @@ textarea::placeholder{color:var(--gray-400);}
 /* The expanded detail row spans all columns of its parent table.
    Background distinguishes it from the data rows above/below; the
    left border accent ties it visually to the row it belongs to. */
-.history-detail-row td{background:var(--gray-50);padding:16px 24px 18px;border-bottom:2px solid var(--gray-200);border-left:3px solid var(--blue);}
-.history-detail-block{margin-bottom:14px;}
+.history-detail-row td{background:var(--gray-50);padding:18px 24px 20px;border-bottom:2px solid var(--gray-200);border-left:3px solid var(--blue);}
+/* Each block is a card on the gray panel so the eye can separate sections. */
+.history-detail-block{background:var(--white);border:1px solid var(--gray-200);border-left:3px solid var(--gray-300);border-radius:6px;padding:10px 14px 12px;margin-bottom:12px;}
 .history-detail-block:last-child{margin-bottom:0;}
-.history-detail-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-500);margin-bottom:4px;}
-.history-detail-text{font-size:var(--fs-sm);color:var(--gray-800);white-space:pre-wrap;line-height:1.5;}
-.history-detail-list{margin:0;padding-left:20px;font-size:var(--fs-sm);color:var(--gray-800);line-height:1.5;}
+/* Type-specific accents — left-border + tinted background + label color.
+   The reader can visually distinguish patient (blue), AI draft (gray),
+   what staff actually sent (teal), and notes/corrections (amber). */
+.history-detail-block.hd-patient{border-left-color:var(--blue);background:var(--blue-l);}
+.history-detail-block.hd-draft{border-left-color:var(--gray-500);}
+.history-detail-block.hd-sent{border-left-color:var(--teal);background:var(--teal-l);}
+.history-detail-block.hd-note{border-left-color:var(--amber);background:var(--amber-l);}
+.history-detail-block.hd-follow{border-left-color:var(--gray-400);}
+.history-detail-label{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--gray-700);margin-bottom:6px;}
+.history-detail-block.hd-patient .history-detail-label{color:var(--blue);}
+.history-detail-block.hd-sent .history-detail-label{color:var(--teal);}
+.history-detail-block.hd-note .history-detail-label{color:var(--amber);}
+.history-detail-text{font-size:var(--fs-sm);color:var(--gray-800);white-space:pre-wrap;line-height:1.6;}
+.history-detail-list{margin:0;padding-left:20px;font-size:var(--fs-sm);color:var(--gray-800);line-height:1.6;}
 
 /* Pagination bars (v0.3.24). Rendered both above and below the
    History table so staff at either end can jump pages without
