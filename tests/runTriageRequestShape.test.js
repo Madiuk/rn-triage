@@ -1,30 +1,28 @@
 // tests/runTriageRequestShape.test.js
 //
-// CONTRACT TEST — pins the exact shape of the request body app.js's
-// runTriage() sends to /.netlify/functions/triage today. The triage
-// proxy is already e2e-tested (triageProxy.test.js) under the
-// assumption that the client sends a multi-block cached `system`
-// array; this test pins the client side of that assumption so the
-// two contracts cannot drift silently.
+// CONTRACT TEST — pins the post-#2 shape of the request body app.js's
+// runTriage() sends to /.netlify/functions/triage. After Commit C of
+// the contract lockdown:
+//   - The client MUST NOT include `system` in the POST body. The
+//     proxy assembles BASE_PROMPT + tenant KB + recent staff examples
+//     server-side from supabase. Sending body.system gets a 400.
+//   - The body MUST be exactly one user message:
+//     messages: [{ role: 'user', content: ... }]
+//   - The model defaults to claude-sonnet-4-6.
 //
 // What this guards against:
-//   - Someone refactoring runTriage to send `system: someString`
-//     instead of the multi-block array (would silently disable
-//     Anthropic prompt caching and explode cost).
-//   - Someone removing the cache_control:ephemeral annotation from
-//     BASE_PROMPT or KB blocks (same cost-blast issue).
-//   - The pre-multi-tenant work in triage.js:9-20 (moving system
-//     assembly server-side). When that lands, THIS test will fail
-//     loudly with "BASE_PROMPT no longer appears in app.js runTriage"
-//     — which is the expected, deliberate change. Update the test
-//     to assert the new contract at that point.
+//   - A regression that adds `system: ...` back into the POST body
+//     would 400 every triage in production. This test catches it
+//     before deploy.
+//   - A regression that sends multi-turn messages or a non-user role
+//     would 400 every triage in production. Same guard.
+//   - A silent model swap (sonnet → opus 3-5x cost, sonnet → haiku
+//     quality drop).
 //
 // We can't require app.js in Node (it's a browser script that
 // references DOM globals at top level), so we read source text and
 // pattern-match on anchor strings — same approach as
-// triagePathContract.test.js. Tests are intentionally tolerant of
-// formatting changes (regex with .* on whitespace) but intolerant
-// of identifier renames and contract changes.
+// triagePathContract.test.js.
 
 const fs = require('fs');
 const path = require('path');
@@ -34,66 +32,45 @@ const appSrc = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
 
 describe('CONTRACT: runTriage request shape (app.js → /.netlify/functions/triage)', () => {
 
-  it('constructs a systemBlocks array (not a single string)', () => {
-    // Anchor on the literal array opening that includes BASE_PROMPT
-    // on the next line — this is the exact construction at app.js:1181.
-    // If someone changes `system: systemBlocks` to `system: somePrompt`,
-    // this anchor fails first with a clearer message than the downstream
-    // assertions.
-    assert.ok(
-      /var\s+systemBlocks\s*=\s*\[/.test(appSrc),
-      'runTriage no longer declares `var systemBlocks = [...]` — has the system assembly been refactored?'
-    );
-  });
-
-  it('first system block uses BASE_PROMPT with ephemeral cache_control', () => {
-    // Match the full first-block literal. Order of properties matters
-    // for cache prefix stability — Anthropic's prompt cache hashes the
-    // first N tokens of system, so reordering BASE_PROMPT vs KB breaks
-    // the cache hit rate.
-    assert.ok(
-      /\{\s*type\s*:\s*['"]text['"]\s*,\s*text\s*:\s*BASE_PROMPT\s*,\s*cache_control\s*:\s*\{\s*type\s*:\s*['"]ephemeral['"]\s*\}\s*\}/.test(appSrc),
-      'first system block no longer matches { type:"text", text: BASE_PROMPT, cache_control:{type:"ephemeral"} }'
-    );
-  });
-
-  it('second system block uses getFullKB() with ephemeral cache_control', () => {
-    assert.ok(
-      /\{\s*type\s*:\s*['"]text['"]\s*,\s*text\s*:\s*getFullKB\(\)\s*,\s*cache_control\s*:\s*\{\s*type\s*:\s*['"]ephemeral['"]\s*\}\s*\}/.test(appSrc),
-      'second system block no longer matches { type:"text", text: getFullKB(), cache_control:{type:"ephemeral"} }'
-    );
-  });
-
-  it('appends a staff-examples block conditionally, without cache_control', () => {
-    // The third block is intentionally uncached because it changes as
-    // corrections accumulate (see app.js:1185-1187 comment). Caching
-    // it would poison the prefix for every subsequent triage.
-    assert.ok(
-      /if\s*\(\s*examplesBlock\s*\)\s*\{\s*systemBlocks\.push\(\s*\{\s*type\s*:\s*['"]text['"]\s*,\s*text\s*:\s*examplesBlock\s*\}\s*\)\s*;?\s*\}/.test(appSrc),
-      'examplesBlock conditional push no longer matches expected shape — see app.js:1188'
-    );
-    // Negative assertion: the examplesBlock push must NOT include
-    // cache_control. If someone "fixes" the inconsistency by adding
-    // cache_control, every triage poisons the prompt cache.
-    assert.ok(
-      !/systemBlocks\.push\(\s*\{\s*type\s*:\s*['"]text['"]\s*,\s*text\s*:\s*examplesBlock\s*,\s*cache_control/.test(appSrc),
-      'examplesBlock push has acquired a cache_control annotation — this poisons the Anthropic prompt cache'
-    );
-  });
-
-  it('POSTs to /.netlify/functions/triage with system: systemBlocks and a single user message', () => {
-    // Anchor on the fetch URL string AND the body.system field. These
-    // sit on the same JSON.stringify line in app.js:1200 today; allowing
-    // for line breaks in the regex is intentional in case the file is
-    // reformatted.
+  it('POSTs to /.netlify/functions/triage', () => {
     assert.ok(
       /authFetch\(\s*['"]\/\.netlify\/functions\/triage['"]/.test(appSrc),
       'runTriage no longer calls authFetch("/.netlify/functions/triage", ...)'
     );
-    assert.ok(
-      /system\s*:\s*systemBlocks\s*,\s*messages\s*:\s*\[\s*\{\s*role\s*:\s*['"]user['"]\s*,\s*content\s*:/.test(appSrc),
-      'runTriage no longer sends `system: systemBlocks, messages: [{role:"user", content: ...}]` — has the request body shape changed?'
+  });
+
+  it('sends a single user-role message and NO system field', () => {
+    // Anchor on the JSON.stringify body for the triage POST. Anchor
+    // must include model + max_tokens + messages so we're looking at
+    // the triage call, not some other endpoint. The negative-match
+    // on `system:` is the heart of the lockdown — if a future change
+    // adds it back, every triage 400s on the proxy's strict gate.
+    const m = appSrc.match(
+      /authFetch\(\s*['"]\/\.netlify\/functions\/triage['"][\s\S]*?body\s*:\s*JSON\.stringify\(\s*(\{[\s\S]*?\})\s*\)/
     );
+    assert.ok(m, 'could not locate runTriage POST body literal');
+    const bodyLiteral = m[1];
+
+    // Single user message with content reference.
+    assert.ok(
+      /messages\s*:\s*\[\s*\{\s*role\s*:\s*['"]user['"]\s*,\s*content\s*:/.test(bodyLiteral),
+      'POST body messages no longer matches [{role:"user", content: ...}] — has the message shape changed?'
+    );
+
+    // Hard negative: no `system:` field in the POST body. Whitespace-
+    // tolerant. If a future edit re-introduces it (perhaps to "fix"
+    // a perceived caching issue), this fires.
+    assert.ok(
+      !/\bsystem\s*:/.test(bodyLiteral),
+      'POST body contains `system:` — the proxy rejects body.system. ' +
+      'BASE_PROMPT/KB/examples are assembled server-side.'
+    );
+
+    // Negative: no second message. Triage is one-shot.
+    const userMatches = bodyLiteral.match(/role\s*:\s*['"]user['"]/g) || [];
+    const assistantMatches = bodyLiteral.match(/role\s*:\s*['"]assistant['"]/g) || [];
+    assert.equal(userMatches.length, 1, 'must be exactly one user message');
+    assert.equal(assistantMatches.length, 0, 'must NOT include an assistant turn');
   });
 
   it('uses claude-sonnet-4-6 as the triage model (default)', () => {
@@ -104,6 +81,22 @@ describe('CONTRACT: runTriage request shape (app.js → /.netlify/functions/tria
     assert.ok(
       /model\s*:\s*['"]claude-sonnet-4-6['"]/.test(appSrc),
       'runTriage no longer defaults to claude-sonnet-4-6 — verify this is an intentional model change'
+    );
+  });
+
+  it('does NOT call loadStaffExamples or getStaffExamplesBlock', () => {
+    // These helpers were retired in Commit C of #2; the proxy now
+    // fetches history and assembles the examples block server-side.
+    // A re-introduction in app.js would mean the browser is doing
+    // duplicate work AND the assumption that no /history call fires
+    // at triage time is broken (latency regression + cache pressure).
+    assert.ok(
+      !/\bloadStaffExamples\s*\(/.test(appSrc),
+      'app.js calls loadStaffExamples — that helper was retired in #2 (server now assembles examples)'
+    );
+    assert.ok(
+      !/\bgetStaffExamplesBlock\s*\(/.test(appSrc),
+      'app.js calls getStaffExamplesBlock — that helper was retired in #2'
     );
   });
 });

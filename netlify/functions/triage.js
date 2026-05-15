@@ -6,15 +6,13 @@
 // frontend persists that envelope onto the query_history row so we can
 // measure quality / cost / cache-hit-rate over time.
 //
-// Server-side system assembly (Commit B of #2 contract lockdown).
-// When body.system is absent, the proxy assembles BASE_PROMPT +
-// tenant KB + recent staff examples server-side using the helpers
-// in data/triage-lib.js. Body.messages is also validated to exactly
-// one { role:"user", content:string } with content <= 8192 chars.
-// Commit C will turn the lockdown strict (reject body.system if
-// present at all) once the client cuts over. Until then, when
-// body.system IS supplied (today's live client), it forwards as-is
-// to preserve the existing flow.
+// Strict server-side system assembly (#2 contract lockdown complete).
+// The proxy is the only source of truth for what the model sees as
+// `system`. Callers MUST NOT supply body.system; the proxy assembles
+// BASE_PROMPT + tenant KB + recent staff examples server-side using
+// the helpers in data/triage-lib.js. body.messages is validated to
+// exactly one { role:"user", content:string } with content <= 8192
+// chars.
 //
 // TODO(pre-auto-send): the AI's structured output downstream
 // (clinical_routing_level, urgency, ai_confidence, draft_response)
@@ -181,20 +179,20 @@ exports.handler = async function (event) {
     }
   }
 
-  // Server-side system block assembly. When body.system is absent
-  // (Commit C will make this the only accepted shape — see
-  // tests/runTriageRequestShape.test.js), the proxy assembles the
-  // system from BASE_PROMPT + the caller's tenant KB + recent staff
-  // examples. The client used to do this — but that meant any
-  // authenticated user could swap the persona, pin a different KB,
-  // or hand-craft examples (see the TODO this commit closes at
-  // triage.js header). Today the proxy is the only place that
-  // chooses the system content.
-  //
-  // KB is safety-critical: empty/failed KB load → 500, not "trust
-  // the AI to triage without rules." History is quality-critical
-  // only: failed load → empty examples block.
-  if (body.system === undefined) {
+  // Strict: callers MUST NOT supply body.system. The proxy is the
+  // only place that chooses the persona, the KB, and the few-shot
+  // examples. A client-supplied system would let any authenticated
+  // user replace the persona, pin a different KB, or hand-craft
+  // examples — exactly the threat #2 closed.
+  if (body.system !== undefined) {
+    return { statusCode: 400, body: JSON.stringify({ error: "body.system is not accepted; the proxy assembles the system from server-side state." }) };
+  }
+
+  // Assemble system from BASE_PROMPT + tenant KB + recent staff
+  // examples. KB is safety-critical: empty/failed KB load → 500,
+  // not "trust the AI to triage without rules." History is
+  // quality-critical only: failed load → empty examples block.
+  {
     const companyId = await resolveCompanyId(user);
     if (!companyId) {
       return { statusCode: 500, body: JSON.stringify({ error: "Caller has no resolved company_id; cannot assemble triage prompt." }) };
@@ -214,8 +212,7 @@ exports.handler = async function (event) {
       // Intentionally uncached — examples shift as corrections
       // accumulate, and caching would poison the cache prefix for
       // every subsequent triage. Cost: ~400-600 input tokens per
-      // call, uncached. Same trade-off documented in app.js:1185-1187
-      // before the assembly moved here.
+      // call, uncached.
       systemBlocks.push({ type: "text", text: examplesBlockText });
     }
     body.system = systemBlocks;

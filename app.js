@@ -260,57 +260,10 @@ function getFullKB(){
     .filter(Boolean).join('\n\n');
 }
 
-// Few-shot staff examples. Pulled once per session from /history (rows
-// with a real staff edit) and injected as a small uncached system block
-// on every triage. Teaches the model the voice the actual nurses use,
-// which is the highest-leverage way to close the AI-tells gap (em-dashes,
-// stock phrases, brochure cadence) — abstract style rules in the KB help,
-// but staff-written examples are what actually move the needle.
-//
-// Lazy-loaded on the first triage of the session, then cached in memory.
-// No "refresh" button by design — the next app reload picks up new
-// corrections. Keeping this invisible to staff matches the "explicit Load
-// buttons over surprise auto-refresh" preference, since the only thing
-// the user does is click Triage.
-var staffExamplesCache = null;
-async function loadStaffExamples(){
-  if(staffExamplesCache !== null) return;
-  try {
-    var rows = await api('/history');
-    if (!Array.isArray(rows)) { staffExamplesCache = []; return; }
-    // Filter for examples that actually teach something:
-    //  - both AI draft and staff-sent text present (so the delta is visible)
-    //  - edit_distance >= 40 chars: skips tiny typo-level edits that
-    //    don't represent meaningful voice change. Legacy rows without
-    //    edit_distance are included on the assumption they predate the
-    //    column, not that the edit was trivial.
-    //  - patient_message >= 20 chars: skips "thx" replies that don't
-    //    give the model anything to anchor on.
-    var picked = rows.filter(function(r){
-      return r.actual_response_sent
-        && r.draft_response
-        && r.patient_message
-        && (r.edit_distance == null || r.edit_distance >= 40)
-        && r.patient_message.length >= 20;
-    }).slice(0, 3);
-    staffExamplesCache = picked;
-  } catch(e) {
-    console.error('loadStaffExamples:', e.message);
-    staffExamplesCache = []; // never retry this session; degrade silently
-  }
-}
-function getStaffExamplesBlock(){
-  if(!staffExamplesCache || !staffExamplesCache.length) return '';
-  var examples = staffExamplesCache.map(function(r, idx){
-    return 'EXAMPLE ' + (idx+1) + '\n'
-      + 'Patient message: ' + JSON.stringify(r.patient_message) + '\n'
-      + 'AI draft (what you would have written): ' + JSON.stringify(r.draft_response) + '\n'
-      + 'What the nurse actually sent: ' + JSON.stringify(r.actual_response_sent);
-  }).join('\n\n');
-  return '=== RECENT STAFF EDITS -- match this voice in draft_response ===\n'
-    + 'These are real corrections from your team. The "what the nurse actually sent" version is what you should emulate: tone, sentence length, word choice, contractions, line breaks. The AI draft is shown for contrast so you can see the delta. Apply this voice to draft_response below. Match the nurse, not the prior AI.\n\n'
-    + examples;
-}
+// Few-shot staff-examples block is now assembled server-side by the
+// triage proxy from query_history rows for the caller's tenant. See
+// data/triage-lib.js's buildStaffExamplesBlock and the triage.js
+// proxy header. The browser no longer pulls /history at triage time.
 
 // ── AUTH ──────────────────────────────────────────────────────────────────────
 
@@ -1173,31 +1126,20 @@ currentHistoryId=null;
     // 10% of input price. Sending the full KB instead of a per-message
     // classified subset is also a small accuracy win — the AI has every
     // protocol available, not a regex-selected slice.
-    // Lazy-load few-shot staff examples on the first triage of the
-    // session. After that the cache short-circuits, so subsequent
-    // triages add zero latency for the examples block.
-    await loadStaffExamples();
-    var examplesBlock = getStaffExamplesBlock();
-    var systemBlocks = [
-      { type:'text', text: BASE_PROMPT, cache_control:{type:'ephemeral'} },
-      { type:'text', text: getFullKB(), cache_control:{type:'ephemeral'} }
-    ];
-    // Third block is uncached because its content changes as corrections
-    // accumulate. Keeping it last preserves the cache prefix on the two
-    // blocks above. Cost: ~400-600 input tokens per call, uncached.
-    if (examplesBlock) {
-      systemBlocks.push({ type:'text', text: examplesBlock });
-    }
     var triageStarted = Date.now();
-    // authFetch auto-attaches the Bearer token AND auto-refreshes
-    // on 401 (v0.3.12). Earlier this was a raw fetch with manual
-    // token plumbing — a stale token would 401, throw, and the
-    // user would see a generic "triage could not complete" error
-    // with no way to recover other than logging out.
+    // System block assembly (BASE_PROMPT + tenant KB + recent staff
+    // examples) moved to the triage proxy in #2 — see triage.js. The
+    // client now sends only model/max_tokens/messages; the proxy
+    // rejects body.system entirely. authFetch auto-attaches the
+    // Bearer token AND auto-refreshes on 401 (v0.3.12). Earlier this
+    // was a raw fetch with manual token plumbing — a stale token
+    // would 401, throw, and the user would see a generic "triage
+    // could not complete" error with no way to recover other than
+    // logging out.
     var res = await authFetch('/.netlify/functions/triage', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,system:systemBlocks,messages:[{role:'user',content:userContent}]})
+      body: JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,messages:[{role:'user',content:userContent}]})
     });
     var data=await res.json();
     if(data.error)throw new Error(typeof data.error==='string'?data.error:(data.error.message||JSON.stringify(data.error)));
