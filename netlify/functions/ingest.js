@@ -32,6 +32,8 @@
 // See PLAN.md "Security backlog (deferred from v0.4.x audit)" and
 // RELAI_VALIDATION_AUDIT.md §1.1.
 
+const { logError } = require('./_lib/log');
+
 exports.handler = async function (event) {
   if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method not allowed' };
 
@@ -84,7 +86,7 @@ exports.handler = async function (event) {
     fetch(`${SUPABASE_URL}/rest/v1/api_keys?key_hash=eq.${keyHash}`, {
       method: 'PATCH', headers: h,
       body: JSON.stringify({ last_used: new Date().toISOString() }),
-    }).catch(e => console.error('ingest.touchKey:', e.message));
+    }).catch(e => logError('ingest.touchKey', e));
 
     // Parse the inbound payload
     let body;
@@ -146,7 +148,10 @@ exports.handler = async function (event) {
     // channel adapter we'll add in Phase 3. Now the response
     // status reflects what actually happened.
     if (!r.ok || !Array.isArray(result) || !result[0]) {
-      console.error('ingest.insertFailed:', r.status, JSON.stringify(result).slice(0, 300));
+      logError('ingest.insertFailed', null, {
+        status: r.status,
+        body: JSON.stringify(result).slice(0, 300),
+      });
       return {
         statusCode: r.ok ? 502 : r.status,
         headers: { 'Content-Type': 'application/json' },
@@ -168,7 +173,7 @@ exports.handler = async function (event) {
       }),
     };
   } catch (err) {
-    console.error('ingest.handler:', err.message);
+    logError('ingest.handler', err);
     return { statusCode: 500, body: JSON.stringify({ error: err.message }) };
   }
 };

@@ -88,6 +88,7 @@
 // ─────────────────────────────────────────────────────────────────
 
 const crypto = require('crypto');
+const { logError } = require('./_lib/log');
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
@@ -307,7 +308,7 @@ exports.handler = async function (event) {
       };
     }
   } catch (e) {
-    console.error('intercom.dupCheck:', e.message);
+    logError('intercom.dupCheck', e);
     // Fall through; unique index serves as the backstop.
   }
 
@@ -339,7 +340,10 @@ exports.handler = async function (event) {
     const result = await insertRes.json();
 
     if (!insertRes.ok || !Array.isArray(result) || !result[0]) {
-      console.error('intercom.insertFailed:', insertRes.status, JSON.stringify(result).slice(0, 300));
+      logError('intercom.insertFailed', null, {
+        status: insertRes.status,
+        body: JSON.stringify(result).slice(0, 300),
+      });
       return {
         statusCode: insertRes.ok ? 502 : insertRes.status,
         headers: { 'Content-Type': 'application/json' },
@@ -361,7 +365,7 @@ exports.handler = async function (event) {
       }),
     };
   } catch (e) {
-    console.error('intercom.insert:', e.message);
+    logError('intercom.insert', e);
     return {
       statusCode: 500,
       headers: { 'Content-Type': 'application/json' },
