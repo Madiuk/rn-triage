@@ -309,10 +309,20 @@ The model:
    clicking the right category than a clinician's 2 minutes
    reading and reassigning.
 
-   *Visibility (tenant-configurable):* the routing hub is the non-
-   clinical pool's primary intake by default. Whether RN-level
-   clinical staff can also help route during quiet periods is
-   per-tenant config; APP-tier is always excluded.
+   *Visibility:* the routing hub is the non-clinical pool's primary
+   intake. RN-level clinical staff can also pull Routing Hub items
+   when their in-scope clinical pool is empty — same idle-unlock
+   rule as clinical → non-clinical (see "Role and capability
+   gating" below), extended to the routing hub. APP-tier is always
+   excluded. Big Easy default; other tenants can disable RN
+   routing-hub visibility if their staffing differs.
+
+   *Server-side override:* the AI emits best-guess category +
+   confidence. The worker overrides `clinical_category = 'Routing
+   Hub'` when `ai_confidence` is below threshold, regardless of
+   the AI's guessed category. The AI prompt stays simple — it
+   doesn't need to know the Routing Hub exists. Server makes the
+   routing decision from confidence.
 
    Vertical-agnostic note: in a non-medical tenant, "routing hub"
    maps to whichever role is cheapest and most capable of
@@ -370,13 +380,16 @@ asymmetry for clinical tenants:
   categories greyed out in the dropdown. A non-clinical staffer
   cannot see clinical categories at all — gated by missing
   capability, not greyed.
-- **Idle-unlock for clinical → non-clinical.** When a clinical
-  staffer attempts to pull and there are **zero pullable tasks in
-  their in-scope (clinical) pool at that moment**, the non-clinical
-  options unlock for that pull. Keeps clinical hands busy when the
+- **Idle-unlock for clinical → non-clinical (and Routing Hub).**
+  When a clinical staffer attempts to pull and there are **zero
+  pullable tasks in their in-scope (clinical) pool at that
+  moment**, the non-clinical options — including the Routing Hub
+  — unlock for that pull. Keeps clinical hands busy when the
   clinical pool is dry without permanently softening the role
-  boundary. The asymmetry is intentional: non-clinical staff cannot
-  pull clinical work regardless of load.
+  boundary. The asymmetry is intentional: non-clinical staff
+  cannot pull clinical work regardless of load. APP-tier is
+  excluded from the Routing Hub specifically; APP attention is
+  reserved for APP-level work.
 - **APP-gated tier (future).** When the system has APP staff
   (MD / NP / other advanced-practice-provider `title`), categories
   can be marked APP-only via a `required_capabilities` value like
