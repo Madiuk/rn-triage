@@ -88,6 +88,43 @@ exports.handler = async function (event) {
       body: JSON.stringify({ last_used: new Date().toISOString() }),
     }).catch(e => logError('ingest.touchKey', e));
 
+    // Rate limit: 60 requests/minute per API key. Fail-open — if the
+    // RPC errors, log and proceed so a broken limiter never blocks a
+    // legitimate webhook. /triage is intentionally not rate-limited
+    // here (clinical-sensitive path; separate decision).
+    const RATE_LIMIT_PER_MIN = 60;
+    try {
+      const windowStart = new Date();
+      windowStart.setSeconds(0, 0);
+      const rlRes = await fetch(`${SUPABASE_URL}/rest/v1/rpc/increment_rate_limit`, {
+        method: 'POST',
+        headers: h,
+        body: JSON.stringify({
+          p_api_key_hash: keyHash,
+          p_window: windowStart.toISOString(),
+        }),
+      });
+      if (rlRes.ok) {
+        const count = await rlRes.json();
+        if (typeof count === 'number' && count > RATE_LIMIT_PER_MIN) {
+          return {
+            statusCode: 429,
+            headers: { 'Content-Type': 'application/json', 'Retry-After': '60' },
+            body: JSON.stringify({
+              error: 'Rate limit exceeded',
+              limit: RATE_LIMIT_PER_MIN,
+              window: '1m',
+            }),
+          };
+        }
+      } else {
+        logError('ingest.rateLimit', null, { status: rlRes.status });
+      }
+    } catch (e) {
+      logError('ingest.rateLimit', e);
+      // Fail-open: proceed with the request.
+    }
+
     // Parse the inbound payload
     let body;
     try { body = JSON.parse(event.body || '{}'); }
