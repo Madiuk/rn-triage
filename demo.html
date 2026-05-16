@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Relai Demo — Big Easy Weight Loss</title>
+<link rel="stylesheet" href="demo-styles.css">
+</head>
+<body>
+
+<!-- DEMO MODE banner -->
+<div class="demo-banner" role="banner" aria-label="Demo mode banner">
+  <span class="demo-dot"></span>
+  <strong>DEMO MODE</strong>
+  <span>Sample data only — nothing in this view is real patient content. No data is read from or written to the live system.</span>
+  <button class="demo-restart-tour" id="restartTourBtn" type="button">Restart tour</button>
+</div>
+
+<!-- Top bar -->
+<div class="topbar">
+  <div class="topbar-brand">
+    <div class="brand-icon">R</div>
+    <div class="brand-stack">
+      <div class="brand-name">Relai</div>
+      <div class="brand-sub">Big Easy Weight Loss <span class="brand-sep">·</span> Patient Inquiry &amp; Tasking</div>
+    </div>
+  </div>
+
+  <div class="tab-nav" id="tabNav">
+    <button class="tab-btn active" data-view="queue">Triage Queue</button>
+    <button class="tab-btn" data-view="preferences">My Preferences</button>
+    <button class="tab-btn" data-view="training">AI Training</button>
+  </div>
+
+  <div class="topbar-right">
+    <div class="role-switcher" id="roleSwitcher">
+      <span class="role-label">Viewing as:</span>
+      <select id="roleSelect" class="role-select" aria-label="Switch role"></select>
+    </div>
+    <div class="user-chip" id="userChip">
+      <div class="chip-avatar" id="userAvatar">A</div>
+      <span class="chip-name" id="userName">Admin</span>
+    </div>
+  </div>
+</div>
+
+<!-- Welcome modal (tour start) -->
+<div class="modal-overlay" id="welcomeOverlay">
+  <div class="welcome-modal">
+    <div class="welcome-eyebrow">Welcome to the Relai demo</div>
+    <h2 class="welcome-title">A guided look at how Relai handles inbound patient messages.</h2>
+    <p class="welcome-body">
+      This is a sample view of what the day looks like when every text, email, voicemail,
+      and web-form question lands in one place — categorized, prioritized, and assigned
+      to the right person automatically.
+    </p>
+    <p class="welcome-body welcome-body-soft">
+      Everything you see is fabricated for demonstration. No real patient data is shown,
+      sent, or stored. Click around freely — nothing here will affect the live system.
+    </p>
+    <div class="welcome-actions">
+      <button class="welcome-btn-primary" id="startTourBtn" type="button">Start guided tour</button>
+      <button class="welcome-btn-secondary" id="skipTourBtn" type="button">Skip — let me explore</button>
+    </div>
+  </div>
+</div>
+
+<!-- Main content -->
+<main class="main-content">
+
+  <!-- QUEUE VIEW -->
+  <section class="view view-queue active" data-view="queue">
+    <div class="queue-header">
+      <div class="queue-header-left">
+        <h1 class="queue-title">Triage Queue</h1>
+        <p class="queue-subtitle" id="queueSubtitle">All categories · sorted by severity, then time</p>
+      </div>
+      <div class="queue-stats" id="queueStats"></div>
+    </div>
+
+    <div class="queue-filters">
+      <div class="filter-group">
+        <label class="filter-label">Filter:</label>
+        <button class="filter-pill active" data-filter="all">All</button>
+        <button class="filter-pill" data-filter="unclaimed">Unclaimed</button>
+        <button class="filter-pill" data-filter="mine">Claimed by me</button>
+        <button class="filter-pill" data-filter="completed">Completed</button>
+      </div>
+      <div class="filter-group">
+        <label class="filter-label">Sort:</label>
+        <select id="sortSelect" class="filter-select">
+          <option value="severity">Severity (urgent first)</option>
+          <option value="time_desc">Newest first</option>
+          <option value="time_asc">Oldest first</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="task-table-wrap">
+      <table class="task-table" id="taskTable">
+        <thead>
+          <tr>
+            <th class="th-severity">Severity</th>
+            <th class="th-channel">Channel</th>
+            <th class="th-time">Received</th>
+            <th class="th-patient">Patient</th>
+            <th class="th-category">AI Category</th>
+            <th class="th-summary">AI Summary</th>
+            <th class="th-status">Status</th>
+          </tr>
+        </thead>
+        <tbody id="taskTableBody"></tbody>
+      </table>
+      <div class="empty-state hidden" id="emptyState">
+        <div class="empty-icon">✓</div>
+        <div class="empty-title">No tasks in this view</div>
+        <div class="empty-body">Try switching the filter or role at the top of the page.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PREFERENCES VIEW -->
+  <section class="view view-preferences" data-view="preferences">
+    <div class="prefs-header">
+      <h1 class="prefs-title">My Category Preferences</h1>
+      <p class="prefs-subtitle">
+        Pick which categories of patient messages come into your queue. You can change these any time.
+      </p>
+    </div>
+
+    <div class="prefs-card">
+      <div class="prefs-card-head">
+        <div class="prefs-card-title">Default for <span id="prefsRoleName">your role</span></div>
+        <div class="prefs-card-sub" id="prefsRoleDesc"></div>
+      </div>
+      <div class="prefs-grid" id="prefsClinicalGrid"></div>
+      <div class="prefs-section-divider">Non-clinical</div>
+      <div class="prefs-grid" id="prefsNonClinicalGrid"></div>
+      <div class="prefs-actions">
+        <button class="prefs-save-btn" id="prefsSaveBtn">Save preferences</button>
+        <span class="prefs-saved-note hidden" id="prefsSavedNote">Saved (demo only — not persisted)</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- TRAINING VIEW -->
+  <section class="view view-training" data-view="training">
+    <div class="training-header">
+      <h1 class="training-title">AI Training</h1>
+      <p class="training-subtitle">
+        Every thumbs-up or thumbs-down on the AI's category and response suggestions feeds back into the model.
+        Over time, the AI gets better at matching your clinic's voice and judgment.
+      </p>
+    </div>
+
+    <div class="training-stats">
+      <div class="training-stat">
+        <div class="training-stat-num">247</div>
+        <div class="training-stat-label">Categorizations rated this month</div>
+      </div>
+      <div class="training-stat">
+        <div class="training-stat-num">94%</div>
+        <div class="training-stat-label">Category agreement (vs. your staff)</div>
+      </div>
+      <div class="training-stat">
+        <div class="training-stat-num">88%</div>
+        <div class="training-stat-label">Response suggestion approval</div>
+      </div>
+      <div class="training-stat">
+        <div class="training-stat-num">31</div>
+        <div class="training-stat-label">Corrections retrained on this week</div>
+      </div>
+    </div>
+
+    <div class="training-card">
+      <div class="training-card-head">Recent corrections from your team</div>
+      <div class="training-correction-list" id="trainingList"></div>
+    </div>
+
+    <div class="training-card">
+      <div class="training-card-head">Tone &amp; voice settings</div>
+      <div class="training-tone-grid">
+        <label class="training-tone-option">
+          <input type="radio" name="tone" value="warm" checked>
+          <div class="tone-label">Warm &amp; conversational</div>
+          <div class="tone-sample">"Hey — we got your message. Let's figure this out together."</div>
+        </label>
+        <label class="training-tone-option">
+          <input type="radio" name="tone" value="clinical">
+          <div class="tone-label">Clinical &amp; concise</div>
+          <div class="tone-sample">"Message received. Please follow the instructions below."</div>
+        </label>
+        <label class="training-tone-option">
+          <input type="radio" name="tone" value="friendly">
+          <div class="tone-label">Friendly &amp; reassuring</div>
+          <div class="tone-sample">"Thanks for reaching out! We've got you covered."</div>
+        </label>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- Task detail side panel -->
+<div class="side-panel-overlay" id="sidePanelOverlay"></div>
+<aside class="side-panel" id="sidePanel" aria-hidden="true">
+  <div class="side-panel-head">
+    <button class="side-panel-close" id="sidePanelClose" aria-label="Close panel">&times;</button>
+    <div class="side-panel-eyebrow" id="sidePanelEyebrow">Task detail</div>
+    <div class="side-panel-title" id="sidePanelTitle"></div>
+  </div>
+  <div class="side-panel-body" id="sidePanelBody"></div>
+</aside>
+
+<!-- Tour bubble (positioned dynamically by JS) -->
+<div class="tour-bubble" id="tourBubble" aria-hidden="true">
+  <div class="tour-step-num" id="tourStepNum"></div>
+  <div class="tour-title" id="tourTitle"></div>
+  <div class="tour-body" id="tourBody"></div>
+  <div class="tour-actions">
+    <button class="tour-btn-skip" id="tourBtnSkip" type="button">End tour</button>
+    <button class="tour-btn-next" id="tourBtnNext" type="button">Next</button>
+  </div>
+</div>
+<div class="tour-spotlight" id="tourSpotlight" aria-hidden="true"></div>
+
+<script src="demo.js"></script>
+</body>
+</html>
