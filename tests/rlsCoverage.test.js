@@ -19,15 +19,6 @@
 //
 // The detailed per-policy shape test for query_history lives in
 // queryHistoryRlsPolicy.test.js; this file covers everything else.
-//
-// KNOWN GAP (intentionally NOT in RLS_REQUIRED_TABLES, see
-// POSSIBLE SAFETY ISSUE flag in the commit message):
-//   - public.category_metadata is tenant-scoped (has company_id FK)
-//     but never had `enable row level security` declared. Migration
-//     0016 revokes all anon/authenticated grants on it so the data
-//     API can't reach it, but RLS would be a defense-in-depth layer.
-//     When a future migration adds RLS to it, append the table name
-//     to RLS_REQUIRED_TABLES below.
 
 const fs = require('fs');
 const path = require('path');
@@ -45,6 +36,7 @@ const RLS_REQUIRED_TABLES = [
   'review_requests',
   'api_keys',
   'audit_log',
+  'category_metadata',
 ];
 
 function readAllMigrations() {
