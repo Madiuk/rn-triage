@@ -316,7 +316,9 @@ in the first place is still reachable.
 - **CHECK:** none.
 - **UNIQUE:** `id`, `(company_id, category_name)`.
 - **Foreign keys:** `company_id → companies(id) ON DELETE CASCADE`.
-- **RLS:** enabled, no policies.
+- **RLS:** enabled via migration 0021 (no policies — default-deny for
+  anon/authenticated; service-role-only access posture matches the other
+  tenant-scoped tables).
 - **Gaps:**
   - `display_order` accepts negatives and very large values.
   - `category_name` no length cap. The admin handler doesn't cap

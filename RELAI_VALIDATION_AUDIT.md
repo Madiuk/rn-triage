@@ -10,10 +10,12 @@ Two structural facts up front, because they apply to almost every entry:
 1. **No validation library.** Nothing uses `zod`, `joi`, `ajv`, `class-validator`,
    or even a hand-rolled schema layer. Validation is ad-hoc: a few
    `if (!body.x) return 400`, two enum `Set`s, and `JSON.parse` in a `try/catch`.
-2. **No rate limiting anywhere.** Not on the webhook endpoints, not on the
-   LLM proxies, not on auth/invite, not on Supabase Auth (the magic-link OTP
-   request is also un-throttled by the app). Budget burn and brute-forcing are
-   open vectors on every authenticated/unauthenticated endpoint.
+2. **Rate limiting is partial.** `/ingest` is throttled at 60 req/min per API
+   key (migration 0020). `/triage`, `/analyze`, `/auth/invite`, and Supabase
+   Auth's magic-link OTP all remain open. The `/triage` exclusion is
+   intentional per the clinical-sensitive deferral documented in PLAN.md § S2.
+   Budget burn and brute-forcing on the unthrottled endpoints remain open
+   vectors.
 
 There is one positive baseline: the SPA escapes persisted text fields
 (`patient_message`, `draft_response`, `correction_note`) through
@@ -43,8 +45,10 @@ new render path that bypasses `esc()` would re-open the surface.
   - No content-type check on the request.
   - No idempotency without an `external_id`: callers retrying without one
     create duplicate rows.
-  - API-key brute force possible (no rate limit, exact sha256 compare not
-    timing-safe — `Array.isArray(keys) && keys[0]` short-circuits on miss).
+  - API-key brute force is throttled by a 60 req/min per-key limit
+    (migration 0020), but the sha256 compare itself is still not timing-safe
+    (`Array.isArray(keys) && keys[0]` short-circuits on miss). Brute-forcing
+    is now bounded but not eliminated.
 - **Worst consequence:** API-key brute-force eventually finds a valid key,
   giving an attacker the ability to flood a tenant's `query_history` with
   arbitrary content, which then:
@@ -417,7 +421,7 @@ See §1.4 — same handler.
 |---|---|---|---|
 | **HIGH** | 1.6 | `POST /auth/invite` | Unauthenticated creation of confirmed users with caller-chosen tenant + role → full tenant compromise. |
 | **HIGH** | 4.1 | Claude triage response | Patient-safety pathway; prompt injection in patient messages can produce misleading drafts and urgency. |
-| **HIGH** | 1.1 | `POST /ingest` | Public webhook with no rate limit; API-key brute-force + queue spam → Anthropic spend + queue/aggregation poisoning. |
+| **HIGH** | 1.1 | `POST /ingest` | Public webhook; 60 req/min/key limit (migration 0020) caps queue-spam blast radius, but sha256 compare is not timing-safe and a valid-key holder can still flood within the limit. |
 | **HIGH** | 1.8 | `POST /triage` | Unbounded system/messages; arbitrary persona + Opus-tier budget burn per signed-in user (or planted user). |
 | **HIGH (future)** | 1.3 | `POST /bask` | No auth — once wired, lets any caller post outbound text under the practice's brand. |
 | MEDIUM | 1.2 | `POST /intercom` | HMAC gate is strong; downstream effects same as §1.1 if the secret leaks. Regex HTML-strip is fragile. |
@@ -449,9 +453,10 @@ infrastructure to fix:
   schemas, would catch every "free-text field with no length cap" listed
   above, and would type the inputs at the same time. The fixes are local —
   one schema per route module.
-- **No rate limiting.** Webhook endpoints, the Anthropic proxies, and
-  `/auth/invite` are the priority targets. Netlify Edge Functions or a
-  Postgres-backed counter would both work.
+- **Rate limiting is partial.** `/ingest` shipped (migration 0020, 60 req/min
+  per API key, fail-open). `/triage`, `/analyze`, and `/auth/invite` remain
+  open. The Postgres-backed counter + RPC pattern in 0020 generalizes — same
+  shape would extend to the other endpoints when their triggers fire.
 - **No input-size caps.** Only `/admin/settings.template` has one (4000
   chars). Everything else accepts arbitrarily large strings until PostgREST
   / Postgres rejects them — which is a 4xx far down the stack instead of an

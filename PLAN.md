@@ -47,7 +47,8 @@ maintainable before adding features.
 - [x] Background worker stub (worker.js) — schedule TBD
 - [x] Bask outbound stub (bask.js) — wire when API contract known
 - [x] Edit-distance + time-to-edit captured as reward signal
-- [ ] Sentry (or similar) wired for production errors
+- [x] Structured error logger landed (netlify/functions/_lib/log.js)
+- [ ] Sentry (or similar) — prod sink for the structured logger above; deferred until production traffic
 - [ ] esbuild bundling — deferred until app.js is split into modules
 
 ### Phase 2 — Active learning loop (next 1 month)
@@ -395,7 +396,7 @@ that trigger fires, the corresponding item moves out of this backlog
 and into active work. Closed items from the same audit pass:
 `/auth/invite` auth gate (commit 2318488), `query_history` enum
 CHECKs (commit 28f6eb3), `query_history` explicit RLS deny baseline
-(commit 28f6eb3), first-admin bootstrap (commit 32b458c).
+(commit 28f6eb3), first-admin bootstrap (commit 32b458c), structured error logger (commit a449bbb), RLS coverage contract test (commit 9fe66f6), rate limit on /ingest (commit ef2f125), RLS on category_metadata (commit fcf78e7).
 
 ### S1. `/triage` body validation
 - **Where:** [netlify/functions/triage.js](netlify/functions/triage.js)
@@ -412,25 +413,24 @@ CHECKs (commit 28f6eb3), `query_history` explicit RLS deny baseline
   shape. One file change, one test file using the existing
   triageProxy.test.js mock pattern.
 
-### S2. Rate limiting (cross-cutting)
-- **Where:** [ingest.js](netlify/functions/ingest.js),
-  [triage.js](netlify/functions/triage.js),
-  [_lib/routes/analyze.js](netlify/functions/_lib/routes/analyze.js)
-  (TODOs in all three).
-- **Problem:** no per-key or per-user throttling anywhere. A
-  compromised API key or session token can flood any of these.
-- **Today's control:** bounded keyset (0-1 API keys issued, ~1 active
-  staff session per tenant).
-- **Trigger:** first external channel adapter goes live in production
-  volume (Phase 3 — Bask outbound, Intercom inbound at volume, email
-  / SMS adapters), OR a second tenant onboards (Phase 4), OR a known
-  cost anomaly.
-- **Fix shape:** storage-mechanism decision required first:
-  - Postgres-backed counter (no new dep, ~50ms overhead per call).
-  - External KV (Upstash etc., new dependency).
-  - Netlify Edge built-in rate limiting (Netlify-locked).
-  All three are viable; pick when the trigger fires. Once picked,
-  the per-endpoint wiring is small.
+### S2. Rate limiting
+
+**Status:** partially shipped (2026-05-15).
+
+- `/ingest`: 60 req/min per API key (migration 0020, fail-open).
+  Closes the public-webhook attack surface from the audit.
+- `/triage`: intentionally NOT throttled. Staff-JWT-gated, bounded
+  by click rate (~1/min), and a wrong-direction limit would block a
+  nurse mid-triage. Revisit only if auto-send goes live, a
+  triage-specific cost anomaly fires, or a shared multi-tenant proxy
+  changes the threat model.
+- `/analyze`: still open. Same considerations as /triage but with
+  smaller blast radius (1024-token cap, Haiku tier). Defer with
+  /triage unless the trigger fires.
+
+The Postgres-backed counter + RPC pattern in 0020 (atomic
+upsert+increment, fail-open in handler) generalizes — same shape
+would extend to the other endpoints when their triggers fire.
 
 ### S3. AI output semantic trust (auto-send blocker)
 - **Where:** [triage.js](netlify/functions/triage.js) (TODO at top),
@@ -497,3 +497,4 @@ CHECKs (commit 28f6eb3), `query_history` explicit RLS deny baseline
 | 2026-05-10 | Known schema drift: `review_requests.created_by` declared in 0001 but missing in production | Migration 0008's first attempt failed at the review_requests UPDATE because production schema doesn't have the column despite source declaring it. PostgREST has been silently dropping `created_by` on every review insert (Supabase config tolerates unknown fields). Functionally invisible because the application never reads created_by — the `triage_id` linkage to `query_history.user_id` carries the same information. 0008 was rewritten to use the triage_id chain so the backfill works regardless. The drift is not load-bearing; reconciliation is deferred to whenever something actually consumes `created_by`. If it ever matters, the fix is `alter table public.review_requests add column if not exists created_by uuid` plus a backfill via the same triage_id chain. |
 | 2026-05-10 | Intercom is the first channel adapter built (inbound) — ahead of Bask in priority | Big Easy's owner indicated they want to use Intercom for customer service. That changes the strategic position from "Bask is the first integration" to "Intercom-or-Bask, whichever lands first." Intercom has more public documentation than Bask and is broadly applicable across tenants (most customer-service-platform users in any vertical can adopt Intercom), so the adapter has reusable value beyond Big Easy. Inbound webhook is built and tested; outbound (posting replies back via the Conversations API) is deferred until worker.js does real triage and staff has a queue UI. Bask remains in the roadmap and uses the same channel-pluggable architecture; whenever their webhook contract is published, that adapter slots in alongside intercom.js. |
 | 2026-05-13 | Per-staff `title` field + snapshot role/title on `query_history` + `review_requests` (mig 0017) | The display label "Clinical Staff (RN)" was hardcoded against the role enum and lied the moment a doctor signed in. Migration 0017 adds `profiles.title` (free text, backfilled 'RN'/'CSR' for existing rows) and drives the badge/profile-drawer label from it — a doctor reads "Clinical Staff (MD)" without a code change. Permissions stay on `role`; title is display + analytics-snapshot only. The companion snapshot columns (`query_history.{user_role, user_title}`, `review_requests.{resolved_by_role, resolved_by_title}`) lay the rail for future per-role learning segmentation: written here, not yet read. Per-role training pools, capability flags replacing binary `role`, role-aware analytics, and vertical-agnostic role naming explicitly deferred to multi-tenant — not useful work today because BEWL has only one clinical credential in active use (no MDs trialing). |
+| 2026-05-15 | Hardening batch: /ingest rate limit (0020), structured error logger, RLS on category_metadata (0021), RLS coverage contract test, inbound_raw_event audit log explicitly deferred | Pre-launch window for cheap hardening that scales with multi-tenant. /triage rate-limit intentionally excluded — clinical-sensitive path, bounded by staff click rate, wrong-direction limit has patient-impact blast radius. Audit log deferred because Bask/Intercom webhook contracts aren't real yet — building schema speculatively risks designing for the wrong payload shape; revisit when either vendor delivers a contract or a go-live date. |
