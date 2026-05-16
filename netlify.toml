@@ -3,7 +3,7 @@
   # Skip the build if no deployable file changed in the commit. Migrations,
   # tests, eval cases, and root markdown docs don't affect the served site,
   # so a doc-only commit shouldn't burn a build minute.
-  ignore = "git diff --quiet HEAD^ HEAD -- index.html login.html app.js styles.css data/ netlify/"
+  ignore = "git diff --quiet HEAD^ HEAD -- index.html login.html app.js styles.css data/ netlify/ demo.html demo.js demo-styles.css demo-data.json"
 
 [functions]
   node_bundler = "esbuild"
