@@ -152,50 +152,95 @@ likely-universal across future tenants):
   integration; useful for almost every tenant. Deferred until the
   first two channel adapters are exercising the framework end-to-end.
 
-#### Per-staff queue (the thing we don't have yet today)
+#### Per-staff queue (replaces today's manual Run Triage)
 
-- Staff dashboard surfaces triaged-but-unresolved tasks **sorted by
-  priority score** (severe SE → moderate → mild → clinical → non-
-  clinical). Replaces today's manual Run Triage as the primary work
-  surface, while keeping Run Triage available for ad-hoc messages.
-- Each staff profile gains a `category_preferences` array (which
-  categories they want in their queue) and a small set of capability
-  flags (`can_send_clinical_responses`, etc.) that replace the old
-  binary `Clinical / Non-Clinical` role over time. Migration: keep
-  `role` populated for backwards compat; add capabilities; deprecate
-  `role` once UI fully reads from capabilities.
-  - **Foundation already laid (mig 0017, 2026-05-13):**
-    `profiles.title` decouples the display credential from `role`
-    (a doctor is `role='Clinical', title='MD'`, an NP is `'NP'`,
-    future vertical-agnostic tenants use whatever credential
-    matters to them). `query_history.{user_role, user_title}` and
-    `review_requests.{resolved_by_role, resolved_by_title}` snapshot
-    the editing staff's credential at write time, even if their
-    role/title later changes. Not yet read by analytics or the
-    prompt — just rails for future segmentation. Per-role learning
-    pools, role-aware aggregations, and capability flags replacing
-    binary `role` remain deferred until a tenant actually has more
-    than one clinical credential in active use.
-- The queue filter for a given staff member = `category_preferences`
-  ∩ `categories where requires_clinical_authorization is satisfied by
-  the staffer's capabilities`. Defaults from `RELAI_DEFAULTS.categories`
-  in data/defaults.js (already in place as of 2026-05-09).
+Staff work from a **personal pending queue** capped at **5 tasks**.
+Pull is explicit and batched.
+
+- Staff request work via a **category multiselect dropdown**. They
+  tick the categories they want to pull from; the system fills their
+  queue with up to 5 tasks across those categories. Each staffer's
+  `category_preferences` array pre-checks their usual categories;
+  they can adjust per pull.
+- **Refill is strict-batch.** A staffer can only pull again when
+  their pending queue hits 0. No top-up — finishing 3 of 5 does not
+  earn the right to pull 2 more.
+- Each user sees **only their own pending queue**. There is no
+  visible pool of claimable tasks for regular staff. The cross-staff
+  "claimed by Jane" pattern is gone for non-admins.
+- **Admins and super-users** retain a cross-staff view for oversight
+  and intervention.
 - Channel-agnostic: queue items show their `source_channel` as a
   small badge/icon, but routing decisions don't depend on it. A
   Bask-sourced clinical question routes the same as an email-sourced
   one with the same category.
 
-#### Task ownership and handoffs
+Priority within a pull, in order:
+1. **Severe / priority items** (urgency score above the high-
+   priority threshold) — always pulled first across all ticked
+   categories.
+2. **Due tasks** (see *Service-level windows* below) — pulled before
+   non-Due within remaining slots.
+3. Normal-priority new tasks — sorted by urgency score within
+   categories.
+
+Run Triage stays available for ad-hoc messages and admin work; it is
+no longer the primary staff surface.
+
+#### Service-level windows and the Due state
+
+Two windows govern every task:
+
+| Window | Starts when | On expiry |
+|---|---|---|
+| **24h initial SLA** | task is pulled into a staffer's pending queue | returns to general pool, marked `Due` |
+| **8h reply SLA** | a patient reply arrives on a task already worked once | returns to pool, marked `Due` |
+
+The **Due** flag is a property of the task, not the assignment:
+
+- Once a task is marked Due, it stays Due. Returning to the pool,
+  being pulled by another staffer, even being re-tasked — none of
+  these clear it. The flag ends only when the task closes.
+- Due tasks outrank normal new tasks in pull priority. Severe /
+  priority items still outrank Due.
+- A staffer whose pending queue contains **5 Due tasks** has their
+  queue **locked**: no further pulls until they take action on at
+  least one (complete, re-task, or otherwise clear it). This is the
+  intentional pressure — priority and time-based response over
+  volume. A staffer cannot sit on a queue full of Dues to avoid
+  pulling more work.
+- Re-tasking a Due item clears it from the current staffer's queue
+  but it remains Due in the pool for the next puller. There is no
+  "un-Due."
+
+Re-tasking is the safety valve when a staffer cannot complete on
+time but knows the work needs to move. It is the expected action,
+not a penalty.
+
+**Enforcement.** A periodic SLA-sweep job in `worker.js` (Phase-1
+stub, to be wired when queue work lands) scans for expired windows:
+
+- Tasks whose `first_pulled_at` is more than 24h ago and not closed
+  → release `claimed_by` to NULL, set `due_state=true`.
+- Tasks whose `last_patient_reply_at` is more than 8h ago and not
+  closed → release `claimed_by` to NULL, set `due_state=true`.
+
+Sweep cadence is TBD but coarse — every few minutes is sufficient
+given 24h / 8h windows. Each sweep-triggered release writes an
+`audit_log` entry tagged with which window expired, for traceability
+and for the learning loop (repeated misses on a category or staffer
+are themselves a signal).
+
+#### Task ownership, assignment, and handoffs
 
 A patient message creates one task. One task has one **primary owner**
 at a time. This section answers the questions that are moot today
 (single staff, manual paste) but become load-bearing the moment two
-or more staff have a shared queue:
+or more staff share work:
 
 - *Who owns a task with both clinical and non-clinical parts?*
 - *Who sends the final reply to the patient?*
-- *What stops two staff from working on the same task in parallel
-  and sending two conflicting replies?*
+- *What stops two staff from sending two conflicting replies?*
 - *How does work get handed off to another team without losing it?*
 - *What happens when the AI is unsure?*
 
@@ -206,29 +251,25 @@ The model:
    one with the highest-gated `required_capabilities` (for medical
    tenants today: a category requiring `clinical_response` outranks
    one that doesn't). Tie-broken by `urgency_score`.
-2. **Task lands in the primary category's queue.** Anyone whose
-   capability set satisfies that category's requirements AND who has
-   that category in their `category_preferences` sees the task as
-   claimable. Other staff see nothing.
-3. **Claiming creates ownership.** When a staff member starts work,
-   they claim the task: `query_history.claimed_by` = their user_id,
-   `claimed_at` = now. Other staff in the same queue see it as
-   "claimed by Jane" — visible for transparency, not actionable.
-   This is the core **redundancy control** — only one owner at a
-   time, no parallel conflicting replies.
-4. **The owner sends the final reply to the patient.** Period. There
-   is exactly one outbound to the patient per task, and it comes
-   from the owner. Even when a task has a clinical part AND a
-   non-clinical part, only the owner replies; the other team's work
+2. **Task lands in the general pool, tagged by category.** It is
+   not visible to any individual staff member until pulled.
+3. **Pulling creates ownership.** When a staffer pulls a task into
+   their pending queue, `query_history.claimed_by` = their user_id,
+   `claimed_at` = now, and the 24h SLA clock starts. No other staff
+   sees this task. This is the core **redundancy control** — only
+   one owner at a time, no parallel conflicting replies.
+4. **The owner sends the final reply to the patient.** Period.
+   Exactly one outbound to the patient per task, and it comes from
+   the owner. Even when a task has a clinical part AND a non-
+   clinical part, only the owner replies; the other team's work
    happens internally, not in the patient-facing thread.
 5. **Internal handoffs are structured, not free-text pastes.** When
    the owner needs another team to do something (ship a replacement,
-   process a refund, transfer a pharmacy, schedule a fitting),
-   they create an **internal action** linked to the task. The
-   action appears in the relevant team's queue with a
-   "linked to triage #N" reference. The support team marks the
-   action complete; the owner sees that and proceeds with the
-   patient reply.
+   process a refund, transfer a pharmacy, schedule a fitting), they
+   create an **internal action** linked to the task. The action
+   lands in the relevant team's pool with a "linked to triage #N"
+   reference. The other team marks the action complete; the owner
+   sees that and proceeds with the patient reply.
 
    This replaces the current "Internal Note for Staff free-text
    paste" pattern. The internal note becomes the *content* of a
@@ -236,23 +277,48 @@ The model:
    from. New table: `task_actions` (or extend `audit_log`) with
    `triage_id`, `action_type`, `assigned_to_capability`,
    `description`, `status`, `completed_by`, `completed_at`.
-6. **Reassignment for misclassification.** If the owner sees the AI
-   put the task in the wrong queue (e.g., labeled "Side Effects"
+6. **Re-tasking releases ownership.** A staffer who cannot complete
+   a task — capacity, SLA pressure, mis-categorised, anything —
+   re-tasks it. `claimed_by` returns to NULL; the task returns to
+   the general pool. If it carries a Due flag, the flag persists.
+   UI: a "Re-task" button next to the "Submit & Send" button.
+7. **Reassignment for misclassification.** If the owner sees the AI
+   put the task in the wrong category (e.g., labeled "Side Effects"
    but really "Refund Request"), one click reassigns. The task
-   moves to the new category's queue, the owner releases ownership,
-   the new queue's staff can claim. Reassignment also feeds the
+   moves to the new category's pool, the owner releases ownership,
+   the new pool's staff can pull. Reassignment also feeds the
    learning loop (see *Reassignment as a learning signal* below).
-7. **Release back to queue.** An owner who can't complete a task
-   releases it: `claimed_by` returns to NULL. Another staff member
-   in the same queue can claim. UI: a "Release" button next to the
-   "Submit & Send" button.
-8. **Ambiguous / low-confidence cases route conservatively.** When
-   `ai_confidence` is below the review threshold, or when the AI
-   produces a category but flags `review_request`, the task routes
-   to the **highest-capability-required queue** — the gating role.
-   For medical tenants that's the clinical queue; for a tire shop
-   it might be the certified-mechanic queue. Better to over-
-   escalate than under-escalate.
+8. **Low-confidence cases route to the non-clinical routing hub.**
+   When `ai_confidence` is below the review threshold, or when the
+   AI flags `review_request`, the task lands in a **Routing Hub**
+   pool. Non-clinical staff act as the initial routing layer: they
+   read the message, click the right category, and the task moves
+   to that category's pool. APP-tier staff never see routing-hub
+   work; clinical and APP attention is reserved for clinical work,
+   not classification triage.
+
+   Severity is a separate axis. If the AI assigns high
+   `urgency_score` even when category confidence is low, the task
+   still carries that severity. Routing-hub workers see the
+   urgency badge and route severe items to the appropriate
+   clinical pool first.
+
+   *Operational rationale:* non-clinical time is cheaper and more
+   available than clinical / APP time. Categorization is clerical,
+   not clinical. Better a non-clinical worker's 30 seconds
+   clicking the right category than a clinician's 2 minutes
+   reading and reassigning.
+
+   *Visibility (tenant-configurable):* the routing hub is the non-
+   clinical pool's primary intake by default. Whether RN-level
+   clinical staff can also help route during quiet periods is
+   per-tenant config; APP-tier is always excluded.
+
+   Vertical-agnostic note: in a non-medical tenant, "routing hub"
+   maps to whichever role is cheapest and most capable of
+   classification (service writer in auto repair, leasing agent in
+   property management). The gating role (mechanic, property
+   manager) is preserved from routing-hub duty.
 9. **No accidental merging.** Each inbound message creates exactly
    one task. Bask retries / duplicate webhooks dedupe by
    `external_id` (already implemented in `ingest.js`). Manual
@@ -263,16 +329,70 @@ The pattern is vertical-agnostic. For a tire repair shop, substitute
 "certified mechanic" for "clinical" and "service writer" for
 "non-clinical." For property management, substitute "licensed
 property manager" for "clinical" and "leasing agent" for
-"non-clinical." The semantics — gating role, primary owner, claim-
-to-lock, structured handoffs, reassignment, conservative routing on
-ambiguity — don't change. That's what makes the framework portable.
+"non-clinical." The semantics — gating role, primary owner, pull-
+to-assign, structured handoffs, reassignment, routing-hub for
+low-confidence cases, SLA-driven Due state — don't change. That's
+what makes the framework portable.
 
 DB additions this section implies (deferred until queue work
 begins, but listed here so they aren't surprises):
 - `query_history.claimed_by uuid references auth.users(id)` and
-  `claimed_at timestamptz` (nullable; null = unclaimed).
+  `claimed_at timestamptz` (nullable; null = in pool).
+- `query_history.due_state boolean` (or derived from timestamps;
+  true once any SLA expires, persists until task closes).
+- `query_history.first_pulled_at` and
+  `query_history.last_patient_reply_at` — anchors for the 24h and
+  8h SLA clocks.
 - `task_actions` table for internal handoffs.
 - `task_reassignments` table (or an `audit_log` action type).
+
+#### Role and capability gating
+
+**Foundation already laid (mig 0017, 2026-05-13):** `profiles.title`
+decouples the display credential from `role` (a doctor is
+`role='Clinical', title='MD'`, an NP is `'NP'`, future vertical-
+agnostic tenants use whatever credential matters to them).
+`query_history.{user_role, user_title}` and
+`review_requests.{resolved_by_role, resolved_by_title}` snapshot the
+editing staff's credential at write time, even if their role/title
+later changes. Not yet read by analytics or the prompt — just rails
+for future segmentation. The pull-queue protocol below assumes this
+framework as the substrate; per-role learning pools, role-aware
+aggregations, and capability flags replacing binary `role` remain
+deferred until a tenant actually has more than one clinical
+credential in active use.
+
+Categories require capabilities; staff have capabilities. The pull
+dropdown is filtered by the staffer's capability set, with one
+asymmetry for clinical tenants:
+
+- **Default greying.** A clinical-only staffer sees non-clinical
+  categories greyed out in the dropdown. A non-clinical staffer
+  cannot see clinical categories at all — gated by missing
+  capability, not greyed.
+- **Idle-unlock for clinical → non-clinical.** When a clinical
+  staffer attempts to pull and there are **zero pullable tasks in
+  their in-scope (clinical) pool at that moment**, the non-clinical
+  options unlock for that pull. Keeps clinical hands busy when the
+  clinical pool is dry without permanently softening the role
+  boundary. The asymmetry is intentional: non-clinical staff cannot
+  pull clinical work regardless of load.
+- **APP-gated tier (future).** When the system has APP staff
+  (MD / NP / other advanced-practice-provider `title`), categories
+  can be marked APP-only via a `required_capabilities` value like
+  `['prescribing_authority']` or `['app_only']`. APP-only categories
+  are **invisible** to non-APP staff — not greyed, absent. Seen
+  and managed only by APPs (and by admin / super-user via the
+  cross-staff view). Until an APP staffer exists, this stays
+  documented future state, not built feature.
+
+Super-user vs. admin (existing flags `is_admin`, `is_super_user`
+on `profiles`):
+- Both see the cross-staff queue, including who has pulled what.
+- Super-user can override admin actions and reach settings admins
+  cannot (handoff template, category metadata, etc.). The pull /
+  queue protocol respects super-user as the final authority —
+  admins can intervene, super-user can override admin intervention.
 
 #### Reassignment as a learning signal
 
@@ -498,3 +618,7 @@ would extend to the other endpoints when their triggers fire.
 | 2026-05-10 | Intercom is the first channel adapter built (inbound) — ahead of Bask in priority | Big Easy's owner indicated they want to use Intercom for customer service. That changes the strategic position from "Bask is the first integration" to "Intercom-or-Bask, whichever lands first." Intercom has more public documentation than Bask and is broadly applicable across tenants (most customer-service-platform users in any vertical can adopt Intercom), so the adapter has reusable value beyond Big Easy. Inbound webhook is built and tested; outbound (posting replies back via the Conversations API) is deferred until worker.js does real triage and staff has a queue UI. Bask remains in the roadmap and uses the same channel-pluggable architecture; whenever their webhook contract is published, that adapter slots in alongside intercom.js. |
 | 2026-05-13 | Per-staff `title` field + snapshot role/title on `query_history` + `review_requests` (mig 0017) | The display label "Clinical Staff (RN)" was hardcoded against the role enum and lied the moment a doctor signed in. Migration 0017 adds `profiles.title` (free text, backfilled 'RN'/'CSR' for existing rows) and drives the badge/profile-drawer label from it — a doctor reads "Clinical Staff (MD)" without a code change. Permissions stay on `role`; title is display + analytics-snapshot only. The companion snapshot columns (`query_history.{user_role, user_title}`, `review_requests.{resolved_by_role, resolved_by_title}`) lay the rail for future per-role learning segmentation: written here, not yet read. Per-role training pools, capability flags replacing binary `role`, role-aware analytics, and vertical-agnostic role naming explicitly deferred to multi-tenant — not useful work today because BEWL has only one clinical credential in active use (no MDs trialing). |
 | 2026-05-15 | Hardening batch: /ingest rate limit (0020), structured error logger, RLS on category_metadata (0021), RLS coverage contract test, inbound_raw_event audit log explicitly deferred | Pre-launch window for cheap hardening that scales with multi-tenant. /triage rate-limit intentionally excluded — clinical-sensitive path, bounded by staff click rate, wrong-direction limit has patient-impact blast radius. Audit log deferred because Bask/Intercom webhook contracts aren't real yet — building schema speculatively risks designing for the wrong payload shape; revisit when either vendor delivers a contract or a go-live date. |
+| 2026-05-16 | Pull-queue protocol replaces claim-based queue model | Original Phase-3 model (2026-05-09) was claim-based: staff browse a shared per-category pool and click to claim, with peer "claimed by Jane" visibility as redundancy control. Refined to pull-based: personal pending queue capped at 5, batch refill via category multiselect dropdown, own-queue-only visibility for non-admins. Sticky "Due" state on SLA expiry (24h initial from first pull, 8h reply window after each patient response). Queue locks when 5-of-5 are Due. Re-tasking is the safety valve, not a penalty. PLAN.md "Per-staff queue", "Service-level windows and the Due state", and "Task ownership, assignment, and handoffs" sections rewritten. |
+| 2026-05-16 | Low-confidence routing → non-clinical Routing Hub (inverts 2026-05-09 rule) | Original rule routed ambiguous tasks to the highest-capability pool (conservative). Practice operations made this expensive: categorization is clerical, not clinical, and routing low-confidence to clinical wastes the most expensive staff time on the cheapest task type. New rule: low-confidence → Routing Hub pool, owned by non-clinical staff. APP-tier never sees routing-hub work. Severity remains a separate axis — high-urgency items still route to clinical first when seen by routing-hub workers. Updates rule 8 in "Task ownership, assignment, and handoffs". |
+| 2026-05-16 | Migration 0022: queue-state columns + task_reassignments table | First substrate for Phase 3 queue work. Adds claimed_by, claimed_at, first_pulled_at, last_patient_reply_at, due_state to query_history. Partial indexes for "my queue" lookup and the two SLA sweep paths. New task_reassignments audit table (tenant-scoped, RLS deny baseline). All additive + idempotent. Applied to production via Supabase MCP; verified clean (no column collisions, all indexes + policy in place). |
+| 2026-05-16 | ROADMAP.md added — 4-week execution plan to task-management v1 | PLAN.md remains strategy; ROADMAP.md is the time-boxed week-by-week execution doc. Target: Big Easy staff using a new pull-based task surface ~4 weeks out, parallel build with single atomic cutover (rename index.html → manual.html, tasking.html → index.html). Healthie is the first new channel adapter (Bask deferred until contract lands; Intercom inbound already live, outbound unlocks with queue UI). Defer list with re-engagement triggers documented; v1 is not "feature-complete" — it's "staff using it, producing real correction signal". |
