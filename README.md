@@ -1,4 +1,4 @@
-# Relai — Triage and Tasking
+# Care Station — Triage and Tasking
 
 AI-assisted customer-service triage and task routing — categorizes
 inbound patient/customer messages, drafts a reply, and surfaces what
@@ -129,7 +129,7 @@ global env vars while there's only one tenant; will move into the
 ### Intercom webhook setup
 
 Once Intercom is configured to send webhooks to
-`https://<your-relai-domain>/.netlify/functions/intercom`, the
+`https://<your-carestation-domain>/.netlify/functions/intercom`, the
 adapter accepts the two user-message topics (`conversation.user.created`
 and `conversation.user.replied`) and ignores everything else with a
 quiet 200 so Intercom doesn't retry. The webhook URL is the same per

@@ -1,4 +1,4 @@
-// Relai Ingest Endpoint — generic inbound webhook for any channel.
+// Care Station Ingest Endpoint — generic inbound webhook for any channel.
 //
 // Channel-agnostic by design. Callers (channel adapters or any tenant
 // integration) POST a JSON body with at minimum a `message` field and

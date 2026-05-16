@@ -1,5 +1,5 @@
 /*
- * Relai demo — standalone client.
+ * Care Station demo — standalone client.
  *
  * Loads demo-data.json once at startup. All rendering and interactions
  * are mocked locally. No fetches to Supabase, Anthropic, or any Netlify

@@ -8,12 +8,12 @@ If a rule prevents an action, ask the user before bypassing it.
 
 ## Project shape
 
-- **Relai** is a customer-service triage tool: a message arrives via
+- **Care Station** is a customer-service triage tool: a message arrives via
   any input **channel** (staff paste, EHR webhook, forwarded email,
   live chat, SMS, web form, etc.), an Anthropic Claude model
   classifies it against a per-tenant Knowledge Base, and returns a
   structured JSON triage decision. Channels are pluggable adapters —
-  the rest of Relai (triage, KB, queue, learning, dashboards) is
+  the rest of Care Station (triage, KB, queue, learning, dashboards) is
   channel-agnostic. Currently single-tenant (Big Easy Weight Loss, a
   clinical telehealth practice); architected to become a multi-tenant
   SaaS that's **vertical-agnostic** at the architecture level — the

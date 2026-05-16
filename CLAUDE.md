@@ -1,6 +1,6 @@
-# Relai
+# Care Station
 
-Relai is a clinical triage SaaS that processes inbound patient messages
+Care Station is a clinical triage SaaS that processes inbound patient messages
 using AI-assisted classification (Anthropic Claude API). Currently pre-launch,
 single-tenant for Big Easy Weight Loss, being prepared for multi-tenant
 deployment.

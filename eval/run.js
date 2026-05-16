@@ -287,7 +287,7 @@ function scoreCase(testCase, parsed) {
 
 // ── Run ───────────────────────────────────────────────────────────────
 async function main() {
-  console.log('Relai eval — ' + cases.length + ' case(s)');
+  console.log('Care Station eval — ' + cases.length + ' case(s)');
   console.log('  model:           ' + model);
   console.log('  endpoint:        ' + (endpoint || 'direct Anthropic'));
   console.log('  prompt_version:  ' + PROMPT_VERSION);

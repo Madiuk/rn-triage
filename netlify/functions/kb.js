@@ -1,4 +1,4 @@
-// Relai — KB / History / Reviews / Analyze / Admin proxy
+// Care Station — KB / History / Reviews / Analyze / Admin proxy
 //
 // THIN ROUTER (v0.4.0). All endpoint handlers live in
 // netlify/functions/_lib/routes/. Each route module exports

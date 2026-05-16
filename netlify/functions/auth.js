@@ -1,4 +1,4 @@
-// Relai — Auth & Profile Netlify Function
+// Care Station — Auth & Profile Netlify Function
 // Endpoints: GET /auth/profile, POST /auth/invite, POST /auth/signout
 
 const SUPABASE_URL = process.env.SUPABASE_URL;

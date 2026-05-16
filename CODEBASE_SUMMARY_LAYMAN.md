@@ -1,14 +1,14 @@
-# Relai — Codebase Summary (Plain English)
+# Care Station — Codebase Summary (Plain English)
 
 **Version:** 0.4.1 · **Stage:** Internal trial
 
 ## What it is
 
-Relai is a web tool that helps a clinic's staff handle the steady stream
+Care Station is a web tool that helps a clinic's staff handle the steady stream
 of patient messages — questions about medication, side effects,
 shipping, billing, appointments, anything. Instead of every message
 landing in someone's inbox to be read and answered from scratch, staff
-paste the message into Relai and an AI assistant (Claude) does a
+paste the message into Care Station and an AI assistant (Claude) does a
 first-pass read for them.
 
 The AI tells staff three useful things:
@@ -21,10 +21,10 @@ The AI tells staff three useful things:
 
 If the AI isn't sure, it flags the message for a clinician to weigh in
 on. When the clinician answers, that answer is automatically added to
-Relai's knowledge base so the same question gets a better answer next
+Care Station's knowledge base so the same question gets a better answer next
 time. The system learns.
 
-Today Relai is being used by one clinic (Big Easy Weight Loss, a
+Today Care Station is being used by one clinic (Big Easy Weight Loss, a
 telehealth weight-loss practice). It's built so that the same tool
 could be used by a totally different kind of business — another medical
 practice, an auto shop, a property manager — by swapping in a different

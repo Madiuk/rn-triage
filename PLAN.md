@@ -1,6 +1,6 @@
 # PLAN.md — Strategic roadmap
 
-This is the living plan for Relai. Update it when priorities shift.
+This is the living plan for Care Station. Update it when priorities shift.
 
 ---
 
@@ -73,7 +73,7 @@ instead of the single manual Run Triage flow.
 #### Channels are the architectural concept, not partners
 
 A **channel** is whatever pipe a patient message arrives through. The
-system treats channels as pluggable adapters; the rest of Relai
+system treats channels as pluggable adapters; the rest of Care Station
 (triage, KB, queue, learning loop, dashboards) is channel-agnostic.
 
 A channel adapter is small. Two responsibilities:
@@ -109,7 +109,7 @@ happens to use Bask, so a Bask adapter is on the build list. If Bask
 shuts down or Big Easy switches platforms, the migration is an
 adapter swap — KB / triage / queue / learning data all keep working.
 Tenants on a different EHR (or no EHR) get a different adapter
-roster; nothing about the rest of Relai changes.
+roster; nothing about the rest of Care Station changes.
 
 #### Build plan
 
@@ -306,7 +306,7 @@ same code — not just another medical practice.
 
 #### Vertical-agnostic readiness audit (today's state)
 
-Relai's data model and infrastructure are mostly portable. A few
+Care Station's data model and infrastructure are mostly portable. A few
 pieces are shaped around clinical telehealth because Big Easy is the
 only tenant. They need to become per-tenant config before tenant #2
 lands — especially if tenant #2 isn't medical (e.g., a tire repair
@@ -341,7 +341,7 @@ veterinary clinic, professional services).
   Easy), primary care, one **non-medical** seed (e.g., automotive
   service or property management) to *prove* the framework actually
   works without medical assumptions baked in.
-- Path-based tenant routing (`relai.app/<tenant-slug>/...`).
+- Path-based tenant routing (`carestation.app/<tenant-slug>/...`).
   Subdomain routing later.
 - Per-tenant theme: logo, primary color, brand name, voice register.
 - Stripe billing — seat-based.
@@ -489,7 +489,7 @@ would extend to the other endpoints when their triggers fire.
 | 2026-05-09 | Per-triage telemetry columns (model, prompt_version, kb_version, tokens, latency, cost, ai_confidence) | Foundation for measuring quality / cost trends and attributing regressions to specific prompt or KB versions |
 | 2026-05-09 | KB tab renamed "Clinical Knowledge Base" → "Knowledge Base" | KB will hold non-clinical content (shipping, refunds, routing) once Bask integration lands; the old label was misleading |
 | 2026-05-09 | `requires_clinical_authorization` per category in `RELAI_DEFAULTS.categories` | Decouple "what is this message about" (AI's job) from "who can resolve it" (compliance gate). Conservative defaults — vague categories like General Inquiry require clinical auth. AI does NOT read this flag; it's a routing/queue concern. Foundation for replacing the binary Clinical/Non-Clinical role with capability flags in Phase 3. |
-| 2026-05-09 | Channels (not "Bask integration") are the architectural concept | Bask is one of many input sources (email, Healthie, live chat, SMS, web forms, EHR webhooks, manual paste). Each tenant picks their own roster. The framework treats every channel as a small adapter; the rest of Relai (triage, KB, queue, learning) is channel-agnostic. Big Easy uses Bask, but Bask going away tomorrow would just mean swapping adapters — no other system would need to change. Phase 3 retitled from "Bask integration" to "Channel framework + queue + soft routing" to reflect this. Bask gets the same treatment in PLAN, README, AGENTS, and adapter-file lead comments: example, not pillar. |
+| 2026-05-09 | Channels (not "Bask integration") are the architectural concept | Bask is one of many input sources (email, Healthie, live chat, SMS, web forms, EHR webhooks, manual paste). Each tenant picks their own roster. The framework treats every channel as a small adapter; the rest of Care Station (triage, KB, queue, learning) is channel-agnostic. Big Easy uses Bask, but Bask going away tomorrow would just mean swapping adapters — no other system would need to change. Phase 3 retitled from "Bask integration" to "Channel framework + queue + soft routing" to reflect this. Bask gets the same treatment in PLAN, README, AGENTS, and adapter-file lead comments: example, not pillar. |
 | 2026-05-09 | Phase 4 is vertical-agnostic, not "more medical tenants" | The architecture supports any kind of customer-service triage (medical, automotive, property, professional services, retail). A few pieces lean medical because Big Easy is the only tenant — those are catalogued in PLAN's "Vertical-agnostic readiness audit" with a concrete unblock checklist that runs before tenant #2 lands regardless of their vertical. Don't bake more medical assumptions into core code while we have one tenant; keep them at the tenant-config layer. |
 | 2026-05-09 | One task, one primary owner, structured handoffs (the ownership model for Phase 3) | Avoids the questions "who owns?", "who replies?", "what stops two staff working in parallel?" that the queue UI would otherwise have to invent ad-hoc. Single owner via `claimed_by` lock; owner sends the one patient reply; cross-team work happens via structured `task_actions` not free-text pastes; reassignment for misclassification; release-back-to-queue if the owner can't finish; ambiguous cases route conservatively to the gating role. Pattern is vertical-agnostic — substitute "certified mechanic" or "licensed property manager" for "clinical" and the semantics hold. Today's manual-paste flow doesn't exercise any of this; the model only matters once Phase 3 ingest + queue land. Codified in PLAN Phase 3 "Task ownership and handoffs" before the implementation begins. |
 | 2026-05-09 | Tagged **v0.3.0** as the foundation-phase waypoint | Closes Phase 1 and the foundation work. Single-tenant trial is fully instrumented: per-triage telemetry, real eval harness, cost & quality endpoints, ownership model documented, channel framework designed, vertical-agnostic positioning explicit. CHANGELOG.md added. Future releases get one CHANGELOG entry plus a git tag. v0.4.0 lands when Phase 3 (channel framework + queue + soft routing) ships. |

@@ -1,4 +1,4 @@
-# Relai — Validation Audit
+# Care Station — Validation Audit
 
 A per-entry-point validation audit, following the surface inventory in
 [RELAI_INPUT_SURFACES.md](RELAI_INPUT_SURFACES.md). For each entry: what the

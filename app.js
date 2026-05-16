@@ -1,4 +1,4 @@
-// Relai — Triage and Tasking
+// Care Station — Triage and Tasking
 // app.js — all application logic
 // BASE_PROMPT and DEFAULT_KB live in data/base-prompt.js and data/default-kb.js
 // (loaded as plain <script> tags before this file in index.html).

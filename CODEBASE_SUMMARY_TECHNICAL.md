@@ -1,4 +1,4 @@
-# Relai — Codebase Summary (Technical)
+# Care Station — Codebase Summary (Technical)
 
 **Version:** 0.4.1 · **Status:** Active trial, internal use only
 

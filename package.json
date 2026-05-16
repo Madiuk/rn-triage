@@ -1,7 +1,7 @@
 {
   "name": "relai",
   "version": "0.4.2",
-  "description": "Relai — AI-assisted customer-service triage and task routing.",
+  "description": "Care Station — AI-assisted customer-service triage and task routing.",
   "private": true,
   "scripts": {
     "test": "node tests/run.js",

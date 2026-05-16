@@ -1,4 +1,4 @@
-# Relai — DB Integrity Audit
+# Care Station — DB Integrity Audit
 
 Schema audit assembled from [migrations/](migrations/) 0001 → 0010, read-only.
 For each table: existing NOT NULL / CHECK / UNIQUE / FK constraints, the RLS

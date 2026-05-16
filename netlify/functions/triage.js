@@ -1,4 +1,4 @@
-// Relai — Anthropic API proxy for clinical triage.
+// Care Station — Anthropic API proxy for clinical triage.
 // Validates the caller's session, the model, and the max_tokens cap so
 // only authenticated staff can drive Anthropic spend. Forwards
 // prompt-cache control to Anthropic and decorates the response with a

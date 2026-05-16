@@ -1,10 +1,10 @@
-# Relai — Input Surfaces
+# Care Station — Input Surfaces
 
 Every place untrusted data enters the system. Compiled from a read-only audit of
 `netlify/functions/`, `app.js`, `login.html`, and `eval/run.js`. No code was
 changed.
 
-"Entry" here covers anything Relai treats as input it didn't author itself:
+"Entry" here covers anything Care Station treats as input it didn't author itself:
 HTTP request bodies, webhook payloads, scheduled-job triggers, third-party
 integrations, **and** LLM (Claude API) responses — since model output is also
 untrusted text that flows into the DB, the UI, and downstream prompts.
@@ -20,7 +20,7 @@ declares no SELECT policies, so the application layer is the only enforcement.
 ### 1.1 `POST /.netlify/functions/ingest`
 - **File / handler:** [netlify/functions/ingest.js](netlify/functions/ingest.js) — `exports.handler`
 - **Type:** Generic inbound webhook (channel-agnostic).
-- **Who can call it:** Any external caller holding a valid Relai API key. The
+- **Who can call it:** Any external caller holding a valid Care Station API key. The
   key is matched against `api_keys.key_hash` (sha256 of the bearer secret) sent
   in either `X-Relai-Api-Key` or `Authorization: Bearer <key>`. Tenant is
   derived from `api_keys.company_id`.
