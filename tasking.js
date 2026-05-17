@@ -165,6 +165,32 @@
   // ─────────────────────────────────────────────────────────────────
 
   async function init() {
+    // 0. Magic-link hash handler. Supabase's emailRedirectTo asks for
+    // /login.html, but it falls back to the project's Site URL (i.e.,
+    // '/') when /login.html isn't on the Allowed Redirect URLs list.
+    // After the 2026-05-17 rename that made '/' the tasking SPA, that
+    // fallback path arrives here. Parse the hash ourselves so the
+    // auth flow works regardless of which page Supabase picks. Same
+    // pattern as login.html:172 and app.js:373.
+    const h = window.location.hash;
+    if (h && h.indexOf('access_token') !== -1) {
+      try {
+        const params = new URLSearchParams(h.replace('#', ''));
+        const token = params.get('access_token');
+        const refresh = params.get('refresh_token');
+        if (token) {
+          localStorage.setItem('relai_session', JSON.stringify({
+            access_token: token,
+            refresh_token: refresh || '',
+            timestamp: Date.now(),
+          }));
+          history.replaceState(null, '', window.location.pathname);
+        }
+      } catch (e) {
+        console.error('tasking.parseMagicLinkHash:', e.message);
+      }
+    }
+
     // 1. Session gate. No session → bounce to login with return URL.
     if (!getSession()) {
       window.location.replace('/login.html?next=' + encodeURIComponent(window.location.pathname));
