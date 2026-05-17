@@ -682,7 +682,6 @@
   // ─────────────────────────────────────────────────────────────────
 
   function renderDetailView(t) {
-    const cat = t.clinical_category || '—';
     const channel = (t.source_channel || 'manual');
     const conf = (typeof t.ai_confidence === 'number') ? t.ai_confidence
                 : (typeof t.ai_confidence === 'string' ? parseFloat(t.ai_confidence) : null);
@@ -690,20 +689,52 @@
     const confPct = confValid ? Math.round(conf * 100) : null;
     const confCls = !confValid ? '' : (conf < REVIEW_THRESHOLD ? 'low' : (conf < 0.9 ? 'mid' : ''));
 
-    // Header content (sticky strip above the body)
+    // ── Header (sticky strip) ────────────────────────────────────────
+    // Single horizontal row with the task's identifying chips. Wraps
+    // to a second line on narrow viewports.
     const patientLabel = 'Patient ' + (t.external_id || t.id).slice(-12);
-    const header = document.getElementById('detailHeaderInfo');
-    header.innerHTML =
-      '<div class="detail-header-title">' + escapeHtml(patientLabel) + '</div>'
-      + '<div class="detail-header-meta">'
-      +   renderCategoryTag(t.clinical_category)
-      +   '<button class="detail-edit-cat-btn" onclick="openReassign()" title="Reassign category" aria-label="Edit category">'
-      +     '<span class="pencil-icon">&#9998;</span>'
-      +   '</button>'
-      +   '<span class="detail-header-sep">·</span>'
-      +   renderStatusBadge(t)
+    document.getElementById('detailHeaderInfo').innerHTML =
+        '<div class="detail-header-row">'
+      +   '<span class="detail-header-title">' + escapeHtml(patientLabel) + '</span>'
+      +   '<span class="detail-header-chip">'
+      +     renderCategoryTag(t.clinical_category)
+      +     '<button class="detail-edit-cat-btn" onclick="openReassign()" title="Reassign category" aria-label="Edit category">'
+      +       '<span class="pencil-icon">&#9998;</span>'
+      +     '</button>'
+      +   '</span>'
+      +   '<span class="detail-header-chip">' + renderChannelChip(channel) + ' <span class="detail-header-chip-text">' + escapeHtml(channel) + '</span></span>'
+      +   '<span class="detail-header-chip">' + renderSeverityBadge(t) + '</span>'
+      +   '<span class="detail-header-chip">' + renderStatusBadge(t) + '</span>'
+      +   '<span class="detail-header-chip detail-header-time" title="' + escapeHtml(formatDateTime(t.created_at)) + '">' + escapeHtml(formatTime(t.created_at)) + '</span>'
       + '</div>';
 
+    // ── Build chat bubbles (patient → optional staff reply) ──────────
+    // For v0 we have at most one inbound + one outbound (actual_response_sent).
+    // Future Week-3 chart view will stitch multiple messages from the
+    // same patient anchor; the bubble structure is forward-compatible.
+    const patientBubble =
+        '<div class="chat-message patient">'
+      +   '<div class="chat-bubble">'
+      +     '<div class="chat-bubble-meta">'
+      +       '<span class="chat-author">Patient</span>'
+      +       '<span class="chat-time">' + escapeHtml(formatDateTime(t.created_at)) + '</span>'
+      +     '</div>'
+      +     '<div class="chat-bubble-text">' + escapeHtml(t.patient_message || '(empty)') + '</div>'
+      +   '</div>'
+      + '</div>';
+    const staffBubble = (t.actual_response_sent && t.status === 'sent')
+      ? '<div class="chat-message staff">'
+        +   '<div class="chat-bubble">'
+        +     '<div class="chat-bubble-meta">'
+        +       '<span class="chat-author">Staff reply</span>'
+        +       '<span class="chat-time">sent</span>'
+        +     '</div>'
+        +     '<div class="chat-bubble-text">' + escapeHtml(t.actual_response_sent) + '</div>'
+        +   '</div>'
+        + '</div>'
+      : '';
+
+    // ── Left column: classification + routing breadcrumb ─────────────
     const confHtml = confValid
       ? '<span class="confidence-bar"><span class="confidence-bar-track">'
         + '<span class="confidence-bar-fill ' + confCls + '" style="width:' + confPct + '%"></span>'
@@ -717,73 +748,58 @@
         + '</div>'
       : '';
 
-    // Vote state for thumb-button styling.
+    const leftCol =
+        '<div class="detail-section">'
+      +   '<div class="detail-section-label">AI classification &amp; routing</div>'
+      +   '<div class="detail-ai-box">'
+      +     '<div class="detail-ai-line"><span class="ai-key">Category</span><span class="ai-val">' + renderCategoryTag(t.clinical_category) + '</span></div>'
+      +     '<div class="detail-ai-line"><span class="ai-key">Urgency</span><span class="ai-val">' + escapeHtml(t.urgency_original || '—') + ' (score ' + (t.urgency_score || 0) + '/10)</span></div>'
+      +     '<div class="detail-ai-line"><span class="ai-key">Routing level</span><span class="ai-val">' + escapeHtml(t.clinical_routing_level || 'none') + '</span></div>'
+      +     '<div class="detail-ai-line"><span class="ai-key">AI confidence</span><span class="ai-val">' + confHtml + '</span></div>'
+      +   '</div>'
+      + '</div>'
+      + internalNoteSection;
+
+    // ── Right column: chat + AI draft + action bar ───────────────────
     const upActive   = t.upvoted   === true ? ' active' : '';
     const downActive = t.downvoted === true ? ' active' : '';
 
-    const body = document.getElementById('detailViewBody');
-    body.innerHTML =
-      // Meta block (no h1 — header has the title)
-      '<div class="detail-section">'
-      + '<div class="detail-meta-row">'
-      + '<div class="detail-meta-item">'
-      +   '<span class="detail-meta-key">Channel</span>'
-      +   '<span class="detail-meta-val">' + renderChannelChip(channel) + ' ' + escapeHtml(channel) + '</span>'
-      + '</div>'
-      + '<div class="detail-meta-item">'
-      +   '<span class="detail-meta-key">Received</span>'
-      +   '<span class="detail-meta-val">' + escapeHtml(formatDateTime(t.created_at)) + '</span>'
-      + '</div>'
-      + '<div class="detail-meta-item">'
-      +   '<span class="detail-meta-key">Priority</span>'
-      +   '<span class="detail-meta-val">' + renderSeverityBadge(t) + '</span>'
-      + '</div>'
-      + '<div class="detail-meta-item">'
-      +   '<span class="detail-meta-key">Status</span>'
-      +   '<span class="detail-meta-val">' + renderStatusBadge(t) + '</span>'
-      + '</div>'
-      + '</div>'
+    const rightCol =
+        '<div class="detail-section">'
+      +   '<div class="detail-section-label">Conversation</div>'
+      +   '<div class="chat-box">'
+      +     patientBubble
+      +     staffBubble
+      +   '</div>'
       + '</div>'
 
-      // Inbound message
       + '<div class="detail-section">'
-      + '<div class="detail-section-label">Inbound message</div>'
-      + '<div class="detail-message-box">' + escapeHtml(t.patient_message || '(empty)') + '</div>'
+      +   '<div class="detail-section-label">'
+      +     '<span>AI-drafted response (editable)</span>'
+      +     '<span class="vote-row">'
+      +       '<button class="vote-btn up' + upActive + '" id="voteUpBtn" onclick="voteTask(\'up\')" title="Helpful draft">'
+      +         '<span class="vote-icon">&#x1F44D;</span>'
+      +       '</button>'
+      +       '<button class="vote-btn down' + downActive + '" id="voteDownBtn" onclick="voteTask(\'down\')" title="Needs work">'
+      +         '<span class="vote-icon">&#x1F44E;</span>'
+      +       '</button>'
+      +     '</span>'
+      +   '</div>'
+      +   '<textarea id="detailDraft" class="detail-draft-textarea">' + escapeHtml(t.draft_response || '') + '</textarea>'
       + '</div>'
 
-      // AI classification
       + '<div class="detail-section">'
-      + '<div class="detail-section-label">AI classification</div>'
-      + '<div class="detail-ai-box">'
-      +   '<div class="detail-ai-line"><span class="ai-key">Category</span><span class="ai-val">' + renderCategoryTag(t.clinical_category) + '</span></div>'
-      +   '<div class="detail-ai-line"><span class="ai-key">Urgency</span><span class="ai-val">' + escapeHtml(t.urgency_original || '—') + ' (score ' + (t.urgency_score || 0) + '/10)</span></div>'
-      +   '<div class="detail-ai-line"><span class="ai-key">Routing level</span><span class="ai-val">' + escapeHtml(t.clinical_routing_level || 'none') + '</span></div>'
-      +   '<div class="detail-ai-line"><span class="ai-key">AI confidence</span><span class="ai-val">' + confHtml + '</span></div>'
-      + '</div>'
-      + '</div>'
+      +   '<div class="detail-action-bar inline">'
+      +     '<button id="sendBtn" class="action-btn primary" onclick="sendTask()">Send <span class="sandbox-tag">Sandbox</span></button>'
+      +     '<button id="retaskBtn" class="action-btn warning" onclick="releaseTask()">Release to queue</button>'
+      +   '</div>'
+      + '</div>';
 
-      + internalNoteSection
-
-      // AI draft + vote bar
-      + '<div class="detail-section">'
-      + '<div class="detail-section-label">'
-      +   '<span>AI-drafted response (editable)</span>'
-      +   '<span class="vote-row">'
-      +     '<button class="vote-btn up' + upActive + '" id="voteUpBtn" onclick="voteTask(\'up\')" title="Helpful draft">'
-      +       '<span class="vote-icon">&#x1F44D;</span>'
-      +     '</button>'
-      +     '<button class="vote-btn down' + downActive + '" id="voteDownBtn" onclick="voteTask(\'down\')" title="Needs work">'
-      +       '<span class="vote-icon">&#x1F44E;</span>'
-      +     '</button>'
-      +   '</span>'
-      + '</div>'
-      + '<textarea id="detailDraft" class="detail-draft-textarea">' + escapeHtml(t.draft_response || '') + '</textarea>'
-      + '</div>'
-
-      // Action bar (fixed at bottom of the body)
-      + '<div class="detail-action-bar">'
-      +   '<button id="sendBtn" class="action-btn primary" onclick="sendTask()">Send <span class="sandbox-tag">Sandbox</span></button>'
-      +   '<button id="retaskBtn" class="action-btn" onclick="retaskTask()">Re-task</button>'
+    // ── Assemble two-column body ─────────────────────────────────────
+    document.getElementById('detailViewBody').innerHTML =
+        '<div class="detail-grid">'
+      +   '<div class="detail-col-left">' + leftCol + '</div>'
+      +   '<div class="detail-col-right">' + rightCol + '</div>'
       + '</div>';
   }
 
@@ -847,20 +863,42 @@
     });
   };
 
-  window.retaskTask = function () {
+  // "Release to queue" (formerly "re-task") — drops the task back
+  // into the general pool. Wrapped in a confirmation modal so an
+  // accidental click doesn't lose the staffer's place. The modal
+  // also nudges the user toward Reassign-first when the underlying
+  // problem is wrong category.
+  window.releaseTask = function () {
+    if (!state.openTaskId) return;
+    document.getElementById('releaseModal').classList.add('active');
+    document.getElementById('releaseOverlay').classList.add('active');
+    document.getElementById('releaseModal').setAttribute('aria-hidden', 'false');
+  };
+
+  window.closeReleaseConfirm = function () {
+    document.getElementById('releaseModal').classList.remove('active');
+    document.getElementById('releaseOverlay').classList.remove('active');
+    document.getElementById('releaseModal').setAttribute('aria-hidden', 'true');
+  };
+
+  // The actual "release" PATCH — calls the existing /queue/retask
+  // endpoint (renaming the backend route is a separate concern;
+  // the SPA-facing label is what matters for users).
+  window.confirmRelease = function () {
     const tid = state.openTaskId;
     if (!tid) return;
-    return withButtonLock('retaskBtn', 'Re-tasking…', async () => {
+    closeReleaseConfirm();
+    return withButtonLock('retaskBtn', 'Releasing…', async () => {
       try {
         await api('/queue/retask', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ triage_id: tid }),
         });
-        toast('Task returned to the pool.', 'success');
+        toast('Task released to the queue.', 'success');
         window.location.hash = '#queue';
       } catch (e) {
-        toast('Re-task failed: ' + e.message, 'error');
+        toast('Release failed: ' + e.message, 'error');
       }
     });
   };

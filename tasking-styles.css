@@ -691,26 +691,36 @@ body {
 .detail-back-icon { font-size: 16px; line-height: 1; }
 
 .detail-header-info {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
   flex: 1;
+  min-width: 0;
 }
-.detail-header-title {
-  font-size: 17px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-.detail-header-meta {
+.detail-header-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   flex-wrap: wrap;
-  font-size: 13px;
+}
+.detail-header-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+.detail-header-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
   color: var(--text-muted);
 }
-.detail-header-sep { color: var(--text-faint); }
+.detail-header-chip-text {
+  font-size: 12px;
+  text-transform: capitalize;
+}
+.detail-header-time {
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+}
 
 .detail-edit-cat-btn {
   width: 26px;
@@ -737,20 +747,98 @@ body {
 
 .detail-body {
   flex: 1;
-  padding-bottom: 80px;  /* room for the sticky action bar */
 }
 
+/* Two-column grid: 40% classification (left) / 60% chat + draft (right).
+   Collapses to a single column on narrow viewports, chat-first. */
+.detail-grid {
+  display: grid;
+  grid-template-columns: 40% 60%;
+  gap: 28px;
+  align-items: start;
+}
+.detail-col-left,
+.detail-col-right {
+  min-width: 0;  /* prevent grid blowout on long content */
+}
+@media (max-width: 900px) {
+  .detail-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  /* Chat is the primary content on mobile — show it first. */
+  .detail-col-right { order: -1; }
+}
+
+/* Action bar — inline variant for use inside the right column.
+   The old sticky variant is kept for any other surface that wants it. */
 .detail-action-bar {
-  position: sticky;
-  bottom: 0;
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
   padding: 14px 18px;
   display: flex;
   gap: 10px;
-  box-shadow: 0 -1px 8px rgba(0,0,0,0.04);
-  z-index: 10;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.detail-action-bar.inline {
+  position: static;
+  box-shadow: none;
+}
+
+/* Chat-box container. White on white card with a thin internal divider
+   between bubbles. Patient on the left, staff on the right (chat convention). */
+.chat-box {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 160px;
+}
+.chat-message {
+  display: flex;
+  width: 100%;
+}
+.chat-message.patient { justify-content: flex-start; }
+.chat-message.staff   { justify-content: flex-end;   }
+
+.chat-bubble {
+  max-width: 85%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.55;
+}
+.chat-message.patient .chat-bubble {
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-top-left-radius: 4px;
+  color: var(--text-primary);
+}
+.chat-message.staff .chat-bubble {
+  background: #dbeafe;
+  border: 1px solid #bfdbfe;
+  border-top-right-radius: 4px;
+  color: #1e3a8a;
+}
+.chat-bubble-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 11px;
+  margin-bottom: 4px;
+  opacity: 0.75;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-weight: 600;
+}
+.chat-author { letter-spacing: 0.04em; }
+.chat-time { font-variant-numeric: tabular-nums; font-weight: 500; text-transform: none; letter-spacing: 0; }
+.chat-bubble-text {
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 /* Vote buttons next to the AI draft */
@@ -853,7 +941,8 @@ body {
   flex: 1;
 }
 
-.detail-section { margin-bottom: 20px; }
+.detail-section { margin-bottom: 22px; }
+.detail-section:last-child { margin-bottom: 0; }
 .detail-section-label {
   font-size: 11px;
   font-weight: 700;
@@ -877,8 +966,11 @@ body {
 .detail-meta-key { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
 .detail-meta-val { font-size: 13px; }
 
+/* Legacy single-block message rendering — superseded by .chat-box +
+   .chat-bubble above. Kept temporarily in case any other surface
+   reaches for it. */
 .detail-message-box {
-  background: var(--bg-page);
+  background: white;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 14px 16px;
@@ -1329,6 +1421,82 @@ body {
   word-break: break-word;
   margin: 0;
 }
+
+/* ─────────────────────────────────────────────────────────────────
+ * Release-to-queue confirmation modal
+ * ───────────────────────────────────────────────────────────────── */
+
+.release-modal {
+  position: fixed;
+  top: 50%; left: 50%;
+  transform: translate(-50%, calc(-50% + 12px));
+  width: 460px; max-width: calc(100vw - 32px);
+  background: white;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-pop);
+  opacity: 0; pointer-events: none;
+  transition: opacity 200ms ease, transform 200ms ease;
+  z-index: 410;
+}
+.release-modal.active {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(-50%, -50%);
+}
+.release-head {
+  padding: 18px 22px 14px;
+  display: flex; justify-content: space-between; align-items: center;
+  border-bottom: 1px solid var(--border);
+}
+.release-title { font-weight: 600; font-size: 15px; color: var(--text-primary); }
+.release-close {
+  width: 30px; height: 30px;
+  border: none; background: transparent;
+  font-size: 22px;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+.release-close:hover { background: var(--bg-page); color: var(--text-primary); }
+.release-body { padding: 16px 22px 4px; }
+.release-body-line {
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text-primary);
+  margin: 0 0 12px 0;
+}
+.release-body-hint {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  background: var(--bg-banner);
+  border: 1px solid #fcd34d;
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  margin: 0 0 10px 0;
+}
+.release-foot {
+  padding: 14px 22px 20px;
+  display: flex; justify-content: flex-end; gap: 8px;
+}
+.release-cancel, .release-confirm {
+  padding: 8px 16px;
+  font-size: 13px; font-weight: 500;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.release-cancel {
+  background: white;
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+}
+.release-cancel:hover { background: var(--bg-page); }
+.release-confirm {
+  background: var(--due);
+  color: white;
+  border: 1px solid var(--due);
+}
+.release-confirm:hover { background: #c2410c; }
 
 /* ─────────────────────────────────────────────────────────────────
  * Loading state

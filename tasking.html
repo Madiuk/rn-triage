@@ -222,6 +222,33 @@
   <div class="event-detail-body" id="eventDetailBody"></div>
 </div>
 
+<!-- Release-to-queue confirmation modal. The "release" action used to
+     be called "re-task" — clearer name + an explicit warning that
+     reassignment is usually the better first step. -->
+<div class="modal-overlay" id="releaseOverlay" onclick="closeReleaseConfirm()"></div>
+<div class="release-modal" id="releaseModal" aria-hidden="true">
+  <div class="release-head">
+    <div class="release-title">Release this task to the queue?</div>
+    <button class="release-close" onclick="closeReleaseConfirm()" aria-label="Close">&times;</button>
+  </div>
+  <div class="release-body">
+    <p class="release-body-line">
+      This drops the task back into the general pool. Anyone in the right
+      category with capacity can pull it next.
+    </p>
+    <p class="release-body-hint">
+      <strong>If the AI got the category wrong</strong>, use <em>Reassign
+      category</em> (the pencil icon next to the category) first — that
+      sends the task to the correct pool directly instead of waiting for
+      someone to re-pull and reclassify.
+    </p>
+  </div>
+  <div class="release-foot">
+    <button class="release-cancel" onclick="closeReleaseConfirm()">Cancel — keep working</button>
+    <button class="release-confirm" onclick="confirmRelease()">Release to queue</button>
+  </div>
+</div>
+
 <!-- Toast for transient feedback -->
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
