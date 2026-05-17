@@ -1485,6 +1485,90 @@ body {
 .events-reason.ok      { background: var(--success-bg); color: var(--success); }
 .events-reason.skipped { background: var(--normal-bg);  color: var(--normal);  }
 
+/* Learning-signal subtab — three small aggregate cards. Layout is
+   a CSS grid: side-by-side on wide screens, stacked on narrow. */
+
+.learning-summary {
+  padding: 12px 16px;
+  background: var(--bg-page);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+.learning-summary b { color: var(--text-primary); font-weight: 600; }
+
+.learning-grid {
+  display: grid;
+  /* Calibration card is denser (5 columns of data); give it ~1.7×
+     the room of the other two so headers don't truncate. */
+  grid-template-columns: minmax(440px, 1.7fr) minmax(260px, 1fr) minmax(260px, 1fr);
+  gap: 12px;
+}
+@media (max-width: 1100px) {
+  .learning-grid { grid-template-columns: 1fr; }
+}
+
+.learning-card {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.learning-card-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.learning-card-help {
+  margin: 0 0 4px 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+.learning-empty {
+  margin: 0;
+  padding: 16px 12px;
+  font-size: 13px;
+  color: var(--text-faint);
+  font-style: italic;
+  text-align: center;
+}
+
+.learning-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.learning-table thead th {
+  text-align: left;
+  padding: 6px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--border);
+}
+.learning-table tbody td {
+  padding: 7px 8px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.learning-table tbody tr:last-child td { border-bottom: none; }
+.learning-table tbody tr.dim td { color: var(--text-faint); }
+.learning-table th.num,
+.learning-table td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
 /* Event detail modal (JSON inspector) */
 
 .event-detail-modal {

@@ -681,7 +681,7 @@
     document.getElementById('detailView').style.display = 'none';
     document.getElementById('eventsView').style.display = '';
     setActiveTab('eventsTabBtn');
-    state.eventsSubtab = subtab && ['inbound', 'reviews', 'errors'].indexOf(subtab) >= 0
+    state.eventsSubtab = subtab && ['inbound', 'reviews', 'errors', 'learning'].indexOf(subtab) >= 0
       ? subtab : 'inbound';
     // Visually mark the active sub-tab
     document.querySelectorAll('.events-subtab').forEach(b => {
@@ -1490,6 +1490,11 @@
   }
 
   async function loadEvents(subtab, options) {
+    // Learning subtab is shape-incompatible with the list subtabs
+    // (single aggregate payload, no pagination, no per-row filter).
+    // Branch early before the list-shaped fetch path.
+    if (subtab === 'learning') return loadLearning();
+
     options = options || {};
     const append = !!options.append;
     const body = document.getElementById('eventsBody');
@@ -1526,6 +1531,32 @@
     } finally {
       if (loadMoreBtn) loadMoreBtn.disabled = false;
       updateLoadMoreVisibility();
+    }
+  }
+
+  // Learning subtab — fetches the aggregate payload, renders three
+  // small tables. No pagination, no keyword filter (the underlying
+  // data is already aggregated). The since (date-range) filter IS
+  // honored — server-side, same way as the list subtabs.
+  async function loadLearning() {
+    const body = document.getElementById('eventsBody');
+    if (!body) return;
+    body.innerHTML = '<div class="loading-row">Loading…</div>';
+    state.eventsRows = [];
+    state.eventsHasMore = false;
+    updateLoadMoreVisibility();
+
+    try {
+      const params = new URLSearchParams();
+      if (state.eventsSince) params.set('since', state.eventsSince);
+      const qs = params.toString();
+      const url = '/.netlify/functions/kb/admin/events/learning' + (qs ? '?' + qs : '');
+      const resp = await api(url, { method: 'GET' });
+      renderLearning(resp || {});
+      const n = (resp && resp.sample_size) || 0;
+      setText('eventsCountLearning', '(' + n + ')');
+    } catch (e) {
+      body.innerHTML = '<div class="loading-row" style="color:var(--severe)">Failed to load: ' + escapeHtml(e.message) + '</div>';
     }
   }
 
@@ -1569,6 +1600,7 @@
         row.event_type, row.entity_type, row.entity_id, row.actor_name,
       ].some(v => v && String(v).toLowerCase().indexOf(q) !== -1);
     }
+    // 'learning' renders aggregates, not rows — no keyword filter.
     return false;
   }
 
@@ -1676,6 +1708,124 @@
       + '<thead><tr><th>Time</th><th>Event</th><th>Entity</th><th>ID</th><th>Actor</th></tr></thead>'
       + '<tbody>' + rows + '</tbody>'
       + '</table>';
+  }
+
+  // ── Learning signal renderer ─────────────────────────────────────
+  // Renders three small aggregate tables, side by side on wide
+  // screens, stacked on narrow. Empty sections show an inline note
+  // instead of an empty grid — "0 reassignments yet" is the answer
+  // until staff starts using the workflow, not a layout problem.
+
+  function pct(num, denom) {
+    if (!denom) return '—';
+    return Math.round((num / denom) * 100) + '%';
+  }
+
+  function renderLearning(payload) {
+    const cal = payload && payload.calibration;
+    const rx  = (payload && payload.reassignment_matrix) || [];
+    const cnr = (payload && payload.close_no_reply_by_category) || [];
+    const since = payload && payload.since;
+    const sampleSize = (payload && payload.sample_size) || 0;
+
+    const body = document.getElementById('eventsBody');
+    if (!body) return;
+
+    const header = '<div class="learning-summary">'
+      + 'Sample: <b>' + sampleSize + '</b> triage row' + (sampleSize === 1 ? '' : 's')
+      + (since ? ' since ' + escapeHtml(since.slice(0, 10)) : ' (all time)')
+      + '</div>';
+
+    body.innerHTML = header
+      + '<div class="learning-grid">'
+      +   renderCalibrationCard(cal)
+      +   renderReassignmentCard(rx)
+      +   renderCloseNoReplyCard(cnr)
+      + '</div>';
+  }
+
+  function renderCalibrationCard(cal) {
+    const bands = ['low', 'medium', 'certain', 'unknown'];
+    const labels = {
+      low:     'Low (<0.70)',
+      medium:  'Medium [0.70, 1.00)',
+      certain: 'Certain (=1.00)',
+      unknown: 'Unknown (null)',
+    };
+    const c = cal || {};
+    const rows = bands.map(b => {
+      const r = c[b] || { n_total: 0, n_terminal: 0, urgency_changed: 0, category_reassigned: 0, closed_no_reply: 0 };
+      const dimmed = r.n_total === 0 ? ' class="dim"' : '';
+      return '<tr' + dimmed + '>'
+        + '<td>' + escapeHtml(labels[b]) + '</td>'
+        + '<td class="num">' + r.n_total + '</td>'
+        + '<td class="num">' + pct(r.urgency_changed, r.n_total) + '</td>'
+        + '<td class="num">' + pct(r.category_reassigned, r.n_total) + '</td>'
+        + '<td class="num">' + pct(r.closed_no_reply, r.n_terminal) + '</td>'
+        + '</tr>';
+    }).join('');
+    return '<section class="learning-card">'
+      + '<h3 class="learning-card-title">Confidence calibration</h3>'
+      + '<p class="learning-card-help">Does the AI\'s self-rated confidence predict whether staff agreed? If override rates are similar across bands, confidence is not a useful gate.</p>'
+      + '<table class="learning-table">'
+      +   '<thead><tr>'
+      +     '<th>Band</th>'
+      +     '<th class="num">N</th>'
+      +     '<th class="num" title="urgency_original ≠ urgency_override">Urgency&nbsp;changed</th>'
+      +     '<th class="num" title="at least one task_reassignments row">Re-categorised</th>'
+      +     '<th class="num" title="status=closed_no_reply / N terminal">Close&nbsp;no&nbsp;reply</th>'
+      +   '</tr></thead>'
+      +   '<tbody>' + rows + '</tbody>'
+      + '</table>'
+      + '</section>';
+  }
+
+  function renderReassignmentCard(rx) {
+    let body;
+    if (rx.length === 0) {
+      body = '<p class="learning-empty">No re-categorisations recorded in this window yet.</p>';
+    } else {
+      const rows = rx.map(r =>
+        '<tr>'
+          + '<td>' + escapeHtml(r.from || '—') + '</td>'
+          + '<td>' + escapeHtml(r.to   || '—') + '</td>'
+          + '<td class="num">' + r.n + '</td>'
+          + '</tr>'
+      ).join('');
+      body = '<table class="learning-table">'
+        + '<thead><tr><th>From</th><th>To</th><th class="num">N</th></tr></thead>'
+        + '<tbody>' + rows + '</tbody>'
+        + '</table>';
+    }
+    return '<section class="learning-card">'
+      + '<h3 class="learning-card-title">Re-categorisation matrix</h3>'
+      + '<p class="learning-card-help">Where the AI\'s first-pass routing gets corrected. High-count pairs are candidates for prompt or KB tuning.</p>'
+      + body
+      + '</section>';
+  }
+
+  function renderCloseNoReplyCard(cnr) {
+    let body;
+    if (cnr.length === 0) {
+      body = '<p class="learning-empty">No terminal triage rows in this window yet.</p>';
+    } else {
+      const rows = cnr.map(c =>
+        '<tr>'
+          + '<td>' + escapeHtml(c.category) + '</td>'
+          + '<td class="num">' + c.n_terminal + '</td>'
+          + '<td class="num">' + pct(c.closed_no_reply, c.n_terminal) + '</td>'
+          + '</tr>'
+      ).join('');
+      body = '<table class="learning-table">'
+        + '<thead><tr><th>Category</th><th class="num">N terminal</th><th class="num">Close-no-reply&nbsp;%</th></tr></thead>'
+        + '<tbody>' + rows + '</tbody>'
+        + '</table>';
+    }
+    return '<section class="learning-card">'
+      + '<h3 class="learning-card-title">Close-no-reply by category</h3>'
+      + '<p class="learning-card-help">Where AI-drafted replies don\'t get sent. High % suggests the draft prompt for that category needs work — or the category shouldn\'t auto-draft at all.</p>'
+      + body
+      + '</section>';
   }
 
   function openEventDetail(subtab, event) {
