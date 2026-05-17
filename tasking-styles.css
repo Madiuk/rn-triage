@@ -1098,6 +1098,169 @@ body {
 .reassign-confirm:hover { background: var(--brand-hover); }
 
 /* ─────────────────────────────────────────────────────────────────
+ * Event Log view (super-user)
+ * ───────────────────────────────────────────────────────────────── */
+
+.events-header { margin-bottom: 16px; }
+.events-title { font-size: 24px; font-weight: 700; margin: 0; }
+.events-subtitle { font-size: 13px; color: var(--text-muted); margin: 4px 0 0; }
+
+.events-subtabs {
+  display: flex; gap: 4px; align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.events-subtab {
+  border: 1px solid transparent;
+  background: transparent;
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+.events-subtab:hover {
+  background: var(--bg-page);
+  color: var(--text-primary);
+}
+.events-subtab.active {
+  background: #eff6ff;
+  color: var(--brand);
+  border-color: #bfdbfe;
+}
+.events-subtab-count { font-size: 11px; opacity: 0.7; margin-left: 4px; }
+
+.events-refresh-btn {
+  margin-left: auto;
+  background: white;
+  border: 1px solid var(--border);
+  padding: 6px 12px;
+  font-size: 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--text-muted);
+  transition: all 120ms ease;
+}
+.events-refresh-btn:hover { background: var(--bg-page); color: var(--text-primary); }
+
+.events-body {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
+}
+
+.events-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.events-table thead th {
+  background: var(--bg-page);
+  text-align: left;
+  padding: 9px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--border);
+}
+.events-table tbody tr {
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+}
+.events-table tbody tr:hover { background: var(--bg-page); }
+.events-table tbody tr:last-child { border-bottom: none; }
+.events-table td {
+  padding: 10px 12px;
+  vertical-align: middle;
+}
+.events-time {
+  color: var(--text-muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.events-id {
+  font-family: 'SF Mono', Monaco, Consolas, monospace;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+.events-preview {
+  max-width: 360px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.events-reason {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.events-reason.ok      { background: var(--success-bg); color: var(--success); }
+.events-reason.skipped { background: var(--normal-bg);  color: var(--normal);  }
+
+/* Event detail modal (JSON inspector) */
+
+.event-detail-modal {
+  position: fixed;
+  top: 50%; left: 50%;
+  transform: translate(-50%, calc(-50% + 12px));
+  width: 720px; max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 80px);
+  background: white;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-pop);
+  opacity: 0; pointer-events: none;
+  transition: opacity 200ms ease, transform 200ms ease;
+  z-index: 410;
+  display: flex; flex-direction: column;
+}
+.event-detail-modal.active {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(-50%, -50%);
+}
+.event-detail-head {
+  padding: 16px 22px;
+  display: flex; justify-content: space-between; align-items: center;
+  border-bottom: 1px solid var(--border);
+}
+.event-detail-title { font-weight: 600; font-size: 14px; }
+.event-detail-close {
+  width: 30px; height: 30px;
+  border: none; background: transparent;
+  font-size: 22px;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+.event-detail-close:hover { background: var(--bg-page); color: var(--text-primary); }
+.event-detail-body {
+  padding: 16px 22px 22px;
+  overflow-y: auto;
+  flex: 1;
+}
+.event-detail-json {
+  background: #0f172a;
+  color: #e2e8f0;
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  font-family: 'SF Mono', Monaco, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+}
+
+/* ─────────────────────────────────────────────────────────────────
  * Loading state
  * ───────────────────────────────────────────────────────────────── */
 

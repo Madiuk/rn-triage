@@ -250,6 +250,13 @@
     setText('profileRole', (p.role || 'Staff') + (title ? ' · ' + title : ''));
     setText('profileAvatar', initials);
     setText('profileCompany', p.company_name || p.company_id || '—');
+
+    // Super-user-only tab visibility. Server-side gate (in admin-events.js)
+    // is the real boundary; this is just chrome.
+    const eventsTab = document.getElementById('eventsTabBtn');
+    if (eventsTab) {
+      eventsTab.style.display = p.is_super_user ? '' : 'none';
+    }
   }
 
   function nameToInitials(name) {
@@ -586,6 +593,9 @@
     state.openTaskId = null;
     document.getElementById('queueView').style.display = '';
     document.getElementById('detailView').style.display = 'none';
+    const ev = document.getElementById('eventsView');
+    if (ev) ev.style.display = 'none';
+    setActiveTab('queueTabBtn');
     // Refresh in case the queue mutated while we were in detail
     // (e.g., a retask/send + back).
     refreshQueue();
@@ -605,15 +615,51 @@
     state.openTaskId = taskId;
     document.getElementById('queueView').style.display = 'none';
     document.getElementById('detailView').style.display = '';
+    const ev = document.getElementById('eventsView');
+    if (ev) ev.style.display = 'none';
+    setActiveTab('queueTabBtn');
     renderDetailView(t);
-    // Scroll the detail body to top after content swap.
     const body = document.getElementById('detailViewBody');
     if (body) body.scrollTop = 0;
+  }
+
+  function showEventsView(subtab) {
+    // Server-side gate is the real boundary; this prevents accidental
+    // UI navigation by a non-super-user (e.g., via a shared link).
+    if (!state.profile || !state.profile.is_super_user) {
+      toast('Event Log is super-user only.', 'warn');
+      window.location.hash = '#queue';
+      return;
+    }
+    state.activeView = 'events';
+    document.getElementById('queueView').style.display = 'none';
+    document.getElementById('detailView').style.display = 'none';
+    document.getElementById('eventsView').style.display = '';
+    setActiveTab('eventsTabBtn');
+    state.eventsSubtab = subtab && ['inbound', 'reviews', 'errors'].indexOf(subtab) >= 0
+      ? subtab : 'inbound';
+    // Visually mark the active sub-tab
+    document.querySelectorAll('.events-subtab').forEach(b => {
+      b.classList.toggle('active', b.dataset.subtab === state.eventsSubtab);
+    });
+    loadEvents(state.eventsSubtab);
   }
 
   window.backToQueue = function () {
     window.location.hash = '#queue';
   };
+  window.navigateToQueue = function () { window.location.hash = '#queue'; };
+  window.navigateToEvents = function () { window.location.hash = '#events'; };
+  window.switchEventsSubtab = function (subtab) {
+    window.location.hash = '#events/' + subtab;
+  };
+
+  function setActiveTab(activeId) {
+    ['queueTabBtn', 'eventsTabBtn'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.classList.toggle('active', id === activeId);
+    });
+  }
 
   // Listen for hash changes (browser back/forward AND programmatic
   // hash writes from elsewhere in this file). Single dispatch.
@@ -622,6 +668,10 @@
     if (h.indexOf('task/') === 0) {
       const id = h.slice('task/'.length);
       showDetailView(id);
+    } else if (h.indexOf('events') === 0) {
+      // '#events' or '#events/<subtab>'
+      const sub = h === 'events' ? 'inbound' : h.replace(/^events\/?/, '');
+      showEventsView(sub || 'inbound');
     } else {
       showQueueView();
     }
@@ -937,6 +987,136 @@
   };
 
   window.refreshQueue = refreshQueue;
+
+  // ─────────────────────────────────────────────────────────────────
+  // Event Log (super-user only)
+  // ─────────────────────────────────────────────────────────────────
+  //
+  // Three sub-tabs, each backed by an /admin/events/<name> endpoint.
+  // Each sub-tab renders a table of recent rows (newest-first, capped
+  // server-side at MAX_LIMIT). Click a row to see full detail
+  // (especially raw_payload for inbound webhook events).
+
+  state.eventsCache = { inbound: null, reviews: null, errors: null };
+  state.eventsSubtab = 'inbound';
+
+  async function loadEvents(subtab) {
+    const body = document.getElementById('eventsBody');
+    if (!body) return;
+    body.innerHTML = '<div class="loading-row">Loading…</div>';
+    try {
+      const resp = await api('/.netlify/functions/kb/admin/events/' + subtab, { method: 'GET' });
+      const events = (resp && resp.events) || [];
+      state.eventsCache[subtab] = events;
+      renderEventsList(subtab, events);
+      setText('eventsCount' + capFirst(subtab), '(' + events.length + ')');
+    } catch (e) {
+      body.innerHTML = '<div class="loading-row" style="color:var(--severe)">Failed to load: ' + escapeHtml(e.message) + '</div>';
+    }
+  }
+
+  function capFirst(s) {
+    return s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
+  }
+
+  window.reloadEvents = function () {
+    loadEvents(state.eventsSubtab);
+  };
+
+  function renderEventsList(subtab, events) {
+    const body = document.getElementById('eventsBody');
+    if (events.length === 0) {
+      body.innerHTML = '<div class="empty-state">'
+        + '<div class="empty-icon">✓</div>'
+        + '<div class="empty-title">No events in this stream</div>'
+        + '<div class="empty-body">Nothing to investigate right now.</div>'
+        + '</div>';
+      return;
+    }
+    if (subtab === 'inbound') {
+      body.innerHTML = renderInboundTable(events);
+    } else if (subtab === 'reviews') {
+      body.innerHTML = renderReviewsTable(events);
+    } else {
+      body.innerHTML = renderErrorsTable(events);
+    }
+    // Click handlers on each row
+    body.querySelectorAll('.events-row').forEach((row, i) => {
+      row.addEventListener('click', () => openEventDetail(subtab, events[i]));
+    });
+  }
+
+  function renderInboundTable(events) {
+    const rows = events.map(e => {
+      const reason = e.processed_reason || (e.processed ? 'inserted' : 'unknown');
+      const reasonCls = e.processed ? 'ok' : 'skipped';
+      return '<tr class="events-row">'
+        + '<td class="events-time">' + escapeHtml(formatDateTime(e.created_at)) + '</td>'
+        + '<td>' + escapeHtml(e.topic || '—') + '</td>'
+        + '<td><span class="events-reason ' + reasonCls + '">' + escapeHtml(reason) + '</span></td>'
+        + '<td class="events-id">' + escapeHtml((e.external_id || '').slice(0, 32)) + '</td>'
+        + '<td>' + (e.triage_id ? '<a href="#task/' + escapeHtml(e.triage_id) + '" onclick="event.stopPropagation()">→ task</a>' : '—') + '</td>'
+        + '</tr>';
+    }).join('');
+    return '<table class="events-table">'
+      + '<thead><tr><th>Time</th><th>Topic</th><th>Disposition</th><th>External ID</th><th>Triage</th></tr></thead>'
+      + '<tbody>' + rows + '</tbody>'
+      + '</table>';
+  }
+
+  function renderReviewsTable(events) {
+    const rows = events.map(e => {
+      const category = e.clinical_category || '(uncategorized)';
+      const claimed = e.claimed_by ? 'claimed' : 'unclaimed';
+      const preview = (e.patient_message || '').slice(0, 80);
+      return '<tr class="events-row">'
+        + '<td class="events-time">' + escapeHtml(formatDateTime(e.created_at)) + '</td>'
+        + '<td>' + escapeHtml(category) + '</td>'
+        + '<td>' + escapeHtml(e.source_channel || '—') + '</td>'
+        + '<td><span class="events-reason skipped">' + escapeHtml(claimed) + '</span></td>'
+        + '<td class="events-preview">' + escapeHtml(preview) + (preview.length === 80 ? '…' : '') + '</td>'
+        + '</tr>';
+    }).join('');
+    return '<table class="events-table">'
+      + '<thead><tr><th>Time</th><th>Category</th><th>Channel</th><th>Ownership</th><th>Preview</th></tr></thead>'
+      + '<tbody>' + rows + '</tbody>'
+      + '</table>';
+  }
+
+  function renderErrorsTable(events) {
+    const rows = events.map(e => {
+      return '<tr class="events-row">'
+        + '<td class="events-time">' + escapeHtml(formatDateTime(e.created_at)) + '</td>'
+        + '<td><span class="events-reason skipped">' + escapeHtml(e.event_type || '—') + '</span></td>'
+        + '<td>' + escapeHtml(e.entity_type || '—') + '</td>'
+        + '<td class="events-id">' + escapeHtml((e.entity_id || '').slice(0, 12)) + '</td>'
+        + '<td>' + escapeHtml(e.actor_name || (e.actor_id ? e.actor_id.slice(0, 8) : '—')) + '</td>'
+        + '</tr>';
+    }).join('');
+    return '<table class="events-table">'
+      + '<thead><tr><th>Time</th><th>Event</th><th>Entity</th><th>ID</th><th>Actor</th></tr></thead>'
+      + '<tbody>' + rows + '</tbody>'
+      + '</table>';
+  }
+
+  function openEventDetail(subtab, event) {
+    const titleEl = document.getElementById('eventDetailTitle');
+    const bodyEl = document.getElementById('eventDetailBody');
+    if (!titleEl || !bodyEl) return;
+    let title = subtab + ' event';
+    if (subtab === 'inbound') title = (event.topic || 'inbound') + ' · ' + (event.processed_reason || (event.processed ? 'inserted' : 'unknown'));
+    else if (subtab === 'reviews') title = (event.clinical_category || 'reviewed task') + ' · ' + (event.source_channel || '—');
+    else title = event.event_type || 'error event';
+    titleEl.textContent = title;
+    bodyEl.innerHTML = '<pre class="event-detail-json">' + escapeHtml(JSON.stringify(event, null, 2)) + '</pre>';
+    document.getElementById('eventDetailModal').classList.add('active');
+    document.getElementById('eventDetailOverlay').classList.add('active');
+  }
+
+  window.closeEventDetail = function () {
+    document.getElementById('eventDetailModal').classList.remove('active');
+    document.getElementById('eventDetailOverlay').classList.remove('active');
+  };
 
   // ─────────────────────────────────────────────────────────────────
   // Manual "Fetch & triage" — fires the background worker, then

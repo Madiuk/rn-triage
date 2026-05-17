@@ -29,7 +29,11 @@
   </div>
 
   <div class="tab-nav">
-    <button class="tab-btn active">Queue</button>
+    <button class="tab-btn active" id="queueTabBtn" onclick="navigateToQueue()">Queue</button>
+    <!-- Events tab is shown only for super-users (gated by JS at init).
+         Pulls from inbound_raw_event + reviewed-status query_history +
+         error audit_log entries. -->
+    <button class="tab-btn" id="eventsTabBtn" onclick="navigateToEvents()" style="display:none">Event Log</button>
     <!-- Preferences + Training views land in v1.1 — placeholder shape
          here for visual continuity with the demo. -->
     <button class="tab-btn disabled" disabled title="Coming in v1.1">Preferences</button>
@@ -154,7 +158,47 @@
     <div class="detail-body" id="detailViewBody"></div>
   </section>
 
+  <!-- Event Log view (super-user only). Three sub-tabs: inbound webhook
+       events, tasks routed to human review, system errors. Driven by the
+       /admin/events/* endpoints. -->
+  <section class="view view-events" id="eventsView" style="display:none">
+    <div class="events-header">
+      <h1 class="events-title">Event Log</h1>
+      <p class="events-subtitle">System activity that doesn't make it to the task queue. Super-user only.</p>
+    </div>
+    <div class="events-subtabs">
+      <button class="events-subtab active" data-subtab="inbound" onclick="switchEventsSubtab('inbound')">
+        Inbound
+        <span class="events-subtab-count" id="eventsCountInbound"></span>
+      </button>
+      <button class="events-subtab" data-subtab="reviews" onclick="switchEventsSubtab('reviews')">
+        AI Review
+        <span class="events-subtab-count" id="eventsCountReviews"></span>
+      </button>
+      <button class="events-subtab" data-subtab="errors" onclick="switchEventsSubtab('errors')">
+        Errors
+        <span class="events-subtab-count" id="eventsCountErrors"></span>
+      </button>
+      <button class="events-refresh-btn" onclick="reloadEvents()" title="Reload the current sub-tab">
+        &#8634; Refresh
+      </button>
+    </div>
+    <div class="events-body" id="eventsBody">
+      <div class="loading-row">Loading…</div>
+    </div>
+  </section>
+
 </main>
+
+<!-- Event-detail modal (super-user only; shown on event-row click) -->
+<div class="modal-overlay" id="eventDetailOverlay" onclick="closeEventDetail()"></div>
+<div class="event-detail-modal" id="eventDetailModal" aria-hidden="true">
+  <div class="event-detail-head">
+    <div class="event-detail-title" id="eventDetailTitle">Event detail</div>
+    <button class="event-detail-close" onclick="closeEventDetail()" aria-label="Close">&times;</button>
+  </div>
+  <div class="event-detail-body" id="eventDetailBody"></div>
+</div>
 
 <!-- Toast for transient feedback -->
 <div class="toast" id="toast" role="status" aria-live="polite"></div>

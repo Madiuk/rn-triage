@@ -306,6 +306,11 @@ async function handle(event) {
   if (path.includes("/admin/users"))      return handleUsers(event, ctx);
   if (path.includes("/admin/categories")) return handleCategories(event, ctx);
   if (path.includes("/admin/settings"))   return handleSettings(event, ctx);
+  // /admin/events/* — super-user observability streams. Delegated to
+  // a separate module since the gate (is_super_user) is stricter
+  // than the base /admin gate (isAdmin) and the read shapes are
+  // distinct from the existing admin endpoints.
+  if (path.includes("/admin/events"))     return require("./admin-events").handle(event);
   return json(404, { error: "Unknown admin endpoint." });
 }
 
