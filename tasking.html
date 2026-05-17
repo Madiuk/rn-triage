@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Care Station — Tasking Queue</title>
+<link rel="stylesheet" href="tasking-styles.css">
+</head>
+<body>
+
+<!-- Sandbox mode banner — visible until OUTBOUND_LIVE_MODE=true in the
+     Netlify environment. Reads safe flag from a meta tag the build
+     could inject later; until then, default-on banner is the safer UX
+     (operators see it; if the kill-switch is off they're certain). -->
+<div class="sandbox-banner" id="sandboxBanner" role="banner" aria-label="Sandbox mode banner">
+  <span class="sandbox-dot"></span>
+  <strong>SANDBOX MODE</strong>
+  <span>Sends to patients are suppressed. The DB still records what you "send" so the AI keeps learning from your edits. Set <code>OUTBOUND_LIVE_MODE=true</code> to go live.</span>
+</div>
+
+<!-- Top bar -->
+<div class="topbar">
+  <div class="topbar-brand">
+    <div class="brand-icon">CS</div>
+    <div class="brand-stack">
+      <div class="brand-name">Care Station</div>
+      <div class="brand-sub"><span id="brandTenant">Big Easy Weight Loss</span> <span class="brand-sep">·</span> Tasking Queue</div>
+    </div>
+  </div>
+
+  <div class="tab-nav">
+    <button class="tab-btn active">Queue</button>
+    <!-- Preferences + Training views land in v1.1 — placeholder shape
+         here for visual continuity with the demo. -->
+    <button class="tab-btn disabled" disabled title="Coming in v1.1">Preferences</button>
+    <button class="tab-btn disabled" disabled title="Coming in v1.1">Training</button>
+  </div>
+
+  <div class="topbar-right">
+    <div class="user-chip" id="userChip" onclick="openProfile()" title="Your profile">
+      <div class="chip-avatar" id="chipAvatar">?</div>
+      <span class="chip-name" id="staffChipName">Loading...</span>
+      <span class="dept-badge" id="staffDeptBadge">—</span>
+    </div>
+  </div>
+</div>
+
+<!-- Profile slide-out panel (right side) -->
+<div id="profileOverlay" class="profile-overlay" onclick="closeProfile()"></div>
+<div id="profilePanel" class="profile-panel">
+  <div class="profile-head">
+    <div class="profile-head-row">
+      <div class="profile-section-label">Your Profile</div>
+      <button class="profile-close" onclick="closeProfile()">&times;</button>
+    </div>
+    <div class="profile-id">
+      <div id="profileAvatar" class="profile-avatar"></div>
+      <div>
+        <div id="profileName" class="profile-name"></div>
+        <div id="profileEmail" class="profile-email"></div>
+        <div id="profileRole" class="profile-role"></div>
+      </div>
+    </div>
+  </div>
+  <div class="profile-body">
+    <div class="profile-eyebrow">Workspace</div>
+    <div id="profileCompany" class="profile-company"></div>
+  </div>
+  <div class="profile-foot">
+    <button class="profile-action" id="manualLinkBtn" onclick="goToManual()">&#9881; Manual paste (legacy)</button>
+    <div class="profile-foot-sep"></div>
+    <button class="profile-action danger" onclick="signOut()">&#8594; Sign Out</button>
+  </div>
+</div>
+
+<!-- Main content -->
+<main class="main-content">
+  <section class="view view-queue active">
+    <div class="queue-header">
+      <div class="queue-header-left">
+        <h1 class="queue-title">Your queue</h1>
+        <p class="queue-subtitle" id="queueSubtitle">Pull tasks to begin</p>
+      </div>
+      <div class="queue-stats" id="queueStats"></div>
+    </div>
+
+    <!-- Pull dropdown row -->
+    <div class="pull-row">
+      <button class="pull-btn" id="pullBtn" onclick="togglePullDropdown()">
+        <span class="pull-btn-icon">+</span>
+        <span class="pull-btn-label">Pull tasks</span>
+        <span class="pull-btn-cap" id="pullBtnCap">(up to 5)</span>
+      </button>
+      <div class="pull-dropdown" id="pullDropdown" aria-hidden="true">
+        <div class="pull-dropdown-head">
+          <span>Pull from these categories</span>
+          <button class="pull-dropdown-close" onclick="togglePullDropdown()">&times;</button>
+        </div>
+        <div class="pull-dropdown-body" id="pullDropdownBody"></div>
+        <div class="pull-dropdown-foot">
+          <button class="pull-dropdown-cancel" onclick="togglePullDropdown()">Cancel</button>
+          <button class="pull-dropdown-confirm" id="pullDropdownConfirm" onclick="confirmPull()">Pull</button>
+        </div>
+      </div>
+      <button class="refresh-btn" onclick="refreshQueue()" title="Reload your queue from server">
+        &#8634; Refresh
+      </button>
+    </div>
+
+    <!-- Queue table -->
+    <div class="task-table-wrap">
+      <table class="task-table" id="taskTable">
+        <thead>
+          <tr>
+            <th class="th-severity">Priority</th>
+            <th class="th-channel">Channel</th>
+            <th class="th-time">Received</th>
+            <th class="th-patient">Patient</th>
+            <th class="th-category">AI Category</th>
+            <th class="th-summary">Summary</th>
+            <th class="th-status">Status</th>
+          </tr>
+        </thead>
+        <tbody id="taskTableBody"></tbody>
+      </table>
+      <div class="empty-state" id="emptyState">
+        <div class="empty-icon">✓</div>
+        <div class="empty-title">Your queue is empty</div>
+        <div class="empty-body">Click <strong>Pull tasks</strong> above to grab up to 5 tasks from the pool.</div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- Task detail side panel (slides in from right) -->
+<div class="side-panel-overlay" id="sidePanelOverlay" onclick="closeSidePanel()"></div>
+<aside class="side-panel" id="sidePanel" aria-hidden="true">
+  <div class="side-panel-head">
+    <button class="side-panel-close" onclick="closeSidePanel()" aria-label="Close panel">&times;</button>
+    <div class="side-panel-eyebrow" id="sidePanelEyebrow">Task detail</div>
+    <div class="side-panel-title" id="sidePanelTitle"></div>
+  </div>
+  <div class="side-panel-body" id="sidePanelBody"></div>
+</aside>
+
+<!-- Toast for transient feedback -->
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<!-- Reassign category modal -->
+<div class="modal-overlay" id="reassignOverlay" onclick="closeReassign()"></div>
+<div class="reassign-modal" id="reassignModal" aria-hidden="true">
+  <div class="reassign-head">
+    <div class="reassign-title">Reassign category</div>
+    <button class="reassign-close" onclick="closeReassign()">&times;</button>
+  </div>
+  <div class="reassign-body">
+    <label class="reassign-label">New category</label>
+    <select id="reassignSelect" class="reassign-select"></select>
+    <label class="reassign-label" style="margin-top:12px">Optional note (max 1000 chars)</label>
+    <textarea id="reassignNote" class="reassign-note" maxlength="1000" placeholder="Why this category fits better"></textarea>
+  </div>
+  <div class="reassign-foot">
+    <button class="reassign-cancel" onclick="closeReassign()">Cancel</button>
+    <button class="reassign-confirm" onclick="confirmReassign()">Reassign</button>
+  </div>
+</div>
+
+<!-- Data dependencies — RELAI_DEFAULTS for category metadata + thresholds -->
+<script src="data/defaults.js"></script>
+<script src="tasking.js"></script>
+</body>
+</html>
