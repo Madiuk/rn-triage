@@ -271,6 +271,68 @@
   </div>
 </div>
 
+<!-- Close-no-reply modal. Required internal note; no patient
+     notification. Mirrors the release modal's shape. -->
+<div class="modal-overlay" id="closeNoReplyOverlay" onclick="closeNoReplyCancel()"></div>
+<div class="reassign-modal" id="closeNoReplyModal" aria-hidden="true">
+  <div class="reassign-head">
+    <div class="reassign-title">Close without reply</div>
+    <button class="reassign-close" onclick="closeNoReplyCancel()" aria-label="Close">&times;</button>
+  </div>
+  <div class="reassign-body">
+    <p class="release-body-line">
+      This closes the task without sending a patient reply. The note
+      below is internal only and captures why no reply was needed.
+    </p>
+    <label class="reassign-label">Internal note (required, max 4000 chars)</label>
+    <textarea id="closeNoReplyNote" class="reassign-note" maxlength="4000"
+              placeholder="e.g. Patient acknowledged the recommendation — no action needed."></textarea>
+    <p class="release-body-hint" id="closeNoReplyFollowupHint" style="display:none">
+      <strong>Heads up:</strong> closing this task will also fire
+      <span id="closeNoReplyFollowupCount">0</span> staged follow-up
+      task(s) into their target queues.
+    </p>
+  </div>
+  <div class="reassign-foot">
+    <button class="reassign-cancel" onclick="closeNoReplyCancel()">Cancel</button>
+    <button class="reassign-confirm" id="closeNoReplyConfirmBtn" onclick="confirmCloseNoReply()">Close task</button>
+  </div>
+</div>
+
+<!-- Spawn-followup modal. Creates a child task tied to the current
+     parent. The child stays out of all queues until the parent
+     closes (Send or Close-no-reply). -->
+<div class="modal-overlay" id="spawnFollowupOverlay" onclick="closeSpawnFollowup()"></div>
+<div class="reassign-modal" id="spawnFollowupModal" aria-hidden="true">
+  <div class="reassign-head">
+    <div class="reassign-title">Create follow-up task</div>
+    <button class="reassign-close" onclick="closeSpawnFollowup()" aria-label="Close">&times;</button>
+  </div>
+  <div class="reassign-body">
+    <p class="release-body-line">
+      The follow-up enters the target category's queue when you
+      <strong>Send</strong> or <strong>Close (no reply)</strong> this
+      task. Releasing this task drops every staged follow-up.
+    </p>
+    <label class="reassign-label">Target category</label>
+    <select id="spawnFollowupSelect" class="reassign-select"></select>
+    <label class="reassign-label" style="margin-top:12px">Note for the receiving staffer (required, max 4000 chars)</label>
+    <textarea id="spawnFollowupNote" class="reassign-note" maxlength="4000"
+              placeholder="What does this staffer need to do?"></textarea>
+    <label class="reassign-label" style="margin-top:12px">Optional draft snippet for the receiving staffer</label>
+    <textarea id="spawnFollowupDraft" class="reassign-note" maxlength="50000"
+              placeholder="A starting reply they can edit, if useful."></textarea>
+    <label class="reassign-label spawn-followup-toggle" style="margin-top:12px">
+      <input type="checkbox" id="spawnFollowupPatientFacing" checked>
+      <span>Receiving staffer should also reply to the patient</span>
+    </label>
+  </div>
+  <div class="reassign-foot">
+    <button class="reassign-cancel" onclick="closeSpawnFollowup()">Cancel</button>
+    <button class="reassign-confirm" id="spawnFollowupConfirmBtn" onclick="confirmSpawnFollowup()">Add follow-up</button>
+  </div>
+</div>
+
 <!-- Data dependencies — RELAI_DEFAULTS for category metadata + thresholds -->
 <script src="data/defaults.js"></script>
 <!-- Pure helpers (Node-testable in isolation) — must load before tasking.js -->

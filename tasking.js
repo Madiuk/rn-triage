@@ -50,6 +50,10 @@
     activeView: 'queue',  // 'queue' | 'detail'
     isSigningOut: false,
     refreshInFlight: null,
+    // Local-session map of staged follow-ups per parent task id. The
+    // server already knows about the rows (status='pending_parent');
+    // this is just the chip counter the originator sees.
+    followupsStagedByParent: {},
   };
 
   // ── Display helpers ────────────────────────────────────────────────
@@ -827,7 +831,10 @@
       + '<div class="detail-section">'
       +   '<div class="detail-action-bar inline">'
       +     '<button id="sendBtn" class="action-btn primary" onclick="sendTask()">Send <span class="sandbox-tag">Sandbox</span></button>'
+      +     '<button id="closeNoReplyBtn" class="action-btn neutral" onclick="openCloseNoReply()">Close (no reply)</button>'
+      +     '<button id="spawnFollowupBtn" class="action-btn ghost" onclick="openSpawnFollowup()">+ Follow-up task</button>'
       +     '<button id="retaskBtn" class="action-btn warning" onclick="releaseTask()">Release to queue</button>'
+      +     '<span id="followupCountChip" class="followup-count-chip" style="display:none"></span>'
       +   '</div>'
       + '</div>';
 
@@ -837,6 +844,37 @@
       +   '<div class="detail-col-left">' + leftCol + '</div>'
       +   '<div class="detail-col-right">' + rightCol + '</div>'
       + '</div>';
+
+    // Sync the follow-up count chip for the currently-open task.
+    // state.followupsStagedByParent[tid] survives only within this
+    // session; we don't fetch existing pending_parent children on
+    // reload (out of scope — see PLAN for "originator visibility").
+    refreshFollowupChip();
+  }
+
+  function refreshFollowupChip() {
+    const chip = document.getElementById('followupCountChip');
+    if (!chip) return;
+    const tid = state.openTaskId;
+    const map = state.followupsStagedByParent || {};
+    const n = (tid && map[tid]) ? map[tid] : 0;
+    if (n > 0) {
+      chip.textContent = n + ' follow-up' + (n === 1 ? '' : 's') + ' staged';
+      chip.style.display = '';
+    } else {
+      chip.style.display = 'none';
+    }
+    // Surface the count in the close-no-reply modal hint too, if open.
+    const hint = document.getElementById('closeNoReplyFollowupHint');
+    const hintCount = document.getElementById('closeNoReplyFollowupCount');
+    if (hint && hintCount) {
+      if (n > 0) {
+        hintCount.textContent = String(n);
+        hint.style.display = '';
+      } else {
+        hint.style.display = 'none';
+      }
+    }
   }
 
   // ─────────────────────────────────────────────────────────────────
@@ -850,7 +888,7 @@
   // pattern reported 2026-05-17). Sets the active button's text
   // while disabled so the user sees something's happening.
   function withButtonLock(activeBtnId, busyLabel, fn) {
-    const ids = ['sendBtn', 'retaskBtn', 'reassignBtn'];
+    const ids = ['sendBtn', 'retaskBtn', 'reassignBtn', 'closeNoReplyBtn', 'spawnFollowupBtn'];
     const buttons = ids.map(id => document.getElementById(id)).filter(Boolean);
     const active = document.getElementById(activeBtnId);
     const originalText = active ? active.innerHTML : '';
@@ -887,10 +925,11 @@
         });
         const sentVia = resp && resp.sent_via;
         const sandboxed = sentVia && sentVia.indexOf('sandbox:') === 0;
-        toast(
-          sandboxed ? 'Sent (sandbox — no Intercom delivery). State recorded.' : 'Sent via ' + sentVia,
-          sandboxed ? 'warn' : 'success'
-        );
+        const base = sandboxed
+          ? 'Sent (sandbox — no Intercom delivery). State recorded.'
+          : 'Sent via ' + sentVia;
+        toast(base + followupSuffix(resp && resp.followups_fired, resp && resp.followup_categories, 'released'), sandboxed ? 'warn' : 'success');
+        clearStagedFollowupsFor(tid);
         // Return to queue view; showQueueView() also refreshes.
         window.location.hash = '#queue';
       } catch (e) {
@@ -898,6 +937,24 @@
       }
     });
   };
+
+  // Compose the trailing " · N follow-up(s) released to <Cat1, Cat2>"
+  // suffix used by the Send and Close-no-reply toasts. Returns the
+  // empty string when count is 0 (most tasks don't have follow-ups).
+  function followupSuffix(count, categories, verb) {
+    const n = Number.isFinite(count) ? count : 0;
+    if (n <= 0) return '';
+    const cats = Array.isArray(categories) && categories.length
+      ? ' to ' + categories.join(', ')
+      : '';
+    return ' · ' + n + ' follow-up' + (n === 1 ? '' : 's') + ' ' + verb + cats + '.';
+  }
+
+  function clearStagedFollowupsFor(tid) {
+    if (state.followupsStagedByParent && tid && state.followupsStagedByParent[tid] != null) {
+      delete state.followupsStagedByParent[tid];
+    }
+  }
 
   // "Release to queue" (formerly "re-task") — drops the task back
   // into the general pool. Wrapped in a confirmation modal so an
@@ -926,15 +983,144 @@
     closeReleaseConfirm();
     return withButtonLock('retaskBtn', 'Releasing…', async () => {
       try {
-        await api('/queue/retask', {
+        const resp = await api('/queue/retask', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ triage_id: tid }),
         });
-        toast('Task released to the queue.', 'success');
+        toast('Task released to the queue.' + followupSuffix(resp && resp.followups_dropped, null, 'dropped'), 'success');
+        clearStagedFollowupsFor(tid);
         window.location.hash = '#queue';
       } catch (e) {
         toast('Release failed: ' + e.message, 'error');
+      }
+    });
+  };
+
+  // ─────────────────────────────────────────────────────────────────
+  // Close (no reply) modal — terminal close without a patient reply.
+  // Required internal note. Fires any pending_parent children of the
+  // current task into their target queues on close.
+  // ─────────────────────────────────────────────────────────────────
+
+  window.openCloseNoReply = function () {
+    if (!state.openTaskId) return;
+    const note = document.getElementById('closeNoReplyNote');
+    if (note) note.value = '';
+    refreshFollowupChip();
+    document.getElementById('closeNoReplyModal').classList.add('active');
+    document.getElementById('closeNoReplyOverlay').classList.add('active');
+    document.getElementById('closeNoReplyModal').setAttribute('aria-hidden', 'false');
+  };
+
+  window.closeNoReplyCancel = function () {
+    document.getElementById('closeNoReplyModal').classList.remove('active');
+    document.getElementById('closeNoReplyOverlay').classList.remove('active');
+    document.getElementById('closeNoReplyModal').setAttribute('aria-hidden', 'true');
+  };
+
+  window.confirmCloseNoReply = function () {
+    const tid = state.openTaskId;
+    if (!tid) return;
+    const noteEl = document.getElementById('closeNoReplyNote');
+    const note = (noteEl && noteEl.value || '').trim();
+    if (note.length < 3) {
+      toast('Note required (at least 3 characters).', 'warn');
+      if (noteEl) noteEl.focus();
+      return;
+    }
+    closeNoReplyCancel();
+    return withButtonLock('closeNoReplyBtn', 'Closing…', async () => {
+      try {
+        const resp = await api('/queue/close-no-reply', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ triage_id: tid, note: note }),
+        });
+        toast('Task closed (no reply).' + followupSuffix(resp && resp.followups_fired, resp && resp.followup_categories, 'released'), 'success');
+        clearStagedFollowupsFor(tid);
+        window.location.hash = '#queue';
+      } catch (e) {
+        toast('Close failed: ' + e.message, 'error');
+      }
+    });
+  };
+
+  // ─────────────────────────────────────────────────────────────────
+  // Spawn follow-up modal — create a child task in another category.
+  // The child stays out of every queue until the parent terminates
+  // (Send or Close-no-reply); releasing the parent drops the child.
+  // ─────────────────────────────────────────────────────────────────
+
+  window.openSpawnFollowup = function () {
+    if (!state.openTaskId) return;
+    const sel = document.getElementById('spawnFollowupSelect');
+    if (sel) {
+      sel.innerHTML = '';
+      state.categories.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.category_name;
+        opt.textContent = c.category_name;
+        sel.appendChild(opt);
+      });
+    }
+    const note = document.getElementById('spawnFollowupNote');
+    const draft = document.getElementById('spawnFollowupDraft');
+    const pf = document.getElementById('spawnFollowupPatientFacing');
+    if (note) note.value = '';
+    if (draft) draft.value = '';
+    if (pf) pf.checked = true;
+    document.getElementById('spawnFollowupModal').classList.add('active');
+    document.getElementById('spawnFollowupOverlay').classList.add('active');
+    document.getElementById('spawnFollowupModal').setAttribute('aria-hidden', 'false');
+  };
+
+  window.closeSpawnFollowup = function () {
+    document.getElementById('spawnFollowupModal').classList.remove('active');
+    document.getElementById('spawnFollowupOverlay').classList.remove('active');
+    document.getElementById('spawnFollowupModal').setAttribute('aria-hidden', 'true');
+  };
+
+  window.confirmSpawnFollowup = function () {
+    const tid = state.openTaskId;
+    if (!tid) return;
+    const sel = document.getElementById('spawnFollowupSelect');
+    const noteEl = document.getElementById('spawnFollowupNote');
+    const draftEl = document.getElementById('spawnFollowupDraft');
+    const pfEl = document.getElementById('spawnFollowupPatientFacing');
+    const targetCategory = sel ? sel.value : '';
+    const note = (noteEl && noteEl.value || '').trim();
+    const draftResponse = (draftEl && draftEl.value || '').trim();
+    const patientFacing = pfEl ? !!pfEl.checked : true;
+    if (!targetCategory) {
+      toast('Pick a target category.', 'warn');
+      return;
+    }
+    if (note.length < 3) {
+      toast('Note required (at least 3 characters).', 'warn');
+      if (noteEl) noteEl.focus();
+      return;
+    }
+    closeSpawnFollowup();
+    return withButtonLock('spawnFollowupBtn', 'Saving…', async () => {
+      try {
+        await api('/queue/spawn-followup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            parent_id: tid,
+            target_category: targetCategory,
+            note: note,
+            draft_response: draftResponse || undefined,
+            patient_facing: patientFacing,
+          }),
+        });
+        if (!state.followupsStagedByParent[tid]) state.followupsStagedByParent[tid] = 0;
+        state.followupsStagedByParent[tid] += 1;
+        refreshFollowupChip();
+        toast('Follow-up staged. It will fire when you Send or Close this task.', 'success');
+      } catch (e) {
+        toast('Follow-up create failed: ' + e.message, 'error');
       }
     });
   };

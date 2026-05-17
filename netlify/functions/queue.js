@@ -10,11 +10,14 @@
 // Endpoints (paths are substring-matched in order; more-specific
 // paths must be checked first):
 //
-//   POST /queue/pull      → queue.handlePull
-//   POST /queue/retask    → queue.handleRetask
-//   POST /queue/reassign  → queue.handleReassign
-//   POST /queue/send      → queue.handleSend
-//   GET  /queue/mine      → queue.handleMine
+//   POST /queue/pull            → queue.handlePull
+//   POST /queue/retask          → queue.handleRetask
+//   POST /queue/reassign        → queue.handleReassign
+//   POST /queue/send            → queue.handleSend
+//   POST /queue/vote            → queue.handleVote
+//   POST /queue/close-no-reply  → queue.handleCloseNoReply
+//   POST /queue/spawn-followup  → queue.handleSpawnFollowup
+//   GET  /queue/mine            → queue.handleMine
 //
 // Invocation paths:
 //   - Direct: /.netlify/functions/queue/<action>
@@ -34,6 +37,11 @@ exports.handler = async function (event) {
   const path = event.path || "";
 
   try {
+    // More-specific paths first (close-no-reply / spawn-followup before
+    // /queue/send and /queue/pull, since neither substring overlaps but
+    // future routes might).
+    if (path.includes("/queue/close-no-reply")) return queueRoute.handleCloseNoReply(event);
+    if (path.includes("/queue/spawn-followup")) return queueRoute.handleSpawnFollowup(event);
     if (path.includes("/queue/pull"))     return queueRoute.handlePull(event);
     if (path.includes("/queue/retask"))   return queueRoute.handleRetask(event);
     if (path.includes("/queue/reassign")) return queueRoute.handleReassign(event);

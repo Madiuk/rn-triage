@@ -300,6 +300,46 @@ function parseVoteBody(body) {
   return { ok: true, triageId, vote, reason };
 }
 
+// POST /queue/close-no-reply body shape. Closes a task terminally
+// without sending a patient-facing reply. Note is required (non-empty
+// after trim) — the audit trail and any downstream picker depend on
+// the why-was-this-closed text.
+function parseCloseNoReplyBody(body) {
+  if (!body || typeof body !== 'object') {
+    return { ok: false, error: 'Invalid JSON body.' };
+  }
+  const triageId = typeof body.triage_id === 'string' ? body.triage_id.trim() : '';
+  const note = typeof body.note === 'string' ? body.note.trim() : '';
+  if (!triageId) return { ok: false, error: 'Missing or invalid `triage_id`.' };
+  if (!note) return { ok: false, error: 'Missing or empty `note`. A close note is required so the close reason is captured.' };
+  if (note.length > 4000) return { ok: false, error: 'note exceeds 4000 char cap.' };
+  return { ok: true, triageId, note };
+}
+
+// POST /queue/spawn-followup body shape. Creates a child task tied
+// to a parent via parent_task_id. The child enters status
+// 'pending_parent' and stays out of all queues until the parent
+// terminates. Note is required so the receiving staffer knows what
+// the originator wants done.
+function parseSpawnFollowupBody(body) {
+  if (!body || typeof body !== 'object') {
+    return { ok: false, error: 'Invalid JSON body.' };
+  }
+  const parentId = typeof body.parent_id === 'string' ? body.parent_id.trim() : '';
+  const targetCategory = typeof body.target_category === 'string' ? body.target_category.trim() : '';
+  const note = typeof body.note === 'string' ? body.note.trim() : '';
+  const draftResponse = typeof body.draft_response === 'string' ? body.draft_response : '';
+  // patient_facing defaults to true (per the design choice 2026-05-17).
+  // Accept explicit false; coerce anything else to true.
+  const patientFacing = body.patient_facing === false ? false : true;
+  if (!parentId) return { ok: false, error: 'Missing or invalid `parent_id`.' };
+  if (!targetCategory) return { ok: false, error: 'Missing or invalid `target_category`.' };
+  if (!note) return { ok: false, error: 'Missing or empty `note`. The receiving staffer needs to know what to do.' };
+  if (note.length > 4000) return { ok: false, error: 'note exceeds 4000 char cap.' };
+  if (draftResponse.length > 50000) return { ok: false, error: 'draft_response exceeds 50000 char cap.' };
+  return { ok: true, parentId, targetCategory, note, draftResponse, patientFacing };
+}
+
 // POST /queue/send body shape. `maxTextLen` is injected so tests
 // can exercise the boundary cheaply without producing 50k-char
 // fixtures.
@@ -614,16 +654,25 @@ async function handleRetask(event) {
     return json(404, { error: 'Task not found or not claimed by caller.' });
   }
 
+  // Drop any pending_parent children of this parent. Per the
+  // 2026-05-17 design choice: releasing the parent means the work was
+  // abandoned, so the staged follow-ups go with it. If they should
+  // stick around, the staffer should send or close-no-reply instead.
+  const dropped = await deleteChildren(triageId, profile.company_id, h);
+
   auditLog(h, {
     company_id: profile.company_id,
     actor_id: profile.id,
     event_type: 'queue.retask',
     entity_type: 'query_history',
     entity_id: triageId,
-    payload: { due_state: updated[0].due_state },
+    payload: {
+      due_state: updated[0].due_state,
+      followups_dropped: dropped.count,
+    },
   });
 
-  return json(200, { ok: true });
+  return json(200, { ok: true, followups_dropped: dropped.count });
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -857,6 +906,10 @@ async function handleSend(event) {
     return json(500, { error: 'Internal error after dispatch.' });
   }
 
+  // Fire any pending_parent children of this parent. They flip to
+  // 'triaged' and enter their target categories' queues.
+  const fired = await fireChildren(triageId, profile.company_id, h);
+
   auditLog(h, {
     company_id: profile.company_id,
     actor_id: profile.id,
@@ -866,10 +919,17 @@ async function handleSend(event) {
     payload: {
       sent_via: dispatch.sent_via,
       text_length: finalText.length,
+      followups_fired: fired.count,
+      followup_categories: fired.categories,
     },
   });
 
-  return json(200, { ok: true, sent_via: dispatch.sent_via });
+  return json(200, {
+    ok: true,
+    sent_via: dispatch.sent_via,
+    followups_fired: fired.count,
+    followup_categories: fired.categories,
+  });
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -946,6 +1006,278 @@ async function handleVote(event) {
   return json(200, { ok: true, vote: vote });
 }
 
+// ─────────────────────────────────────────────────────────────────
+// Follow-up task helpers
+// ─────────────────────────────────────────────────────────────────
+//
+// Two shared operations on the parent-child relationship:
+//
+//   * fireChildren(parentId, companyId, h)  — flip pending_parent
+//     children of a closing parent into 'triaged' so they enter
+//     their target category's queue. Called from /queue/send and
+//     /queue/close-no-reply after the parent's state transition.
+//
+//   * deleteChildren(parentId, companyId, h) — hard-delete
+//     pending_parent children of a parent that's being released.
+//     Per the 2026-05-17 design choice: release means the work was
+//     abandoned, so the staged follow-ups go with it.
+//
+// Both are scoped to the tenant (company_id) AND require the child
+// to be in pending_parent — so a stale parent_id pointing at an
+// unrelated row can't accidentally affect already-active tasks.
+
+async function fireChildren(parentId, companyId, h) {
+  const url = `${SUPABASE_URL}/rest/v1/query_history`
+    + `?parent_task_id=eq.${encodeURIComponent(parentId)}`
+    + `&company_id=eq.${encodeURIComponent(companyId)}`
+    + `&status=eq.pending_parent`;
+  try {
+    const r = await fetch(url, {
+      method: 'PATCH',
+      headers: { ...h, Prefer: 'return=representation' },
+      body: JSON.stringify({ status: 'triaged' }),
+    });
+    if (!r.ok) {
+      console.error('queue.fireChildren:', r.status);
+      return { count: 0, categories: [] };
+    }
+    const rows = await r.json();
+    if (!Array.isArray(rows)) return { count: 0, categories: [] };
+    const categories = Array.from(new Set(
+      rows.map(row => row && row.clinical_category).filter(Boolean)
+    ));
+    return { count: rows.length, categories: categories };
+  } catch (e) {
+    console.error('queue.fireChildren:', e.message);
+    return { count: 0, categories: [] };
+  }
+}
+
+async function deleteChildren(parentId, companyId, h) {
+  const url = `${SUPABASE_URL}/rest/v1/query_history`
+    + `?parent_task_id=eq.${encodeURIComponent(parentId)}`
+    + `&company_id=eq.${encodeURIComponent(companyId)}`
+    + `&status=eq.pending_parent`;
+  try {
+    const r = await fetch(url, {
+      method: 'DELETE',
+      headers: { ...h, Prefer: 'return=representation' },
+    });
+    if (!r.ok) {
+      console.error('queue.deleteChildren:', r.status);
+      return { count: 0 };
+    }
+    const rows = await r.json();
+    return { count: Array.isArray(rows) ? rows.length : 0 };
+  } catch (e) {
+    console.error('queue.deleteChildren:', e.message);
+    return { count: 0 };
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────
+// POST /queue/close-no-reply
+// ─────────────────────────────────────────────────────────────────
+//
+// Closes a task terminally without sending a patient-facing reply.
+// Required note is appended to internal_note so the close reason is
+// captured in the row's audit trail. Triggers fireChildren so any
+// follow-ups staged against this parent enter their target queues.
+
+async function handleCloseNoReply(event) {
+  if (event.httpMethod !== 'POST') return json(405, { error: 'Method not allowed.' });
+
+  const caller = await authedCaller(event);
+  if (caller.error) return caller.error;
+  const { profile } = caller;
+
+  const parsed = parseCloseNoReplyBody(parseBody(event));
+  if (!parsed.ok) return json(400, { error: parsed.error });
+  const { triageId, note } = parsed;
+
+  const h = writeHeaders();
+
+  // Tenant + ownership scoped lookup. Same gate as handleSend — only
+  // the staffer who has the task claimed can close it.
+  const task = await fetchTask(triageId, profile.company_id, h);
+  if (!task) return json(404, { error: 'Task not found.' });
+  if (task.claimed_by !== profile.id) {
+    return json(404, { error: 'Task not claimed by caller.' });
+  }
+
+  // Build the new internal_note. Append the close note as a labeled
+  // block so the existing note (if any — e.g., AI routing breadcrumb)
+  // is preserved and the close reason is clearly delineated.
+  const closeBreadcrumb =
+    'CLOSED WITHOUT REPLY by ' + (profile.full_name || profile.email || profile.id) +
+    ' at ' + new Date().toISOString() + ':\n' + note;
+  const newInternalNote = task.internal_note
+    ? task.internal_note + '\n\n' + closeBreadcrumb
+    : closeBreadcrumb;
+
+  // Commit the state transition: mark closed_no_reply, append note,
+  // release the claim (queue slot frees).
+  const patchUrl = `${SUPABASE_URL}/rest/v1/query_history`
+    + `?id=eq.${encodeURIComponent(triageId)}`
+    + `&company_id=eq.${encodeURIComponent(profile.company_id)}`
+    + `&claimed_by=eq.${encodeURIComponent(profile.id)}`;
+  try {
+    const r = await fetch(patchUrl, {
+      method: 'PATCH',
+      headers: { ...h, Prefer: 'return=minimal' },
+      body: JSON.stringify({
+        status: 'closed_no_reply',
+        internal_note: newInternalNote,
+        claimed_by: null,
+        claimed_at: null,
+      }),
+    });
+    if (!r.ok) {
+      console.error('queue.closeNoReply.patch:', r.status);
+      return json(500, { error: 'Close failed.' });
+    }
+  } catch (e) {
+    console.error('queue.closeNoReply.patch:', e.message);
+    return json(500, { error: 'Internal error.' });
+  }
+
+  // Fire any pending_parent children of this parent. They flip to
+  // 'triaged' and enter their target categories' queues.
+  const fired = await fireChildren(triageId, profile.company_id, h);
+
+  auditLog(h, {
+    company_id: profile.company_id,
+    actor_id: profile.id,
+    event_type: 'queue.close_no_reply',
+    entity_type: 'query_history',
+    entity_id: triageId,
+    payload: {
+      note_length: note.length,
+      followups_fired: fired.count,
+      followup_categories: fired.categories,
+    },
+  });
+
+  return json(200, {
+    ok: true,
+    followups_fired: fired.count,
+    followup_categories: fired.categories,
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────
+// POST /queue/spawn-followup
+// ─────────────────────────────────────────────────────────────────
+//
+// Creates a child task tied to a parent via parent_task_id. The
+// child enters status 'pending_parent' and is invisible to every
+// queue until the parent closes via /queue/send or
+// /queue/close-no-reply. At that moment fireChildren transitions
+// the child to 'triaged' and it appears in the target category's
+// pool.
+//
+// The patient_facing intent is recorded as a labeled line in
+// internal_note so the receiving staffer can see whether the
+// originator expects them to send a patient reply.
+
+async function handleSpawnFollowup(event) {
+  if (event.httpMethod !== 'POST') return json(405, { error: 'Method not allowed.' });
+
+  const caller = await authedCaller(event);
+  if (caller.error) return caller.error;
+  const { profile } = caller;
+
+  const parsed = parseSpawnFollowupBody(parseBody(event));
+  if (!parsed.ok) return json(400, { error: parsed.error });
+  const { parentId, targetCategory, note, draftResponse, patientFacing } = parsed;
+
+  const h = writeHeaders();
+
+  // Parent must exist, in the caller's tenant, claimed by caller.
+  // (You can only spawn follow-ups for tasks you currently own —
+  // mirrors the send/close gate. Cross-tenant spawn is impossible.)
+  const parent = await fetchTask(parentId, profile.company_id, h);
+  if (!parent) return json(404, { error: 'Parent task not found.' });
+  if (parent.claimed_by !== profile.id) {
+    return json(404, { error: 'Parent task not claimed by caller.' });
+  }
+
+  // Target category must exist in the tenant. Cross-tier spawning
+  // (clinical → non-clinical, etc.) is explicitly allowed.
+  const categoriesMeta = await fetchCategoriesMeta(profile.company_id, h);
+  if (!categoriesMeta[targetCategory]) {
+    return json(400, { error: 'Unknown target_category `' + targetCategory + '` for this tenant.' });
+  }
+
+  // Build the breadcrumb. The receiving staffer sees this verbatim
+  // so it needs to be self-explanatory.
+  const intentLabel = patientFacing ? 'patient-facing reply expected' : 'internal handoff only — no patient reply needed';
+  const breadcrumb =
+    'FOLLOW-UP TASK spawned from ' + parentId +
+    ' by ' + (profile.full_name || profile.email || profile.id) +
+    ' at ' + new Date().toISOString() + '.\n' +
+    'Originator intent: ' + intentLabel + '.\n' +
+    'Note: ' + note;
+
+  // Insert the child. Inherits source_channel + external_id from the
+  // parent so the receiving staffer can see the conversation context.
+  // patient_message is copied so the chat-bubble renders properly in
+  // the detail view (the original inbound text is the same task's
+  // grounding either way).
+  const insertUrl = `${SUPABASE_URL}/rest/v1/query_history`;
+  let inserted;
+  try {
+    const r = await fetch(insertUrl, {
+      method: 'POST',
+      headers: { ...h, Prefer: 'return=representation' },
+      body: JSON.stringify({
+        company_id: profile.company_id,
+        parent_task_id: parentId,
+        status: 'pending_parent',
+        source_channel: parent.source_channel || 'manual',
+        external_id: parent.external_id || null,
+        patient_message: parent.patient_message || '',
+        draft_response: draftResponse || null,
+        clinical_category: targetCategory,
+        internal_note: breadcrumb,
+        // No AI triage on follow-ups — these are staff-authored.
+        // urgency_score / urgency_original / ai_confidence stay null.
+      }),
+    });
+    if (!r.ok) {
+      const txt = await r.text();
+      console.error('queue.spawnFollowup.insert:', r.status, txt.slice(0, 200));
+      return json(500, { error: 'Follow-up create failed.' });
+    }
+    const rows = await r.json();
+    inserted = Array.isArray(rows) && rows[0] ? rows[0] : null;
+  } catch (e) {
+    console.error('queue.spawnFollowup.insert:', e.message);
+    return json(500, { error: 'Internal error.' });
+  }
+
+  auditLog(h, {
+    company_id: profile.company_id,
+    actor_id: profile.id,
+    event_type: 'queue.spawn_followup',
+    entity_type: 'query_history',
+    entity_id: inserted ? inserted.id : null,
+    payload: {
+      parent_id: parentId,
+      target_category: targetCategory,
+      patient_facing: patientFacing,
+      note_length: note.length,
+      has_draft: !!draftResponse,
+    },
+  });
+
+  return json(200, {
+    ok: true,
+    followup_id: inserted ? inserted.id : null,
+    target_category: targetCategory,
+  });
+}
+
 module.exports = {
   // HTTP handlers
   handlePull,
@@ -954,6 +1286,8 @@ module.exports = {
   handleReassign,
   handleSend,
   handleVote,
+  handleCloseNoReply,
+  handleSpawnFollowup,
   // Pure helpers (exported for unit tests; not used by the router)
   inFilter,
   makeTaskPriorityCmp,
@@ -963,10 +1297,14 @@ module.exports = {
   parseReassignBody,
   parseSendBody,
   parseVoteBody,
+  parseCloseNoReplyBody,
+  parseSpawnFollowupBody,
   checkPullPrecondition,
   splitCategoriesByEligibility,
   partitionForClaim,
   dispatchOutbound,
+  fireChildren,
+  deleteChildren,
   // Constants (exported for tests that reference them)
   OPEN_STATUSES,
   QUEUE_CAP,
