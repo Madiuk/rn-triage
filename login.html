@@ -206,11 +206,11 @@ var SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 })();
 
 // ── Post-login destination (supports ?next= for return-URL redirects) ────────
-// The new tasking page (/tasking.html) and any future entry point that
-// requires auth can append `?next=/<path>` when bouncing here. The
-// helper only accepts same-origin absolute paths starting with `/` —
-// not `//` or `\\` (open-redirect defense) and not anything containing
-// `:` (no scheme injection). Default is `/` (current behavior).
+// The tasking SPA at `/` (the site default) and any other entry point
+// that requires auth can append `?next=/<path>` when bouncing here.
+// The helper only accepts same-origin absolute paths starting with `/`
+// — not `//` or `\\` (open-redirect defense) and not anything
+// containing `:` (no scheme injection). Default is `/` (tasking SPA).
 function getPostLoginUrl() {
   try {
     var p = new URLSearchParams(window.location.search).get('next');

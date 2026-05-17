@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Care Station — Patient Inquiry &amp; Tasking</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- Profile Panel -->
+<div id="profileOverlay" class="profile-overlay" onclick="closeProfile()"></div>
+<div id="profilePanel" class="profile-panel">
+  <div class="profile-head">
+    <div class="profile-head-row">
+      <div class="profile-section-label">Your Profile</div>
+      <button class="profile-close" onclick="closeProfile()">&times;</button>
+    </div>
+    <div class="profile-id">
+      <div id="profileAvatar" class="profile-avatar"></div>
+      <div>
+        <div id="profileName" class="profile-name"></div>
+        <div id="profileEmail" class="profile-email"></div>
+        <div id="profileRole" class="profile-role"></div>
+      </div>
+    </div>
+  </div>
+  <div class="profile-body">
+    <div class="profile-eyebrow">Workspace</div>
+    <div id="profileCompany" class="profile-company"></div>
+    <!-- Activity section removed in v0.4.1. The /history/stats
+         endpoint and loadProfileStats() function in app.js are
+         intentionally kept so we can restore meaningful per-user
+         metrics later once we decide what's actually worth showing. -->
+  </div>
+  <div class="profile-foot">
+    <button class="profile-action hidden" id="adminTabBtn" onclick="goToAdminFromProfile()">&#9881; Admin</button>
+    <button class="profile-action" id="worklistBtn" onclick="goToWorklist()"><span>&#9783; AI Review Worklist</span><span id="profileBadgeCount" class="profile-badge"></span></button>
+    <button class="profile-action" onclick="goToInquiryHistory()">&#128203; Inquiry History</button>
+    <div class="profile-foot-sep"></div>
+    <button class="profile-action danger" onclick="signOut()">&#8594; Sign Out</button>
+  </div>
+</div>
+
+<div class="topbar">
+  <div class="topbar-brand">
+    <div class="brand-icon brand-mini-icon">CS</div>
+    <div class="brand-stack">
+      <div class="brand-name">Care Station</div>
+      <div class="brand-sub"><span id="brandTenant">Big Easy Weight Loss</span> <span class="brand-sep">·</span> Patient Inquiry &amp; Tasking</div>
+    </div>
+  </div>
+  <div class="tab-nav">
+    <button class="tab-btn active" onclick="switchTab('triage',this)">Triage</button>
+    <button class="tab-btn" onclick="switchTab('kb',this)">Knowledge Base</button>
+  </div>
+  <div class="topbar-right">
+    <button class="help-bubble" onclick="switchTab('help',null)" title="Help &amp; Guide" aria-label="Help &amp; Guide">?</button>
+    <div class="nurse-chip" onclick="openProfile()" title="Your profile">
+      <div id="chipAvatar" class="chip-avatar">?</div>
+      <span id="staffChipName">Loading...</span>
+      <span id="staffDeptBadge" class="dept-badge">RN</span>
+      <div id="clarificationBadge" class="chip-badge">0</div>
+    </div>
+  </div>
+</div>
+
+<!-- Optimistic chip + admin tab paint. Runs synchronously between
+     the topbar HTML and the rest of the body, before any external
+     scripts download — so the first frame already has the user's
+     name in the chip. Without this, the chip shows "Loading..." for
+     ~300–600 ms while ~200 KB of data/*.js + app.js is downloaded
+     and parsed before initAuth() can even read the cache.
+     Reads the same relai_profile_cache that app.js writes after
+     every /auth/profile success. Falls back to decoding the JWT in
+     relai_session when the cache is empty (first sign-in after
+     logout). app.js still reconciles via the network when it loads
+     and overwrites these values if anything changed server-side.
+     Intentionally duplicates a subset of applyProfileUI in app.js;
+     it has to run before app.js exists, so code-sharing isn't an
+     option. Keep the two in sync if the chip styling changes. -->
+<script>
+(function(){
+  try {
+    var profile = null, user = null;
+    var raw = localStorage.getItem('relai_profile_cache');
+    if (raw) {
+      var c = JSON.parse(raw);
+      if (c && c.user) { user = c.user; profile = c.profile || null; }
+    }
+    if (!user) {
+      var s = JSON.parse(localStorage.getItem('relai_session') || 'null');
+      if (s && s.access_token) {
+        var parts = s.access_token.split('.');
+        if (parts.length >= 2) {
+          var p = JSON.parse(atob(parts[1].replace(/-/g,'+').replace(/_/g,'/')));
+          if (p && p.email) user = { id: p.sub, email: p.email };
+        }
+      }
+    }
+    if (!user) return;
+
+    var name = (profile && profile.full_name)
+      || (user.email ? user.email.split('@')[0] : 'Staff');
+    var initials = name.split(' ').map(function(n){return n[0];})
+      .join('').substring(0,2).toUpperCase();
+    var chip = document.getElementById('staffChipName');
+    var avatar = document.getElementById('chipAvatar');
+    if (chip) chip.textContent = name.split(' ')[0];
+    if (avatar) avatar.textContent = initials;
+
+    if (!profile) return;
+
+    if (profile.company_name) {
+      var brand = document.getElementById('brandTenant');
+      if (brand) brand.textContent = profile.company_name;
+    }
+    var badge = document.getElementById('staffDeptBadge');
+    if (badge) {
+      // Same title-first / role-fallback logic as applyProfileUI in
+      // app.js (migration 0017). Duplicated here because this paint
+      // runs before app.js loads; keep the two in sync if the rule
+      // changes.
+      var title = profile.title || '';
+      if (profile.role === 'Clinical') {
+        badge.textContent = title || 'RN';
+        badge.style.display = '';
+        badge.style.background = 'var(--blue-m)';
+        badge.style.color = 'var(--blue)';
+        if (avatar) avatar.style.background = 'var(--blue)';
+      } else if (profile.role === 'Non-Clinical') {
+        badge.textContent = title || 'CS';
+        badge.style.display = '';
+        badge.style.background = 'var(--amber-l)';
+        badge.style.color = 'var(--amber)';
+        if (avatar) avatar.style.background = 'var(--amber)';
+      }
+    }
+    if (profile.is_admin) {
+      var adminBtn = document.getElementById('adminTabBtn');
+      if (adminBtn) adminBtn.classList.remove('hidden');
+    }
+  } catch(e) {
+    // Swallow — fall through to applyProfileUI in app.js once it loads.
+  }
+})();
+</script>
+
+<!-- TRIAGE TAB -->
+<div class="tab-panel active" id="tab-triage">
+  <div class="triage-layout">
+    <div class="input-col">
+      <div class="card input-card">
+        <div class="card-header">
+          <span class="card-title">Patient Message</span>
+          <button id="priorToggle" class="prior-toggle" onclick="togglePrior()">Add Prior Context</button>
+        </div>
+        <div class="card-body">
+          <div id="priorContextPanel" class="prior-panel">
+            <div class="eyebrow">Earlier Conversation</div>
+            <div id="priorTurnsList" class="prior-turns">
+              <!-- One row pre-populated. Add Turn appends more. Order is
+                   chronological: top row is the earliest message, bottom
+                   row is the most recent reply before the new patient
+                   message below. -->
+              <div class="prior-turn">
+                <select class="prior-turn-speaker" aria-label="Speaker">
+                  <option value="Patient">Patient</option>
+                  <option value="Nurse">Nurse</option>
+                  <option value="Other">Other</option>
+                </select>
+                <textarea class="prior-turn-text" placeholder="What was said earlier — oldest message first, then add rows for each reply..."></textarea>
+                <button type="button" class="prior-turn-remove" onclick="removePriorTurn(this)" aria-label="Remove turn">&times;</button>
+              </div>
+            </div>
+            <button type="button" class="prior-add-turn" onclick="addPriorTurn()">+ Add turn</button>
+            <div class="prior-hint">&#9432; Add the back-and-forth in order — oldest at the top. The patient message below is the new reply you are triaging now.</div>
+          </div>
+          <div class="eyebrow" id="msgLabel">Patient Message</div>
+          <textarea id="msgInput" placeholder="Paste the patient's message here..."></textarea>
+          <button class="btn-run" id="triageBtn" onclick="runTriage()">
+            <span id="btnText">Analyze</span>
+            <div class="spinner" id="btnSpinner"></div>
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="results-col">
+      <div class="output-stack" id="results">
+        <div class="placeholder">
+          <div class="placeholder-icon">&#128203;</div>
+          <div class="placeholder-text">Paste a patient message and click Analyze</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- KB TAB -->
+<div class="tab-panel" id="tab-kb">
+  <div class="kb-layout">
+    <div class="kb-header">
+      <div class="kb-header-row">
+        <h2>Knowledge Base</h2>
+        <div class="kb-sync-bar" id="syncBar"><span id="syncMsg">Loading...</span></div>
+      </div>
+      <p>Protocols, side effect guidance, routing rules, and response templates. The AI reads this on every triage.</p>
+    </div>
+    <div class="entry-add-box">
+      <div class="entry-add-header"><span>+ Add Entry</span></div>
+      <div class="entry-add-body">
+        <div class="entry-add-row">
+          <input class="entry-title-input" type="text" id="entryTitle" placeholder="Entry title (e.g. Nausea management protocol)">
+          <select class="entry-section-select" id="entrySection">
+            <option value="sideeffects">Side Effects</option>
+            <option value="templates">Response Templates</option>
+            <option value="protocols">Protocols</option>
+            <option value="notes">Rules &amp; Notes</option>
+            <option value="routing">Routing</option>
+            <option value="urls">URLs &amp; Resources</option>
+            <option value="style">Writing Style</option>
+          </select>
+        </div>
+        <textarea class="entry-content-area" id="entryContent" placeholder="Enter protocol, guidance, or template content..."></textarea>
+        <div class="entry-submit-row">
+          <button class="entry-submit-btn" id="entrySubmitBtn" onclick="submitEntry()">
+            <span id="entrySubmitTxt">Save &amp; Sync to Team</span>
+            <div class="spinner" id="entrySpinner"></div>
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="kb-tabs">
+      <button class="kb-tab active" onclick="switchKBTab('sideeffects',this)">Side Effects <span class="kb-tab-count" id="cnt-sideeffects"></span></button>
+      <button class="kb-tab" onclick="switchKBTab('templates',this)">Templates <span class="kb-tab-count" id="cnt-templates"></span></button>
+      <button class="kb-tab" onclick="switchKBTab('protocols',this)">Protocols <span class="kb-tab-count" id="cnt-protocols"></span></button>
+      <button class="kb-tab" onclick="switchKBTab('notes',this)">Rules &amp; Notes <span class="kb-tab-count" id="cnt-notes"></span></button>
+      <button class="kb-tab" onclick="switchKBTab('routing',this)">Routing <span class="kb-tab-count" id="cnt-routing"></span></button>
+      <button class="kb-tab" onclick="switchKBTab('urls',this)">URLs <span class="kb-tab-count" id="cnt-urls"></span></button>
+      <button class="kb-tab" onclick="switchKBTab('style',this)">Writing Style <span class="kb-tab-count" id="cnt-style"></span></button>
+    </div>
+    <div class="kb-search-row">
+      <input type="text" class="kb-search" id="kbSearch" placeholder="Search entries..." oninput="filterKBEntries()">
+    </div>
+    <div id="kb-tab-sideeffects" class="kb-tab-panel active"><div id="sideeffects-list"></div></div>
+    <div id="kb-tab-templates" class="kb-tab-panel"><div id="templates-list"></div></div>
+    <div id="kb-tab-protocols" class="kb-tab-panel"><div id="protocols-list"></div></div>
+    <div id="kb-tab-notes" class="kb-tab-panel"><div id="notes-list"></div></div>
+    <div id="kb-tab-routing" class="kb-tab-panel"><div id="routing-list"></div></div>
+    <div id="kb-tab-urls" class="kb-tab-panel"><div id="urls-list"></div></div>
+    <div id="kb-tab-style" class="kb-tab-panel"><div id="style-list"></div></div>
+    <div class="kb-actions">
+      <button class="kb-save-btn" id="kbSaveBtn" onclick="saveKB()">
+        <span id="kbSaveTxt">Save &amp; Sync to Team</span>
+        <div class="kb-spinner" id="kbSpinner"></div>
+      </button>
+      <button class="kb-export-btn" onclick="exportKB()">Export Backup</button>
+      <label class="kb-export-btn kb-import-label">Import Backup<input type="file" accept=".json" class="kb-import-input" onchange="importKB(event)"></label>
+    </div>
+  </div>
+</div>
+
+<!-- HELP TAB -->
+<div class="tab-panel" id="tab-help">
+  <div class="help-layout">
+    <div class="help-quickref">
+      <div class="help-quickref-title">Quick Start &mdash; The Five Steps</div>
+      <div class="help-quickref-grid">
+        <div class="help-qr-item">
+          <div class="help-qr-num">1</div>
+          <div>
+            <div class="help-qr-label">Sign in</div>
+            <div class="help-qr-desc">Click the sign-in link Care Station emails you &mdash; there's no password to remember. Never received one? Ask your admin to add you.</div>
+          </div>
+        </div>
+        <div class="help-qr-item">
+          <div class="help-qr-num">2</div>
+          <div>
+            <div class="help-qr-label">Paste the patient message</div>
+            <div class="help-qr-desc">Drop the patient's message into the box on the <strong>Triage</strong> tab. If it continues an earlier conversation, click <strong>Add Prior Context</strong> and add the previous messages first.</div>
+          </div>
+        </div>
+        <div class="help-qr-item">
+          <div class="help-qr-num">3</div>
+          <div>
+            <div class="help-qr-label">Click Analyze</div>
+            <div class="help-qr-desc">The AI reads the message against your Knowledge Base and returns an urgency level, a category, and a draft reply &mdash; usually in 5&ndash;15 seconds.</div>
+          </div>
+        </div>
+        <div class="help-qr-item">
+          <div class="help-qr-num">4</div>
+          <div>
+            <div class="help-qr-label">Check the results top to bottom</div>
+            <div class="help-qr-desc">Read the classification first, then the routing card if one appears, then the draft response. Correct anything that looks wrong before you send.</div>
+          </div>
+        </div>
+        <div class="help-qr-item">
+          <div class="help-qr-num">5</div>
+          <div>
+            <div class="help-qr-label">Teach the AI if you edited</div>
+            <div class="help-qr-desc">Changed the draft before sending? Paste what you actually sent into <strong>What was sent</strong> and click <strong>Submit &amp; Learn</strong>. Sent it as-is? Skip this step.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="help-section spotlight">
+      <div class="help-section-title">First-Day Walkthrough</div>
+      <div class="help-faq">
+        <button class="help-faq-q" onclick="toggleFaq(this)"><span>I just signed in &mdash; what do I do first?</span><span class="help-arrow">&#9660;</span></button>
+        <div class="help-faq-a">
+          You land on the <strong>Triage</strong> tab &mdash; that's where you'll do most of your work. Top right is your profile chip (click it for your workspace info, Inquiry History, and Sign Out) and the <strong>?</strong> button, which opens this guide anytime.<br><br>
+          For your first triage, paste a recent patient message, click <strong>Analyze</strong>, and read the result top to bottom. The <strong>Knowledge Base</strong> tab holds the policies and protocols the AI follows when it writes a reply.
+        </div>
+      </div>
+    </div>
+    <div class="help-cols">
+      <div class="help-col">
+        <div class="help-section">
+          <div class="help-section-title">Reading the Results</div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>What is the Classification card?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a">The top-left card shows the AI's task type and the severity badge (when a side effect is flagged). The top-right card holds the category pills you can correct. Check both before sending &mdash; if a category is wrong, click the correct pill and Save.</div>
+          </div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>What does the severity badge mean?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a"><strong class="help-sev-severe">Side Effect: Severe</strong> means escalate to a provider immediately. <strong class="help-sev-moderate">Side Effect: Moderate</strong> means gather more information and reassess. <strong class="help-sev-mild">Side Effect: Mild</strong> means an education response is appropriate. The badge only appears when a side effect is detected.</div>
+          </div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>What is the routing card?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a">Appears when a message has both clinical and non-clinical parts. The <strong>Internal Note for Staff</strong> describes what the support team needs to do (ship a replacement, process a refund, transfer a pharmacy, etc.). You &mdash; whoever ran this triage &mdash; stay responsible for the patient reply. Share the internal note with the support team through whatever handoff method your team uses (a thread comment, an internal email, a ticket); don't include it in the message you send the patient.</div>
+          </div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>What does Response Timeframe mean?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a"><strong>Routine</strong> means respond in normal queue order. <strong>Same Day</strong> means the patient needs a reply today. <strong>URGENT</strong> means escalate now. If wrong, adjust the dropdown and click the green checkmark to save.</div>
+          </div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>What categories does the AI use?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a"><strong>Clinical:</strong> Side Effect, Medication Question, Symptom Report, Dosing, Lab/Result Question, and similar. <strong>Non-clinical:</strong> Billing, Shipping, Account, Appointment, and General Inquiry. Non-clinical staff can only pick from the non-clinical list when correcting.</div>
+          </div>
+        </div>
+        <div class="help-section">
+          <div class="help-section-title">Using Prior Context</div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>When do I use Add Prior Context?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a">Any time the patient message is a reply to an ongoing conversation. Without the earlier turns the AI is triaging a fragment, and may re-explain things the patient already knows or re-ask questions they already answered. Click <strong>Add Prior Context</strong> to open the turn list. Each row has a speaker dropdown (<strong>Patient</strong> / <strong>Nurse</strong> / <strong>Other</strong>) and a text field; click <strong>+ Add turn</strong> for each new turn. Put the oldest turn at the top and the most recent reply at the bottom. Then type the newest patient message in the main box below.</div>
+          </div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>Do I need it every time?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a">No. For a patient's first message &mdash; one that isn't a reply to anything &mdash; leave Prior Context empty.</div>
+          </div>
+        </div>
+        <div class="help-section">
+          <div class="help-section-title">Inquiry History</div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>Where do I see what I've been doing?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a">Open your profile (the chip in the top-right corner) and click <strong>Inquiry History</strong>. It lists the inquiries processed through Care Station. It doesn't auto-load &mdash; click <strong>Load</strong> when you want to see records.</div>
+          </div>
+        </div>
+        <div class="help-section">
+          <div class="help-section-title">Sign-in &amp; Account</div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>How does sign-in work?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a">Care Station uses magic-link auth &mdash; no passwords. Enter your email on the sign-in page, click the link in the email you receive, and you're in. Your session stays valid in this browser until you click Sign Out or the session expires (rare; the app silently refreshes it in the background).</div>
+          </div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>I got signed out. What now?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a">Go back to the sign-in page, enter your email, and request a new magic link. If you never receive it, check your spam folder and confirm your email is exactly what your admin used to invite you. If you're new and have never received an invite, ask your admin to create your account.</div>
+          </div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>How do I sign out?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a">Open your profile (top-right chip) and click <strong>Sign Out</strong> at the bottom. Always sign out on shared computers &mdash; magic-link auth means anyone who can read your inbox could sign back in, but the session is local to the browser otherwise.</div>
+          </div>
+        </div>
+        <div class="help-section">
+          <div class="help-section-title">When Something Goes Wrong</div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>The AI's response looks wrong or nonsensical</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a">If the AI's classification or draft is clearly off, do not send it. Edit or rewrite the response, then use <strong>Submit &amp; Learn</strong> with what you actually sent. If the category is wrong, correct it via the pill. Never copy a malformed or nonsensical draft to a patient &mdash; when in doubt, write the reply yourself.</div>
+          </div>
+        </div>
+      </div>
+      <div class="help-col">
+        <div class="help-section">
+          <div class="help-section-title">Teaching the AI</div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>How does "What was sent to the patient" work?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a">After sending your response, if you changed the draft, paste what you actually sent and click <strong>Submit &amp; Learn</strong>. The AI compares the two versions and saves a learning note. If you sent the draft verbatim, skip this entirely.</div>
+          </div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>How do I correct a wrong category?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a">Click the correct category pill in the Classification card (Clinical or Non-Clinical), then click <strong>Save</strong>. Each correction is stored and builds a dataset that improves the AI's classification accuracy over time.</div>
+          </div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>What if I entered the wrong correction?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a">Go to <strong>Inquiry History</strong>, find the row in question, and click the <strong>&times;</strong> on the right side to remove the entire entry. Per-correction edits aren&rsquo;t supported &mdash; the whole record goes, or it stays.</div>
+          </div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>What about thumbs up / thumbs down?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a">Use them to flag whether the draft was usable as-is. Thumbs up = good response, send the draft. Thumbs down = needs work &mdash; followed by a correction. Both feed into the dataset.</div>
+          </div>
+        </div>
+        <div class="help-section">
+          <div class="help-section-title">Knowledge Base</div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>What is the Knowledge Base?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a">Everything the AI reads before responding to a patient message &mdash; protocols, side effect guidance, routing rules, urgency thresholds, and response templates. Any change takes effect immediately on the next triage.</div>
+          </div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>Which KB section should I use?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a"><strong>Side Effects</strong> &mdash; education and management guidance.<br><strong>Templates</strong> &mdash; response frameworks for common messages.<br><strong>Protocols</strong> &mdash; if/then decision logic.<br><strong>Rules &amp; Notes</strong> &mdash; urgency thresholds, severity rules. Edit carefully.<br><strong>Routing</strong> &mdash; when and how to escalate or route.<br><strong>URLs</strong> &mdash; links you reference in patient responses.</div>
+          </div>
+        </div>
+        <div class="help-section">
+          <div class="help-section-title">Roles &amp; Escalation</div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>What's the difference between clinical and non-clinical roles?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a"><strong>Clinical staff</strong> (RNs/MDs) handle anything &mdash; clinical questions, non-clinical questions, escalations from non-clinical. <strong>Non-clinical staff</strong> (CSRs) handle non-clinical inquiries (Billing, Shipping, Account, etc.) and General Inquiry. When they receive clinical content, they hit <strong>Escalate to Clinical</strong> and the nursing team picks it up. Severity (mild/moderate/severe), clinical category selection, and editing clinical drafts are all clinical-only.</div>
+          </div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>I'm non-clinical and got a clinical message. What do I do?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a">Paste the patient message and click <strong>Analyze</strong>. If the AI flags clinical content, you'll see a handoff card with the patient message and a generic acknowledgment ("I've passed your message to our nursing team..."). Copy the acknowledgment, send it to the patient through your usual channel, then click <strong>Mark as Escalated</strong>. The nursing team sees the inquiry in their queue and replies directly.</div>
+          </div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>Can non-clinical staff change categories or severity?</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a">Non-clinical staff can edit <strong>non-clinical categories</strong> (Billing, Shipping, etc.) but cannot touch <strong>clinical categories</strong> or <strong>severity</strong>. Severity isn't editable from the UI by anyone &mdash; it's set by the AI. If non-clinical sees clinical content the AI missed, they hit Escalate to Clinical rather than picking a clinical category themselves.</div>
+          </div>
+        </div>
+        <div class="help-section">
+          <div class="help-section-title">Common Mistakes</div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>Things that reduce accuracy</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a">
+              <strong>Triaging a reply without Prior Context</strong> &mdash; the AI gets a fragment and produces a generic response.<br><br>
+              <strong>Ignoring the red severity badge</strong> &mdash; Severe means escalate to a provider now.<br><br>
+              <strong>Ignoring the routing card</strong> &mdash; if a non-clinical item is flagged, the internal note needs to reach the support team via your usual handoff method. Don't paste it into the patient-facing reply.
+            </div>
+          </div>
+        </div>
+        <div class="help-section">
+          <div class="help-section-title">Glossary</div>
+          <div class="help-faq">
+            <button class="help-faq-q" onclick="toggleFaq(this)"><span>Definitions of key terms</span><span class="help-arrow">&#9660;</span></button>
+            <div class="help-faq-a">
+              <strong>Urgency</strong> &mdash; Routine / Same Day / URGENT. How fast the patient needs a reply.<br><br>
+              <strong>Severity</strong> &mdash; Mild / Moderate / Severe. How serious a flagged side effect is. Only shown when a side effect is detected.<br><br>
+              <strong>Priority score</strong> &mdash; A 1&ndash;10 number combining severity, clinical content, and urgency. Higher = more pressing.<br><br>
+              <strong>Escalation</strong> &mdash; Routing a message to clinical when non-clinical staff received it (or when the AI detected clinical content above non-clinical's scope).<br><br>
+              <strong>Handoff template</strong> &mdash; The standardized acknowledgment a non-clinical staff member sends the patient when escalating clinical content.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ADMIN TAB (v0.3.27) — only visible when currentProfile.is_admin -->
+<div class="tab-panel" id="tab-admin">
+  <div class="admin-wrap">
+    <div class="admin-head">
+      <h2>Admin</h2>
+      <p>Manage users and tenant configuration.</p>
+    </div>
+
+    <div class="admin-section">
+      <div class="admin-section-head">
+        <h3>Users</h3>
+        <p class="admin-section-blurb">Set role, admin flag, and (super-user only) super-user flag for any user in your tenant.</p>
+      </div>
+      <div id="adminUsersList" class="admin-users">
+        <div class="admin-empty">Loading users...</div>
+      </div>
+    </div>
+
+    <div class="admin-section" id="adminCategoriesSection">
+      <div class="admin-section-head">
+        <h3>Categories</h3>
+        <p class="admin-section-blurb">Configure which categories require clinical authorization. Non-clinical staff can only pick categories with is_clinical = false.</p>
+        <span class="admin-superuser-only">Super-user only</span>
+      </div>
+      <div id="adminCategoriesList" class="admin-categories">
+        <div class="admin-empty">Loading categories...</div>
+      </div>
+    </div>
+
+    <div class="admin-section" id="adminSettingsSection">
+      <div class="admin-section-head">
+        <h3>Non-clinical handoff template</h3>
+        <p class="admin-section-blurb">The generic acknowledgment a non-clinical staff member sends to the patient when escalating clinical content. Their personal greeting/signoff is added at send time — keep this body-only.</p>
+        <span class="admin-superuser-only">Super-user only</span>
+      </div>
+      <div class="admin-settings">
+        <textarea id="adminHandoffTemplate" class="admin-textarea" rows="4" placeholder="Loading..."></textarea>
+        <div class="admin-settings-actions">
+          <button class="admin-btn" onclick="saveHandoffTemplate()">Save</button>
+          <span id="adminSettingsStatus" class="admin-status"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- AI REVIEW WORKLIST TAB — the clarifications worklist split off
+     from the combined history page in v0.4.x. Auto-refreshes via
+     loadReviews() when switchTab('worklist', ...) is called. The
+     paired Inquiry History tab below is intentionally manual-load
+     only — no auto-fetch on tab open. -->
+<div class="tab-panel" id="tab-worklist">
+  <div class="history-wrap">
+    <div class="review-section">
+      <div class="review-section-row">
+        <h2>AI Needs Your Input</h2>
+        <div id="clarificationCount" class="review-pill"></div>
+      </div>
+      <p class="review-blurb">Items the AI flagged for review — category corrections, routing questions, and confidence gaps.</p>
+      <div id="clarificationList" class="review-list">
+        <div class="review-empty">No pending items. The AI is learning well.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="tab-panel" id="tab-history">
+  <div class="history-wrap">
+    <div class="history-head">
+      <div>
+        <h2>Inquiries</h2>
+        <p>All patient inquiries processed through Care Station.</p>
+      </div>
+      <div class="history-controls">
+        <select id="historyFilter" class="history-filter" onchange="loadHistory()">
+          <option value="all">All records</option>
+          <option value="severe-se">Severe Side Effects</option>
+          <option value="any-se">All Side Effects</option>
+          <option value="clinical">Clinical Questions</option>
+          <option value="non-clinical">Non-Clinical Only</option>
+          <option value="urgent">Urgent only</option>
+          <option value="corrected">Corrected</option>
+        </select>
+        <select id="historySort" class="history-filter" onchange="loadHistory()" title="How to order the Recent Inquiries table">
+          <option value="newest" selected>Newest first</option>
+          <option value="priority">Priority first</option>
+        </select>
+        <select id="historyPageSize" class="history-filter" onchange="onHistoryPageSizeChange(this)" title="How many rows to show at once">
+          <option value="10">Show 10</option>
+          <option value="25" selected>Show 25</option>
+          <option value="50">Show 50</option>
+          <option value="100">Show 100</option>
+          <option value="all">Show all</option>
+        </select>
+        <button class="history-load" onclick="loadHistory()">Load</button>
+      </div>
+    </div>
+    <div id="historyStats" class="history-stats"></div>
+    <div id="historyList"><div class="history-empty">Click Load to fetch records</div></div>
+  </div>
+</div>
+
+<div class="save-toast" id="saveToast">Synced</div>
+
+<script src="data/defaults.js"></script>
+<script src="data/triage-lib.js"></script>
+<script src="data/base-prompt.js"></script>
+<script src="data/default-kb.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

@@ -8,7 +8,9 @@
  *
  * Auth flow:
  *   1. On load, check for relai_session in localStorage.
- *   2. If no session, redirect to /login.html?next=/tasking.html.
+ *   2. If no session, redirect to /login.html?next=<current path>.
+ *      This SPA is now the site default (formerly served at
+ *      /tasking.html); '/' resolves here.
  *   3. With a session, call /auth/profile (auto-bootstraps super-user
  *      on first login). Paint the chip + apply profile UI.
  *   4. Load categories (/kb/categories) for the pull dropdown.
@@ -256,6 +258,16 @@
     const eventsTab = document.getElementById('eventsTabBtn');
     if (eventsTab) {
       eventsTab.style.display = p.is_super_user ? '' : 'none';
+    }
+
+    // Manual paste (legacy) is super-user-only. The legacy SPA at
+    // /manual.html stays reachable by direct URL, but other staff
+    // never see the button in their profile panel — the goal is the
+    // tasking queue replaces it for everyone except the operator who
+    // occasionally needs ad-hoc query access.
+    const manualLink = document.getElementById('manualLinkBtn');
+    if (manualLink) {
+      manualLink.style.display = p.is_super_user ? '' : 'none';
     }
   }
 
@@ -1064,7 +1076,7 @@
   };
 
   window.goToManual = function () {
-    window.location.href = '/';  // The legacy Run Triage SPA (current index.html).
+    window.location.href = '/manual.html';  // The legacy Run Triage SPA.
   };
 
   window.signOut = function () {
@@ -1072,11 +1084,10 @@
     localStorage.removeItem('relai_session');
     localStorage.removeItem('relai_profile_cache');
     fetch('/.netlify/functions/auth/signout', { method: 'POST' }).catch(() => {});
-    // Carry tasking.html as the post-login destination so when the
-    // user signs back in via login.html, they return here rather than
-    // bouncing to the legacy app at /. login.html's getPostLoginUrl
+    // After sign-in the tasking SPA is the default destination — '/' is
+    // now this page (formerly tasking.html). login.html's getPostLoginUrl
     // validates the ?next= value as a same-origin absolute path.
-    window.location.replace('/login.html?next=/tasking.html');
+    window.location.replace('/login.html?next=/');
   };
 
   window.refreshQueue = refreshQueue;
