@@ -1,10 +1,11 @@
 // Care Station — Auth & Profile Netlify Function
 // Endpoints:
-//   GET  /auth/profile  — caller's profile (creates row on first hit)
-//   POST /auth/invite   — super-user invites a new staff member (sends email)
-//   POST /auth/accept   — invitee marks themselves accepted after setting password
-//   GET  /auth/staff    — super-user lists tenant staff
-//   POST /auth/signout  — touch last_seen on sign-out
+//   GET  /auth/profile        — caller's profile (creates row on first hit)
+//   POST /auth/invite         — super-user invites a new staff member (sends email)
+//   POST /auth/accept         — invitee marks themselves accepted after setting password
+//   POST /auth/resend-invite  — super-user re-sends an invite to a pending invitee
+//   GET  /auth/staff          — super-user lists tenant staff
+//   POST /auth/signout        — touch last_seen on sign-out
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
@@ -174,6 +175,116 @@ exports.handler = async function(event) {
         headers: CORS,
         body: JSON.stringify({ user, profile })
       };
+    }
+
+    // ── POST /auth/resend-invite ─────────────────────────────────────────
+    //
+    // Super-user resends an invite to a pending invitee. Uses Supabase's
+    // /auth/v1/recover endpoint server-side, which triggers an email
+    // containing a password-set link. The link lands at the same
+    // /accept-invite.html page the original invite used, so the
+    // invitee's flow is unchanged. The email's subject says "Reset
+    // password" rather than "You've been invited" — known UX wart,
+    // good enough until a transactional email provider lets us send
+    // our own invite-themed re-sends.
+    //
+    // Gates (in order, no side effect until all pass):
+    //   1. Bearer token + super-user gate (same as /auth/invite).
+    //   2. Body allowlist — only user_id accepted (email is read from
+    //      the profile server-side, never trusted from the body).
+    //   3. Target must be in caller's tenant.
+    //   4. Target must not have accepted yet (accepted_at IS NULL).
+    //      Re-sending to an active user would surprise them and could
+    //      be a phishing-priming vector.
+    //
+    // IMPORTANT — placement: this block must come BEFORE /auth/invite
+    // in source order because path.includes('/invite') would
+    // otherwise match /auth/resend-invite first.
+    if (path.includes('/resend-invite') && method === 'POST') {
+      if (!serviceH) return { statusCode: 500, headers: CORS, body: JSON.stringify({ error: 'SUPABASE_SERVICE_KEY not configured' }) };
+      if (!token) return { statusCode: 401, headers: CORS, body: JSON.stringify({ error: 'Authentication required.' }) };
+
+      const callerRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, { headers: userH });
+      const caller = await callerRes.json();
+      if (!caller || !caller.id) {
+        return { statusCode: 401, headers: CORS, body: JSON.stringify({ error: 'Invalid token' }) };
+      }
+      const callerProfRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/profiles?id=eq.${caller.id}&select=is_super_user,company_id`,
+        { headers: serviceH }
+      );
+      const callerProfiles = await callerProfRes.json();
+      const callerProfile = Array.isArray(callerProfiles) && callerProfiles[0] ? callerProfiles[0] : null;
+      if (!callerProfile || !callerProfile.is_super_user) {
+        return {
+          statusCode: 403,
+          headers: CORS,
+          body: JSON.stringify({ error: 'Super-user access required.', code: 'super_user_only' }),
+        };
+      }
+      if (!callerProfile.company_id) {
+        return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'Caller has no company_id.' }) };
+      }
+
+      let body;
+      try { body = JSON.parse(event.body || '{}'); }
+      catch (e) {
+        return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'Invalid JSON body.' }) };
+      }
+      const ALLOWED = new Set(['user_id']);
+      for (const k of Object.keys(body)) {
+        if (!ALLOWED.has(k)) {
+          return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'Unexpected body key: ' + k }) };
+        }
+      }
+      const user_id = body.user_id;
+      if (!user_id || typeof user_id !== 'string') {
+        return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'user_id required.' }) };
+      }
+
+      // Tenant + pending-state check.
+      const targetRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/profiles?id=eq.${encodeURIComponent(user_id)}` +
+        `&company_id=eq.${encodeURIComponent(callerProfile.company_id)}` +
+        `&select=id,email,accepted_at`,
+        { headers: serviceH }
+      );
+      const targets = await targetRes.json();
+      const target = Array.isArray(targets) && targets[0] ? targets[0] : null;
+      if (!target) {
+        return { statusCode: 404, headers: CORS, body: JSON.stringify({ error: 'User not found in your tenant.' }) };
+      }
+      if (target.accepted_at) {
+        return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'User has already accepted their invite.', code: 'already_accepted' }) };
+      }
+      if (!target.email) {
+        return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'User has no email on file.' }) };
+      }
+
+      // Trigger Supabase password-recovery email. Uses the anon key
+      // because /auth/v1/recover is the public reset-password
+      // endpoint (anyone-can-call); we've already gated the
+      // resend-invite action itself above.
+      const recoverPayload = { email: target.email };
+      const redirectUrl = process.env.INVITE_REDIRECT_URL
+        || (process.env.URL ? process.env.URL.replace(/\/$/, '') + '/accept-invite.html' : null);
+      if (redirectUrl) recoverPayload.redirect_to = redirectUrl;
+
+      const recoverRes = await fetch(`${SUPABASE_URL}/auth/v1/recover`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': SUPABASE_ANON_KEY,
+        },
+        body: JSON.stringify(recoverPayload),
+      });
+      if (!recoverRes.ok) {
+        let data = {};
+        try { data = await recoverRes.json(); } catch (e) {}
+        const msg = data.msg || data.message || data.error_description || data.error || 'Could not resend invite';
+        return { statusCode: recoverRes.status || 500, headers: CORS, body: JSON.stringify({ error: msg }) };
+      }
+      return { statusCode: 200, headers: CORS, body: JSON.stringify({ success: true, email: target.email }) };
     }
 
     // ── POST /auth/invite ─────────────────────────────────────────────────

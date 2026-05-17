@@ -759,30 +759,36 @@
 
   function renderStaffRow(s) {
     const tr = document.createElement('tr');
+    tr.dataset.userId = s.id;
     const isPending = !s.accepted_at;
+    const isSelf = !!(state.profile && state.profile.id === s.id);
+    const callerIsSuperUser = !!(state.profile && state.profile.is_super_user);
 
+    // Name cell — name display on top, editable prefix + suffix on
+    // the row below. Edits save on blur (matches the legacy app.js
+    // admin UI pattern); change-detect via initial value on the
+    // element so unchanged blurs don't trigger a network round-trip.
     const nameCell = document.createElement('td');
     nameCell.className = 'staff-name-cell';
-    nameCell.textContent = formatStaffName(s);
+    nameCell.appendChild(buildStaffNameStack(s));
     tr.appendChild(nameCell);
 
+    // Email — read-only (auth identity).
     const emailCell = document.createElement('td');
     emailCell.className = 'staff-email-cell';
     emailCell.textContent = s.email || '—';
     tr.appendChild(emailCell);
 
+    // Role + privilege flags. Self can edit own role but never own
+    // super-user flag (server enforces self_demotion_blocked too,
+    // this just hides the checkbox so the path can't be tried).
     const roleCell = document.createElement('td');
-    const roleBadge = document.createElement('span');
-    roleBadge.className = 'staff-role-badge' + (s.role === 'Non-Clinical' ? ' non-clinical' : '');
-    roleBadge.textContent = s.role || 'staff';
-    roleCell.appendChild(roleBadge);
+    roleCell.appendChild(buildStaffRoleStack(s, isSelf, callerIsSuperUser));
     tr.appendChild(roleCell);
 
+    // Status badge + resend-invite for pending rows.
     const statusCell = document.createElement('td');
-    const statusBadge = document.createElement('span');
-    statusBadge.className = 'staff-status-badge ' + (isPending ? 'pending' : 'active');
-    statusBadge.textContent = isPending ? 'Pending invite' : 'Active';
-    statusCell.appendChild(statusBadge);
+    statusCell.appendChild(buildStaffStatusStack(s, isPending));
     tr.appendChild(statusCell);
 
     const invitedCell = document.createElement('td');
@@ -796,6 +802,174 @@
     tr.appendChild(seenCell);
 
     return tr;
+  }
+
+  // ── Staff row builders ─────────────────────────────────────────────
+
+  function buildStaffNameStack(s) {
+    const wrap = document.createElement('div');
+    wrap.className = 'staff-name-stack';
+
+    const display = document.createElement('div');
+    display.className = 'staff-name-display';
+    display.textContent = formatStaffName(s);
+    wrap.appendChild(display);
+
+    const controls = document.createElement('div');
+    controls.className = 'staff-name-controls';
+
+    const prefixInput = document.createElement('input');
+    prefixInput.type = 'text';
+    prefixInput.className = 'staff-inline-input staff-inline-input-prefix';
+    prefixInput.maxLength = 8;
+    prefixInput.placeholder = 'Prefix';
+    prefixInput.value = s.prefix || '';
+    prefixInput.title = 'Prefix (≤8 chars), e.g. Dr.';
+    prefixInput.addEventListener('blur', function () {
+      const v = prefixInput.value.trim();
+      const current = s.prefix || '';
+      if (v === current) return;
+      updateStaffMember(s.id, { prefix: v === '' ? null : v });
+    });
+    controls.appendChild(prefixInput);
+
+    const suffixInput = document.createElement('input');
+    suffixInput.type = 'text';
+    suffixInput.className = 'staff-inline-input staff-inline-input-suffix';
+    suffixInput.maxLength = 24;
+    suffixInput.placeholder = 'Credential';
+    suffixInput.value = s.suffix || s.title || '';
+    suffixInput.title = 'Credential / suffix (≤24 chars), e.g. RN, MD, NP';
+    suffixInput.addEventListener('blur', function () {
+      const v = suffixInput.value.trim();
+      const current = s.suffix || s.title || '';
+      if (v === current) return;
+      updateStaffMember(s.id, { suffix: v === '' ? null : v });
+    });
+    controls.appendChild(suffixInput);
+
+    wrap.appendChild(controls);
+    return wrap;
+  }
+
+  function buildStaffRoleStack(s, isSelf, callerIsSuperUser) {
+    const wrap = document.createElement('div');
+    wrap.className = 'staff-role-stack';
+
+    const sel = document.createElement('select');
+    sel.className = 'staff-inline-select';
+    [
+      { v: 'Clinical',     label: 'Clinical' },
+      { v: 'Non-Clinical', label: 'Non-Clinical' },
+    ].forEach(o => {
+      const opt = document.createElement('option');
+      opt.value = o.v;
+      opt.textContent = o.label;
+      if (s.role === o.v) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    sel.addEventListener('change', function () {
+      updateStaffMember(s.id, { role: sel.value });
+    });
+    wrap.appendChild(sel);
+
+    const flags = document.createElement('div');
+    flags.className = 'staff-flag-row';
+
+    const adminLabel = document.createElement('label');
+    adminLabel.className = 'staff-flag-checkbox';
+    const adminCb = document.createElement('input');
+    adminCb.type = 'checkbox';
+    adminCb.checked = !!s.is_admin;
+    adminCb.addEventListener('change', function () {
+      updateStaffMember(s.id, { is_admin: adminCb.checked });
+    });
+    adminLabel.appendChild(adminCb);
+    adminLabel.appendChild(document.createTextNode(' Admin'));
+    flags.appendChild(adminLabel);
+
+    // Super-user toggle: only shown for super-user callers, and never
+    // for the caller's own row (server enforces self_demotion_blocked
+    // — this hides the checkbox so the path can't even be tried).
+    if (callerIsSuperUser && !isSelf) {
+      const suLabel = document.createElement('label');
+      suLabel.className = 'staff-flag-checkbox';
+      const suCb = document.createElement('input');
+      suCb.type = 'checkbox';
+      suCb.checked = !!s.is_super_user;
+      suCb.addEventListener('change', function () {
+        updateStaffMember(s.id, { is_super_user: suCb.checked });
+      });
+      suLabel.appendChild(suCb);
+      suLabel.appendChild(document.createTextNode(' Super-user'));
+      flags.appendChild(suLabel);
+    } else if (s.is_super_user) {
+      // Show a read-only chip for self/non-super viewers so the flag
+      // remains visible (the user shouldn't think they aren't).
+      const ro = document.createElement('span');
+      ro.className = 'staff-flag-readonly';
+      ro.textContent = 'Super-user';
+      flags.appendChild(ro);
+    }
+    wrap.appendChild(flags);
+    return wrap;
+  }
+
+  function buildStaffStatusStack(s, isPending) {
+    const wrap = document.createElement('div');
+    wrap.className = 'staff-status-stack';
+
+    const badge = document.createElement('span');
+    badge.className = 'staff-status-badge ' + (isPending ? 'pending' : 'active');
+    badge.textContent = isPending ? 'Pending invite' : 'Active';
+    wrap.appendChild(badge);
+
+    if (isPending && s.email) {
+      const resend = document.createElement('button');
+      resend.type = 'button';
+      resend.className = 'staff-resend-btn';
+      resend.textContent = 'Resend invite';
+      resend.addEventListener('click', function () { resendInvite(s.id, s.email); });
+      wrap.appendChild(resend);
+    }
+    return wrap;
+  }
+
+  // ── Staff row actions ──────────────────────────────────────────────
+
+  async function updateStaffMember(userId, patch) {
+    if (!userId || !patch || Object.keys(patch).length === 0) return;
+    try {
+      await api('/.netlify/functions/kb/admin/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(Object.assign({ action: 'update_role', user_id: userId }, patch)),
+      });
+      toast('Updated', 'success');
+      // Reload so flags that cascade (e.g., super-user → admin in
+      // some flows) reflect immediately, matching the legacy
+      // updateUserRole() pattern.
+      await loadStaffList();
+    } catch (e) {
+      const msg = (e.body && e.body.error) || e.message || 'Update failed.';
+      toast(msg, 'error');
+    }
+  }
+
+  async function resendInvite(userId, email) {
+    if (!userId) return;
+    if (!window.confirm('Resend an invite email to ' + (email || 'this user') + '?')) return;
+    try {
+      await api('/.netlify/functions/auth/resend-invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId }),
+      });
+      toast('Invite resent to ' + email, 'success');
+    } catch (e) {
+      const msg = (e.body && e.body.error) || e.message || 'Could not resend invite.';
+      toast(msg, 'error');
+    }
   }
 
   function formatStaffName(s) {

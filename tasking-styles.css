@@ -1475,6 +1475,95 @@ body {
   border-color: #ddd6fe;
 }
 
+/* Inline-edit controls inside the staff roster table cells. The
+ * legacy admin (app.js loadAdminUsers) used a single row of stacked
+ * controls per user; this version keeps the same affordances but
+ * lays them out across the existing 6-column table for parity with
+ * the rest of the tasking UI. */
+
+.staff-name-stack { display: flex; flex-direction: column; gap: 4px; }
+.staff-name-display { font-weight: 600; font-size: 13px; }
+.staff-name-controls { display: flex; gap: 6px; }
+
+.staff-inline-input {
+  font-family: inherit;
+  font-size: 11px;
+  padding: 3px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-page);
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+.staff-inline-input:focus {
+  border-color: var(--brand);
+  background: var(--bg-surface);
+}
+.staff-inline-input-prefix { width: 64px; }
+.staff-inline-input-suffix { width: 120px; }
+
+.staff-role-stack { display: flex; flex-direction: column; gap: 6px; }
+.staff-inline-select {
+  font-family: inherit;
+  font-size: 12px;
+  padding: 4px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  cursor: pointer;
+  outline: none;
+  max-width: 160px;
+}
+.staff-inline-select:focus {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.12);
+}
+
+.staff-flag-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.staff-flag-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+}
+.staff-flag-checkbox input[type=checkbox] {
+  width: 13px; height: 13px;
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--brand);
+}
+.staff-flag-readonly {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-page);
+  border: 1px dashed var(--border);
+}
+
+.staff-status-stack { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.staff-resend-btn {
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  color: var(--brand);
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+.staff-resend-btn:hover {
+  background: #eff6ff;
+  border-color: var(--brand);
+}
+
 .events-refresh-btn {
   margin-left: auto;
   background: white;

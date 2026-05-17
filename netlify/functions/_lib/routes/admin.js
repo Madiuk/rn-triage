@@ -139,6 +139,42 @@ async function handleUsers(event, ctx) {
           patch.title = t.length === 0 ? null : t;
         }
       }
+      if ('prefix' in body) {
+        // Honorific prefix added in migration 0030. ≤8 chars, no DB
+        // CHECK (same precedent as title/suffix). Null clears.
+        if (body.prefix === null) {
+          patch.prefix = null;
+        } else if (typeof body.prefix !== 'string') {
+          return json(400, { error: "prefix must be a string or null." });
+        } else {
+          const p = body.prefix.trim();
+          if (p.length > 8) {
+            return json(400, { error: "prefix must be 8 characters or fewer." });
+          }
+          patch.prefix = p.length === 0 ? null : p;
+        }
+      }
+      if ('suffix' in body) {
+        // Credential suffix added in migration 0030. ≤24 chars (same
+        // bound as title). Writing suffix also writes title so the
+        // mig-0017 snapshot rails (query_history.user_title,
+        // review_requests.resolved_by_title) keep filling in. When
+        // both title and suffix are in body, suffix wins (it's the
+        // canonical column going forward; title is back-compat).
+        if (body.suffix === null) {
+          patch.suffix = null;
+          patch.title = null;
+        } else if (typeof body.suffix !== 'string') {
+          return json(400, { error: "suffix must be a string or null." });
+        } else {
+          const s = body.suffix.trim();
+          if (s.length > 24) {
+            return json(400, { error: "suffix must be 24 characters or fewer." });
+          }
+          patch.suffix = s.length === 0 ? null : s;
+          patch.title  = s.length === 0 ? null : s;
+        }
+      }
       if (Object.keys(patch).length === 0) {
         return json(400, { error: "No fields to update." });
       }
