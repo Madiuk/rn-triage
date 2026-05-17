@@ -45,7 +45,7 @@ const {
 const { aggregateCostRows, aggregateQualityRows } = require("../history-aggregations");
 
 const URGENCY_OVERRIDE_VALUES = new Set([
-  "routine", "24h", "24-72h", "same-day", "urgent",
+  "routine", "same-day", "urgent",
 ]);
 
 async function handle(event) {

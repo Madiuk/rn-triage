@@ -683,29 +683,27 @@
 
   function renderDetailView(t) {
     const channel = (t.source_channel || 'manual');
-    const conf = (typeof t.ai_confidence === 'number') ? t.ai_confidence
-                : (typeof t.ai_confidence === 'string' ? parseFloat(t.ai_confidence) : null);
-    const confValid = (conf != null && !isNaN(conf));
-    const confPct = confValid ? Math.round(conf * 100) : null;
-    const confCls = !confValid ? '' : (conf < REVIEW_THRESHOLD ? 'low' : (conf < 0.9 ? 'mid' : ''));
 
     // ── Header (sticky strip) ────────────────────────────────────────
-    // Single horizontal row with the task's identifying chips. Wraps
-    // to a second line on narrow viewports.
+    // Patient · Status · Time · [spacer] · channel chip. Category,
+    // pencil, and severity badge moved into the AI classification
+    // section in the left column. The flex spacer pushes the channel
+    // chip to the far right.
     const patientLabel = 'Patient ' + (t.external_id || t.id).slice(-12);
+    const channelLabels = {
+      intercom: 'Intercom', healthie: 'Healthie', bask: 'Bask',
+      email: 'Email', manual: 'Manual', api: 'API',
+    };
+    const channelKey = channel.toLowerCase();
+    const channelDisplay = channelLabels[channelKey]
+      || (channel.charAt(0).toUpperCase() + channel.slice(1));
     document.getElementById('detailHeaderInfo').innerHTML =
         '<div class="detail-header-row">'
       +   '<span class="detail-header-title">' + escapeHtml(patientLabel) + '</span>'
-      +   '<span class="detail-header-chip">'
-      +     renderCategoryTag(t.clinical_category)
-      +     '<button class="detail-edit-cat-btn" onclick="openReassign()" title="Reassign category" aria-label="Edit category">'
-      +       '<span class="pencil-icon">&#9998;</span>'
-      +     '</button>'
-      +   '</span>'
-      +   '<span class="detail-header-chip">' + renderChannelChip(channel) + ' <span class="detail-header-chip-text">' + escapeHtml(channel) + '</span></span>'
-      +   '<span class="detail-header-chip">' + renderSeverityBadge(t) + '</span>'
       +   '<span class="detail-header-chip">' + renderStatusBadge(t) + '</span>'
       +   '<span class="detail-header-chip detail-header-time" title="' + escapeHtml(formatDateTime(t.created_at)) + '">' + escapeHtml(formatTime(t.created_at)) + '</span>'
+      +   '<span class="detail-header-spacer"></span>'
+      +   '<span class="detail-header-chip detail-header-channel">' + renderChannelChip(channel) + ' <span class="detail-header-chip-text">' + escapeHtml(channelDisplay) + '</span></span>'
       + '</div>';
 
     // ── Build chat bubbles (patient → optional staff reply) ──────────
@@ -735,11 +733,22 @@
       : '';
 
     // ── Left column: classification + routing breadcrumb ─────────────
-    const confHtml = confValid
-      ? '<span class="confidence-bar"><span class="confidence-bar-track">'
-        + '<span class="confidence-bar-fill ' + confCls + '" style="width:' + confPct + '%"></span>'
-        + '</span>' + confPct + '%</span>'
-      : '<span style="color:var(--text-faint)">not provided</span>';
+    // Urgency dropdown — staff can override the AI's value. The set
+    // matches URGENCY_OVERRIDE_VALUES in routes/history.js and the
+    // CHECK constraint on query_history.urgency_override.
+    const curUrgency = t.urgency_override || t.urgency_original || '';
+    const urgencyOpts = [
+      ['routine',  'Routine'],
+      ['same-day', 'Same Day'],
+      ['urgent',   'Urgent'],
+    ];
+    const urgencyOptsHtml =
+      (curUrgency ? '' : '<option value="" disabled selected>—</option>')
+      + urgencyOpts.map(o =>
+          '<option value="' + o[0] + '"' + (curUrgency === o[0] ? ' selected' : '') + '>'
+          + o[1] + '</option>'
+        ).join('');
+    const urgencyEdited = !!(t.urgency_override && t.urgency_override !== t.urgency_original);
 
     const internalNoteSection = t.internal_note
       ? '<div class="detail-section">'
@@ -752,10 +761,25 @@
         '<div class="detail-section">'
       +   '<div class="detail-section-label">AI classification &amp; routing</div>'
       +   '<div class="detail-ai-box">'
-      +     '<div class="detail-ai-line"><span class="ai-key">Category</span><span class="ai-val">' + renderCategoryTag(t.clinical_category) + '</span></div>'
-      +     '<div class="detail-ai-line"><span class="ai-key">Urgency</span><span class="ai-val">' + escapeHtml(t.urgency_original || '—') + ' (score ' + (t.urgency_score || 0) + '/10)</span></div>'
+      +     '<div class="detail-ai-line">'
+      +       '<span class="ai-key">Category</span>'
+      +       '<span class="ai-val ai-val-category">'
+      +         renderCategoryTag(t.clinical_category)
+      +         '<button class="detail-edit-cat-btn" onclick="openReassign()" title="Reassign category" aria-label="Edit category">'
+      +           '<span class="pencil-icon">&#9998;</span>'
+      +         '</button>'
+      +       '</span>'
+      +     '</div>'
+      +     '<div class="detail-ai-line">'
+      +       '<span class="ai-key">Urgency</span>'
+      +       '<span class="ai-val ai-val-urgency">'
+      +         '<select id="urgencySelect" class="detail-urgency-select" onchange="updateUrgency(this.value)">'
+      +           urgencyOptsHtml
+      +         '</select>'
+      +         (urgencyEdited ? '<span class="urgency-edited-tag" title="Staff overrode the AI value">edited</span>' : '')
+      +       '</span>'
+      +     '</div>'
       +     '<div class="detail-ai-line"><span class="ai-key">Routing level</span><span class="ai-val">' + escapeHtml(t.clinical_routing_level || 'none') + '</span></div>'
-      +     '<div class="detail-ai-line"><span class="ai-key">AI confidence</span><span class="ai-val">' + confHtml + '</span></div>'
       +   '</div>'
       + '</div>'
       + internalNoteSection;
@@ -936,6 +960,37 @@
     } finally {
       if (upBtn) upBtn.disabled = false;
       if (downBtn) downBtn.disabled = false;
+    }
+  };
+
+  // Urgency dropdown change — writes urgency_override via the existing
+  // history.update_urgency endpoint. The server applies a clinical role
+  // gate (non-clinical staff get a 403 on clinical-tier rows).
+  window.updateUrgency = async function (newValue) {
+    const tid = state.openTaskId;
+    if (!tid) return;
+    if (newValue !== 'routine' && newValue !== 'same-day' && newValue !== 'urgent') return;
+    const sel = document.getElementById('urgencySelect');
+    const t = state.queue.find(x => x.id === tid);
+    const previous = t ? (t.urgency_override || t.urgency_original || '') : '';
+    if (sel) sel.disabled = true;
+    try {
+      await api('/.netlify/functions/kb/history', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'update_urgency',
+          id: tid,
+          urgency_override: newValue,
+        }),
+      });
+      if (t) t.urgency_override = newValue;
+      toast('Urgency saved as "' + newValue + '".', 'success');
+    } catch (e) {
+      if (sel && previous) sel.value = previous;
+      toast('Save failed: ' + e.message, 'error');
+    } finally {
+      if (sel) sel.disabled = false;
     }
   };
 

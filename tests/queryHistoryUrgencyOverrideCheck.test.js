@@ -1,9 +1,15 @@
 // tests/queryHistoryUrgencyOverrideCheck.test.js
 //
-// CONTRACT TEST — migration 0012_query_history_urgency_override_check.sql
+// CONTRACT TEST — migration 0025_query_history_urgency_override_drop_24h.sql
 // must declare a CHECK constraint on public.query_history.urgency_override
 // whose allowlist is set-equal to URGENCY_OVERRIDE_VALUES in
 // netlify/functions/_lib/routes/history.js.
+//
+// 0025 supersedes 0012's allowlist (it narrows the set from five values
+// to three by dropping the legacy "24h" and "24-72h" refinements that
+// were never wired into the new tasking SPA UI). The constraint name is
+// the same — 0025 drops 0012's constraint and re-adds the narrower one
+// — so the latest migration is the authoritative source for parity.
 //
 // Why DB ↔ code parity matters:
 //   - If the DB allowlist is a superset, the route validation rejects
@@ -24,7 +30,7 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
-const MIGRATION_REL = 'migrations/0012_query_history_urgency_override_check.sql';
+const MIGRATION_REL = 'migrations/0025_query_history_urgency_override_drop_24h.sql';
 const ROUTE_REL    = 'netlify/functions/_lib/routes/history.js';
 
 function readMigration() {
@@ -90,7 +96,7 @@ function extractRouteAllowlist(src) {
   return items;
 }
 
-describe('CONTRACT: query_history.urgency_override CHECK constraint (migration 0012)', () => {
+describe('CONTRACT: query_history.urgency_override CHECK constraint (migration 0025)', () => {
   it('migration file exists', () => {
     assert.ok(
       fs.existsSync(path.join(ROOT, MIGRATION_REL)),
