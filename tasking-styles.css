@@ -1137,10 +1137,9 @@ body {
 .action-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
 /* Small inline chip showing how many follow-ups are staged on the
-   currently-open task. Sits at the right side of the action bar so it
-   doesn't crowd the primary actions on the left. */
+   currently-open task. Sits next to the Follow-up button in the left
+   column. */
 .followup-count-chip {
-  margin-left: auto;
   align-self: center;
   padding: 4px 10px;
   background: var(--bg-page);
@@ -1149,6 +1148,36 @@ body {
   font-weight: 500;
   border-radius: var(--radius-sm);
   border: 1px dashed var(--border-strong);
+}
+
+/* Left-column wrapper for the Follow-up button and its count chip. */
+.detail-section-followup {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* "Care Station suggests" sidecar — visually distinct from the reply
+   textarea so staff reads it as a recommendation, not a default. The
+   dashed border + page background telegraph "this is optional." */
+.suggestion-card {
+  background: var(--bg-page);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.suggestion-text {
+  font-size: 14px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  color: var(--text-primary);
+}
+.suggestion-actions {
+  display: flex;
+  justify-content: flex-end;
 }
 
 /* Patient-facing toggle row in the spawn-followup modal. Renders as

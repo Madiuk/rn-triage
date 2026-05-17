@@ -30,14 +30,9 @@
 
   <div class="tab-nav">
     <button class="tab-btn active" id="queueTabBtn" onclick="navigateToQueue()">Queue</button>
-    <!-- Events tab is shown only for super-users (gated by JS at init).
-         Pulls from inbound_raw_event + reviewed-status query_history +
-         error audit_log entries. -->
-    <button class="tab-btn" id="eventsTabBtn" onclick="navigateToEvents()" style="display:none">Event Log</button>
-    <!-- Staff admin tab — super-user only (gated by JS at init). Form
-         posts to /auth/invite which sends an invite email to the new
-         staff member; they finish onboarding at /accept-invite.html. -->
-    <button class="tab-btn" id="staffTabBtn" onclick="navigateToStaff()" style="display:none">Staff</button>
+    <!-- Event Log + Staff are super-user-only and live inside the
+         profile pop-out (#eventsLinkBtn / #staffLinkBtn) so the top
+         nav stays focused on the queue. -->
     <!-- Preferences + Training views land in v1.1 — placeholder shape
          here for visual continuity with the demo. -->
     <button class="tab-btn disabled" disabled title="Coming in v1.1">Preferences</button>
@@ -75,6 +70,12 @@
     <div id="profileCompany" class="profile-company"></div>
   </div>
   <div class="profile-foot">
+    <!-- Super-user-only nav. Pulls from inbound_raw_event + reviewed
+         query_history + error audit_log entries. -->
+    <button class="profile-action" id="eventsLinkBtn" onclick="goToEvents()" style="display:none">Event Log</button>
+    <!-- Super-user-only. Posts to /auth/invite which emails an invite
+         the new staff member finishes at /accept-invite.html. -->
+    <button class="profile-action" id="staffLinkBtn" onclick="goToStaff()" style="display:none">Staff</button>
     <button class="profile-action" id="manualLinkBtn" onclick="goToManual()" style="display:none">&#9881; Manual paste (legacy)</button>
     <div class="profile-foot-sep"></div>
     <button class="profile-action danger" onclick="signOut()">&#8594; Sign Out</button>

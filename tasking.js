@@ -301,15 +301,16 @@
     setText('profileAvatar', initials);
     setText('profileCompany', p.company_name || p.company_id || '—');
 
-    // Super-user-only tab visibility. Server-side gate (in admin-events.js
-    // and auth.js) is the real boundary; this is just chrome.
-    const eventsTab = document.getElementById('eventsTabBtn');
-    if (eventsTab) {
-      eventsTab.style.display = p.is_super_user ? '' : 'none';
+    // Super-user-only nav buttons live inside the profile pop-out card.
+    // Server-side gate (in admin-events.js and auth.js) is the real
+    // boundary; this is just chrome.
+    const eventsLink = document.getElementById('eventsLinkBtn');
+    if (eventsLink) {
+      eventsLink.style.display = p.is_super_user ? '' : 'none';
     }
-    const staffTab = document.getElementById('staffTabBtn');
-    if (staffTab) {
-      staffTab.style.display = p.is_super_user ? '' : 'none';
+    const staffLink = document.getElementById('staffLinkBtn');
+    if (staffLink) {
+      staffLink.style.display = p.is_super_user ? '' : 'none';
     }
 
     // Manual paste (legacy) is super-user-only. The legacy SPA at
@@ -1206,9 +1207,15 @@
         + '</div>'
       : '';
 
+    // Routing level row hides when value is missing or 'none' — those
+    // tasks have no side-effect routing signal, so the row is noise.
+    // When Claude does set mild / moderate / severe, the row appears.
+    const showRoutingLevel = !!t.clinical_routing_level
+      && t.clinical_routing_level !== 'none';
+
     const leftCol =
         '<div class="detail-section">'
-      +   '<div class="detail-section-label">AI classification &amp; routing</div>'
+      +   '<div class="detail-section-label">Classification &amp; routing</div>'
       +   '<div class="detail-ai-box">'
       +     '<div class="detail-ai-line">'
       +       '<span class="ai-key">Category</span>'
@@ -1228,26 +1235,32 @@
       +         (urgencyEdited ? '<span class="urgency-edited-tag" title="Staff overrode the AI value">edited</span>' : '')
       +       '</span>'
       +     '</div>'
-      +     '<div class="detail-ai-line"><span class="ai-key">Routing level</span><span class="ai-val">' + escapeHtml(t.clinical_routing_level || 'none') + '</span></div>'
+      +     (showRoutingLevel
+          ? '<div class="detail-ai-line"><span class="ai-key">Routing level</span><span class="ai-val">' + escapeHtml(t.clinical_routing_level) + '</span></div>'
+          : '')
       +   '</div>'
       + '</div>'
-      + internalNoteSection;
+      + internalNoteSection
+      + '<div class="detail-section detail-section-followup">'
+      +   '<button id="spawnFollowupBtn" class="action-btn neutral" onclick="openSpawnFollowup()">+ Follow-up task</button>'
+      +   '<span id="followupCountChip" class="followup-count-chip" style="display:none"></span>'
+      + '</div>';
 
-    // ── Right column: chat + AI draft + action bar ───────────────────
+    // ── Right column: chat + suggestion sidecar + reply + action bar ──
     const upActive   = t.upvoted   === true ? ' active' : '';
     const downActive = t.downvoted === true ? ' active' : '';
+    const hasSuggestion = !!(t.draft_response && t.draft_response.trim());
 
-    const rightCol =
-        '<div class="detail-section">'
-      +   '<div class="detail-section-label">Conversation</div>'
-      +   '<div class="chat-box" id="chatBox">'
-      +     initialBubbles
-      +   '</div>'
-      + '</div>'
-
-      + '<div class="detail-section">'
+    // Sidecar card hides entirely when there's no AI suggestion — staff
+    // just sees the empty reply box and types. When a suggestion exists,
+    // the card sits above the reply box with thumbs + an explicit
+    // "Insert into reply" action. The reply textarea (#detailReply) is
+    // what sendTask() reads — keeping the suggestion out of it avoids
+    // implying staff must use the AI draft.
+    const suggestionSection = hasSuggestion
+      ? '<div class="detail-section">'
       +   '<div class="detail-section-label">'
-      +     '<span>AI-drafted response (editable)</span>'
+      +     '<span>Care Station suggests</span>'
       +     '<span class="vote-row">'
       +       '<button class="vote-btn up' + upActive + '" id="voteUpBtn" onclick="voteTask(\'up\')" title="Helpful draft">'
       +         '<span class="vote-icon">&#x1F44D;</span>'
@@ -1257,16 +1270,35 @@
       +       '</button>'
       +     '</span>'
       +   '</div>'
-      +   '<textarea id="detailDraft" class="detail-draft-textarea">' + escapeHtml(t.draft_response || '') + '</textarea>'
+      +   '<div class="suggestion-card">'
+      +     '<div class="suggestion-text">' + escapeHtml(t.draft_response) + '</div>'
+      +     '<div class="suggestion-actions">'
+      +       '<button class="action-btn ghost" onclick="insertSuggestion()">Insert into reply</button>'
+      +     '</div>'
+      +   '</div>'
+      + '</div>'
+      : '';
+
+    const rightCol =
+        '<div class="detail-section">'
+      +   '<div class="detail-section-label">Conversation</div>'
+      +   '<div class="chat-box" id="chatBox">'
+      +     initialBubbles
+      +   '</div>'
+      + '</div>'
+
+      + suggestionSection
+
+      + '<div class="detail-section">'
+      +   '<div class="detail-section-label">Your reply</div>'
+      +   '<textarea id="detailReply" class="detail-draft-textarea" placeholder="Type your reply…"></textarea>'
       + '</div>'
 
       + '<div class="detail-section">'
       +   '<div class="detail-action-bar inline">'
       +     '<button id="sendBtn" class="action-btn primary" onclick="sendTask()">Send <span class="sandbox-tag">Sandbox</span></button>'
       +     '<button id="closeNoReplyBtn" class="action-btn neutral" onclick="openCloseNoReply()">Close (no reply)</button>'
-      +     '<button id="spawnFollowupBtn" class="action-btn ghost" onclick="openSpawnFollowup()">+ Follow-up task</button>'
       +     '<button id="retaskBtn" class="action-btn warning" onclick="releaseTask()">Release to queue</button>'
-      +     '<span id="followupCountChip" class="followup-count-chip" style="display:none"></span>'
       +   '</div>'
       + '</div>';
 
@@ -1489,7 +1521,7 @@
   window.sendTask = function () {
     const tid = state.openTaskId;
     if (!tid) return;
-    const textarea = document.getElementById('detailDraft');
+    const textarea = document.getElementById('detailReply');
     const finalText = (textarea && textarea.value || '').trim();
     if (!finalText) {
       toast('Cannot send an empty response.', 'warn');
@@ -1704,6 +1736,26 @@
     });
   };
 
+  // Copies the AI suggestion into the reply textarea. If staff has
+  // already typed something, confirm before overwriting so a fat-finger
+  // doesn't lose their work.
+  window.insertSuggestion = function () {
+    const tid = state.openTaskId;
+    if (!tid) return;
+    const t = state.queue.find(x => x.id === tid);
+    if (!t) return;
+    const text = t.draft_response || '';
+    if (!text.trim()) return;
+    const reply = document.getElementById('detailReply');
+    if (!reply) return;
+    const current = (reply.value || '').trim();
+    if (current && !window.confirm('Replace what you\'ve typed with the suggested draft?')) {
+      return;
+    }
+    reply.value = text;
+    reply.focus();
+  };
+
   // Thumbs up / down on the AI draft. Records to query_history's
   // upvoted/downvoted columns (mutually exclusive); feeds the existing
   // learning-loop reward signal.
@@ -1842,6 +1894,18 @@
 
   window.goToManual = function () {
     window.location.href = '/manual.html';  // The legacy Run Triage SPA.
+  };
+
+  // Profile-panel wrappers for the super-user-only nav buttons. Close
+  // the panel first so the destination view is fully visible after the
+  // hash change.
+  window.goToEvents = function () {
+    closeProfile();
+    navigateToEvents();
+  };
+  window.goToStaff = function () {
+    closeProfile();
+    navigateToStaff();
   };
 
   window.signOut = function () {
