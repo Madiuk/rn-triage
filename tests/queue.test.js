@@ -476,34 +476,99 @@ describe('partitionForClaim', () => {
 // dispatchOutbound — v1 stub behavior
 // ─────────────────────────────────────────────────────────────────
 
-describe('dispatchOutbound — v1 stub', () => {
+describe('dispatchOutbound — sandbox kill-switch (default)', () => {
+  // These tests run with OUTBOUND_LIVE_MODE *unset* — the default
+  // state. Every non-manual channel must short-circuit to a
+  // sandbox response: ok=true (so the UI doesn't show an error
+  // during testing), sent_via=`sandbox:<channel>`, sandboxed=true.
   const task = { id: 't1' };
+  const KEY = 'OUTBOUND_LIVE_MODE';
 
-  it("manual channel: ok=true with sent_via='manual'", async () => {
-    const r = await dispatchOutbound('manual', task, 'reply');
-    assert.equal(r.ok, true);
-    assert.equal(r.sent_via, 'manual');
-  });
-
-  it("intercom channel: ok=true, sent_via includes ':stub' marker", async () => {
-    const r = await dispatchOutbound('intercom', task, 'reply');
-    assert.equal(r.ok, true);
-    assert.ok(/intercom/.test(r.sent_via));
-    assert.ok(/stub/.test(r.sent_via));
-  });
-
-  it('healthie / bask / email / api: all stubbed to ok=true', async () => {
-    for (const ch of ['healthie', 'bask', 'email', 'api']) {
-      const r = await dispatchOutbound(ch, task, 'reply');
+  it("manual channel: passes through regardless of mode (no external call to make)", async () => {
+    const prior = process.env[KEY];
+    try {
+      delete process.env[KEY];
+      const r = await dispatchOutbound('manual', task, 'reply');
       assert.equal(r.ok, true);
-      assert.ok(r.sent_via.indexOf(ch) === 0);
+      assert.equal(r.sent_via, 'manual');
+      assert.equal(r.sandboxed, undefined);
+    } finally {
+      if (prior !== undefined) process.env[KEY] = prior;
     }
   });
 
-  it('unknown channel: ok=false with descriptive error', async () => {
-    const r = await dispatchOutbound('made-up-channel', task, 'reply');
-    assert.equal(r.ok, false);
-    assert.ok(/unknown channel/i.test(r.error));
+  it('intercom in default (sandbox) mode: ok=true, sent_via="sandbox:intercom", sandboxed=true', async () => {
+    const prior = process.env[KEY];
+    try {
+      delete process.env[KEY];
+      const r = await dispatchOutbound('intercom', task, 'reply');
+      assert.equal(r.ok, true);
+      assert.equal(r.sent_via, 'sandbox:intercom');
+      assert.equal(r.sandboxed, true);
+    } finally {
+      if (prior !== undefined) process.env[KEY] = prior;
+    }
+  });
+
+  it('healthie / bask / email / api: all sandboxed in default mode', async () => {
+    const prior = process.env[KEY];
+    try {
+      delete process.env[KEY];
+      for (const ch of ['healthie', 'bask', 'email', 'api']) {
+        const r = await dispatchOutbound(ch, task, 'reply');
+        assert.equal(r.ok, true, ch + ' should be ok');
+        assert.equal(r.sent_via, 'sandbox:' + ch);
+        assert.equal(r.sandboxed, true);
+      }
+    } finally {
+      if (prior !== undefined) process.env[KEY] = prior;
+    }
+  });
+
+  it('rejects non-"true" values as sandbox (defense vs typos)', async () => {
+    const prior = process.env[KEY];
+    try {
+      for (const v of ['TRUE', '1', 'yes', 'on', 'true ']) {
+        process.env[KEY] = v;
+        const r = await dispatchOutbound('intercom', task, 'reply');
+        assert.equal(r.sandboxed, true, 'should sandbox when LIVE_MODE=' + JSON.stringify(v));
+      }
+    } finally {
+      if (prior === undefined) delete process.env[KEY]; else process.env[KEY] = prior;
+    }
+  });
+});
+
+describe('dispatchOutbound — live mode (OUTBOUND_LIVE_MODE=true)', () => {
+  // When the operator has explicitly opted in to live outbound, the
+  // sandbox short-circuit is skipped and dispatch falls through to
+  // the per-channel stub (today) or the real adapter (Week 4+).
+  const task = { id: 't1' };
+  const KEY = 'OUTBOUND_LIVE_MODE';
+
+  it("intercom in live mode: stub fires (sent_via='intercom:stub')", async () => {
+    const prior = process.env[KEY];
+    try {
+      process.env[KEY] = 'true';
+      const r = await dispatchOutbound('intercom', task, 'reply');
+      assert.equal(r.ok, true);
+      assert.equal(r.sent_via, 'intercom:stub');
+      assert.equal(r.sandboxed, undefined);
+    } finally {
+      if (prior === undefined) delete process.env[KEY]; else process.env[KEY] = prior;
+    }
+  });
+
+  it('unknown channel in live mode: ok=false with descriptive error', async () => {
+    const prior = process.env[KEY];
+    try {
+      process.env[KEY] = 'true';
+      const r = await dispatchOutbound('made-up-channel', task, 'reply');
+      assert.equal(r.ok, false);
+      assert.ok(/unknown channel/i.test(r.error));
+    } finally {
+      if (prior === undefined) delete process.env[KEY]; else process.env[KEY] = prior;
+    }
   });
 });
 

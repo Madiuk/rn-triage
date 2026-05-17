@@ -51,6 +51,8 @@ const {
   categoryEligibility,
 } = require("../permissions");
 
+const { isOutboundLiveMode } = require("../safety");
+
 const { RELAI_DEFAULTS } = require("../../../../data/defaults");
 
 // ─────────────────────────────────────────────────────────────────
@@ -729,6 +731,20 @@ async function handleReassign(event) {
 // calls.
 
 async function dispatchOutbound(channel, task, finalText) {
+  // Sandbox kill-switch: until OUTBOUND_LIVE_MODE=true is set in the
+  // Netlify environment, NO channel ever sees a live network call.
+  // Default-off means a deploy can't accidentally send to a real
+  // patient. The manual channel passes through (no external API call
+  // anyway — staff handles the actual send themselves). See
+  // _lib/safety.js. Every channel module added in the future
+  // inherits this gate by virtue of going through dispatchOutbound.
+  if (channel !== 'manual' && !isOutboundLiveMode()) {
+    console.log('queue.send.dispatch.sandboxed:', {
+      channel: channel, triage_id: task && task.id,
+    });
+    return { ok: true, sent_via: 'sandbox:' + channel, sandboxed: true };
+  }
+
   // Channel-specific outbound. v1 stub: log + return success for
   // all channels except those that explicitly aren't ready.
   switch (channel) {
@@ -741,7 +757,9 @@ async function dispatchOutbound(channel, task, finalText) {
     case 'bask':
     case 'email':
     case 'api':
-      // Stub. Week 4 wires the real adapter.
+      // Stub. Week 4 wires the real adapter. NB: this path is only
+      // reachable when OUTBOUND_LIVE_MODE=true; the sandbox gate
+      // above catches every test/dev deploy.
       console.log('queue.send.dispatch.stub:', { channel, triage_id: task.id });
       return { ok: true, sent_via: channel + ':stub' };
     default:
