@@ -265,12 +265,20 @@ exports.handler = async function(event) {
       // because /auth/v1/recover is the public reset-password
       // endpoint (anyone-can-call); we've already gated the
       // resend-invite action itself above.
-      const recoverPayload = { email: target.email };
+      //
+      // redirect_to is passed as a URL query string param. Some
+      // gotrue versions ignore body-level redirect_to and fall back
+      // to the dashboard Site URL — that's the bug that landed
+      // reset emails at `/` instead of /accept-invite.html for Brad
+      // 2026-05-17. Belt-and-braces: pass it both ways.
       const redirectUrl = process.env.INVITE_REDIRECT_URL
         || (process.env.URL ? process.env.URL.replace(/\/$/, '') + '/accept-invite.html' : null);
+      const recoverPayload = { email: target.email };
       if (redirectUrl) recoverPayload.redirect_to = redirectUrl;
 
-      const recoverRes = await fetch(`${SUPABASE_URL}/auth/v1/recover`, {
+      const recoverUrl = `${SUPABASE_URL}/auth/v1/recover`
+        + (redirectUrl ? '?redirect_to=' + encodeURIComponent(redirectUrl) : '');
+      const recoverRes = await fetch(recoverUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

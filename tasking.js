@@ -166,18 +166,38 @@
   // ─────────────────────────────────────────────────────────────────
 
   async function init() {
-    // 0. Magic-link hash handler. Supabase's emailRedirectTo asks for
-    // /login.html, but it falls back to the project's Site URL (i.e.,
-    // '/') when /login.html isn't on the Allowed Redirect URLs list.
-    // After the 2026-05-17 rename that made '/' the tasking SPA, that
-    // fallback path arrives here. Parse the hash ourselves so the
-    // auth flow works regardless of which page Supabase picks. Same
-    // pattern as login.html:172 and app.js:373.
+    // 0. Hash-returning auth flow handler. Supabase emails (magic
+    // link / invite / recovery) drop the user back at a redirect URL
+    // with a session JWT in the URL hash:
+    //   #access_token=...&refresh_token=...&type=<recovery|invite|magiclink|signup>
+    //
+    // For misconfiguration / dashboard-drift / old-email-in-inbox
+    // reasons, recovery and invite tokens can land here even though
+    // login.html / auth.js try to route them to the dedicated
+    // pages. Silently accepting them as a session is the bug Brad
+    // hit 2026-05-17 — a "reset password" email link logged him in
+    // without ever prompting for a new password.
+    //
+    //   recovery  → bounce to /reset-password.html with hash preserved
+    //   invite    → bounce to /accept-invite.html with hash preserved
+    //   magiclink → accept as session (legacy; goes away phase 4)
+    //   signup    → accept as session (shouldn't fire post-phase-1)
+    //   no type   → accept as session (back-compat with the old OTP
+    //               path; also goes away phase 4)
     const h = window.location.hash;
     if (h && h.indexOf('access_token') !== -1) {
       try {
         const params = new URLSearchParams(h.replace('#', ''));
         const token = params.get('access_token');
+        const type  = params.get('type') || '';
+        if (token && type === 'recovery') {
+          window.location.replace('/reset-password.html' + h);
+          return;
+        }
+        if (token && type === 'invite') {
+          window.location.replace('/accept-invite.html' + h);
+          return;
+        }
         const refresh = params.get('refresh_token');
         if (token) {
           localStorage.setItem('relai_session', JSON.stringify({
@@ -188,7 +208,7 @@
           history.replaceState(null, '', window.location.pathname);
         }
       } catch (e) {
-        console.error('tasking.parseMagicLinkHash:', e.message);
+        console.error('tasking.parseAuthHash:', e.message);
       }
     }
 

@@ -187,22 +187,43 @@ var SUPA_URL = 'https://aturbsnqpdtvhrnujrqb.supabase.co';
 var SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF0dXJic25xcGR0dmhybnVqcnFiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc4NDc5MTgsImV4cCI6MjA5MzQyMzkxOH0.l7LdmI8PfFiIXa1nIwwauiWh6KnzpwhlpK5uieATsic';
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ── Handle magic-link return (legacy fallback) ───────────────────────────────
+// ── Handle hash-returning auth flows ─────────────────────────────────────────
 //
-// Pre-phase-1, the entire flow was magic-link OTP. Until phase 4
-// disables OTP in the Supabase dashboard, an old magic-link email
-// could still land a user here with a session token in the URL
-// hash. Catch it and surface View 4. Once magic link is off this
-// branch never fires.
+// Supabase emails land users back here (or at the Site URL) with a
+// session JWT in the URL hash, e.g.:
+//   #access_token=...&refresh_token=...&type=<recovery|invite|magiclink|signup>
+//
+// What we do depends on `type` — accepting a recovery token as a
+// session would log the user in WITHOUT requiring a new password
+// (the bug that hit Brad 2026-05-17). Recovery + invite tokens
+// belong on the dedicated set-password pages.
+//
+//   recovery  → /reset-password.html (with hash preserved)
+//   invite    → /accept-invite.html  (with hash preserved)
+//   magiclink → View 4 ("you're signed in") — legacy until phase 4
+//   signup    → View 4 — shouldn't happen post-phase-1 (no self-
+//               signup), but the path is defensive
+//   no type   → fall through to magic-link behavior for back-compat
+//               with the old OTP path (also goes away phase 4)
 (function () {
   var h = window.location.hash;
   if (!h || !h.includes('access_token')) return;
 
   var p = new URLSearchParams(h.replace('#', ''));
   var token = p.get('access_token');
-  var refresh = p.get('refresh_token');
+  var type  = p.get('type') || '';
   if (!token) return;
 
+  if (type === 'recovery') {
+    window.location.replace('/reset-password.html' + h);
+    return;
+  }
+  if (type === 'invite') {
+    window.location.replace('/accept-invite.html' + h);
+    return;
+  }
+
+  var refresh = p.get('refresh_token');
   localStorage.setItem('relai_session', JSON.stringify({
     access_token: token,
     refresh_token: refresh || '',
@@ -358,8 +379,20 @@ function sendReset() {
   // file (intentional — prevents account enumeration). Don't tell
   // the user that — just say "if an account exists, you'll get an
   // email". Same UX as every major SaaS.
+  //
+  // redirect_to MUST be passed as a URL query param. Body-level
+  // redirect_to is ignored on some gotrue versions, and the JS
+  // SDK's `options.redirectTo` is its own internal shape — neither
+  // worked when tried. The query param is what gotrue/supabase-js
+  // actually use under the hood. The URL also must be on the
+  // Supabase Auth allow-list (Dashboard → Auth → URL Configuration
+  // → Redirect URLs), otherwise Supabase silently falls back to
+  // the project's Site URL — which is exactly the bug that caused
+  // recovery links to land at `/` and log the user in instead of
+  // sending them to /reset-password.html.
+  var redirect = encodeURIComponent(window.location.origin + '/reset-password.html');
   var xhr = new XMLHttpRequest();
-  xhr.open('POST', SUPA_URL + '/auth/v1/recover', true);
+  xhr.open('POST', SUPA_URL + '/auth/v1/recover?redirect_to=' + redirect, true);
   xhr.setRequestHeader('Content-Type', 'application/json');
   xhr.setRequestHeader('apikey', SUPA_KEY);
   xhr.onload = function () {
@@ -380,10 +413,7 @@ function sendReset() {
     setLoading('forgotBtn', 'forgotTxt', 'forgotSpin', false);
     showMsg('forgotMsg', 'Connection error — check your internet.', 'err');
   };
-  xhr.send(JSON.stringify({
-    email: email,
-    options: { redirectTo: window.location.origin + '/reset-password.html' },
-  }));
+  xhr.send(JSON.stringify({ email: email }));
 }
 
 function escapeHTML(s) {
