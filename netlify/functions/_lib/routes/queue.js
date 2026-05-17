@@ -1219,11 +1219,20 @@ async function handleSpawnFollowup(event) {
     'Originator intent: ' + intentLabel + '.\n' +
     'Note: ' + note;
 
-  // Insert the child. Inherits source_channel + external_id from the
-  // parent so the receiving staffer can see the conversation context.
-  // patient_message is copied so the chat-bubble renders properly in
-  // the detail view (the original inbound text is the same task's
-  // grounding either way).
+  // Insert the child. Inherits source_channel from the parent so the
+  // receiving staffer can see which channel this thread came in
+  // from, and patient_message is copied so the chat-bubble renders
+  // properly in the detail view.
+  //
+  // external_id is deliberately NULL on follow-ups. The unique
+  // (company_id, external_id) partial index in migration 0001 would
+  // reject the insert if we copied parent.external_id (the parent
+  // already owns that pair). And semantically, a follow-up is a
+  // staff-authored internal task — it didn't originate from
+  // Intercom or any other channel, so it shouldn't impersonate one.
+  // The parent linkage lives in parent_task_id; the conversation
+  // linkage (if/when we add a conversation_id column) is also via
+  // the parent.
   const insertUrl = `${SUPABASE_URL}/rest/v1/query_history`;
   let inserted;
   try {
@@ -1235,7 +1244,7 @@ async function handleSpawnFollowup(event) {
         parent_task_id: parentId,
         status: 'pending_parent',
         source_channel: parent.source_channel || 'manual',
-        external_id: parent.external_id || null,
+        external_id: null,
         patient_message: parent.patient_message || '',
         draft_response: draftResponse || null,
         clinical_category: targetCategory,
