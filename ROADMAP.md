@@ -394,6 +394,7 @@ Rollback: `git revert` the rename commit + remove the scheduler.
 | Training view UI (AI quality stats) | Phase 2, after active learning loop |
 | Welcome modal | Stretch — when there's a free day |
 | Moving `intercom.js` into `channels/` directory | Maintenance window scheduled outside business hours |
+| Resend integration for transactional emails (invites, password resets, future notifications) — own templates, replace Supabase built-in SMTP | Resend account ready (2026-05-17). Trigger: when the "Reset password" subject line on a fresh invite starts confusing real invitees, OR when deliverability matters for production sign-ups. Resend templates also unblock own-domain sender (`hello@carestation.app`) instead of Supabase's `noreply@mail.app.supabase.io`. |
 
 ---
 
