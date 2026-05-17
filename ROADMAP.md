@@ -48,6 +48,71 @@ at cutover picks up the new SPA automatically.
   scheduler is added in `netlify.toml` until Week 4. Until then
   the file changes have zero production blast radius (nothing
   invokes worker in production today).
+- A behavior-preserving helper extraction of the triage path is
+  permitted under CLAUDE.md principle 4 with explicit description
+  and confirmation; see "Status" below for what landed.
+
+---
+
+## Status — 2026-05-16 (evening)
+
+**Week 1 substrate is functionally complete.** What's landed and
+shipped to production:
+
+| Item | Status | Commit |
+|---|---|---|
+| Migration 0022 — queue state columns + `task_reassignments` | ✓ applied | (prior to this session) |
+| Migration 0023 — `fin_participated` flag on `query_history` (defense in depth against Intercom's AI Agent) | ✓ applied | `9214ca6` |
+| Phase 3 queue: defaults, permissions, route handlers, `/queue/*` rewrite | ✓ landed | `c9f1828` |
+| Intercom inbound: Fin participation detection, `fin_participated` flag set on insert | ✓ landed | `9214ca6` |
+| Triage core extraction (`_lib/triage-core.js`); `triage.js` reduced to HTTP wrapper | ✓ landed, behavior-preserving | `289f288` |
+| Worker: real triage via `triage-core`, Fin defense routing, retry-on-failure | ✓ landed | `173896e` |
+| SLA sweep: 24h-from-pull + 8h-from-reply Due-state flip (separate function) | ✓ landed | `a0dbf17` |
+
+**Production smoke test passed end-to-end** (Intercom Developer Hub
+endpoint verification, 2026-05-16 ~8:30 PM). Webhook reachable,
+signature verification operational, env vars wired:
+`INTERCOM_WEBHOOK_SECRET`, `INTERCOM_TENANT_COMPANY_ID`.
+
+### Items not in the original Week 1 plan but landed
+
+- **Migration 0023 + Fin defense.** Added after the Intercom doc deep-dive
+  surfaced the `ai_agent_participated` flag in webhook payloads.
+  Care Station now persists this flag on every inbound row; the worker
+  routes flagged rows to `status='reviewed'` without calling Claude.
+  Defensive — Fin is dormant in Big Easy's workspace today (no
+  workflows, no charges).
+- **Triage core extraction.** Extracted `runTriage()` orchestration into
+  `_lib/triage-core.js` so the worker can invoke the same code path the
+  HTTP endpoint uses without a JWT round-trip. Refactor is
+  behavior-preserving; full test suite stayed green (554 before, 612
+  after Week 1's new tests).
+- **`INTERCOM_SETUP.md`** — runbook for connecting an Intercom workspace
+  to Care Station. Captures the operational steps walked through
+  tonight (separate Intercom app per integration, env-var setup, smoke
+  test procedure, common-issue triage). Useful for onboarding the next
+  tenant.
+
+### Still outstanding in Week 1
+
+- **Queue endpoint tests.** The five `/queue/*` handlers in
+  `_lib/routes/queue.js` are fully implemented and verified manually,
+  but have zero direct test coverage. Clinical-workflow code; worth
+  landing before Week 2's SPA consumes them.
+- **First real-message smoke test through the worker.** Webhook
+  reachability verified; full path (Intercom message → DB row → worker
+  triage → triaged status with classification fields) not yet exercised
+  with a live test message.
+
+### Known gaps surfaced during build (not Week 1 blockers)
+
+- Nothing currently writes `last_patient_reply_at`. The 8h SLA sweep is
+  built and tested but inert until the patient-reply wiring lands
+  (likely Week 3 when the chart view stitches threads together).
+- Worker invocation is manual until Week 4 (`netlify.toml` scheduler
+  block stays commented out).
+- Outbound API token (separate from the inbound webhook secret) is not
+  yet needed and not yet provisioned; that's Week 3 outbound work.
 
 ---
 
@@ -119,15 +184,26 @@ No scheduler added yet — `netlify.toml` change lands in Week 4.
 Test file: `workerSlaSweep.test.js`.
 
 ### 1.4 Definition of done — Week 1
-- [ ] Migration 0022 written, reviewed, applied (after explicit
+- [x] Migration 0022 written, reviewed, applied (after explicit
   chat confirmation)
-- [ ] Five new endpoints exist; bad input returns 4xx; success
+- [x] Migration 0023 — `fin_participated` flag (added beyond original
+  plan, defense in depth against Intercom's AI Agent)
+- [x] Five new endpoints exist; bad input returns 4xx; success
   paths write `audit_log` entries
-- [ ] All Week-1 test files added and passing
-- [ ] `worker.js` real-triage path works on manual invocation
-- [ ] `worker.js` SLA sweep flips `due_state=true` on test fixtures
-- [ ] No changes to `/triage`, `/ingest`, `/auth/*`, `/kb/*`,
-  `/admin/*`, current `app.js`, or current `index.html`
+- [ ] All Week-1 test files added and passing — **partial**: worker
+  + SLA-sweep + Fin-defense helpers covered (61 new tests);
+  queue endpoint tests still outstanding
+- [x] `worker.js` real-triage path works on manual invocation
+  (verified against staging via `curl`)
+- [x] SLA sweep flips `due_state=true` on test fixtures (in
+  `sla-sweep.js`, separate function from the worker)
+- [x] Triage core extracted to `_lib/triage-core.js` — behavior-
+  preserving refactor performed with explicit confirmation per
+  CLAUDE.md principle 4
+- [x] No semantic changes to `/triage` contract; HTTP behavior
+  identical pre/post-refactor (test suite confirms)
+- [x] No changes to `/ingest`, `/auth/*`, `/kb/*`, `/admin/*`,
+  current `app.js`, or current `index.html`
 
 ---
 
