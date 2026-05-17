@@ -79,12 +79,16 @@ const SEND_TEXT_MAX = 50000;
 // UI doesn't render.
 const TASK_FIELDS = [
   'id', 'company_id', 'source_channel', 'external_id', 'status',
+  'conversation_id',
   'patient_message', 'draft_response',
   'clinical_category', 'urgency_score', 'urgency_original',
+  'urgency_override',
   'clinical_routing_level', 'ai_confidence', 'internal_note',
+  'parent_task_id',
   'claimed_by', 'claimed_at', 'first_pulled_at',
   'last_patient_reply_at', 'due_state',
   'upvoted', 'downvoted', 'upvote_reason', 'downvote_reason',
+  'actual_response_sent',
   'created_at',
 ].join(',');
 
@@ -1287,6 +1291,68 @@ async function handleSpawnFollowup(event) {
   });
 }
 
+// ─────────────────────────────────────────────────────────────────
+// GET /queue/thread?conversation_id=<id>
+// ─────────────────────────────────────────────────────────────────
+//
+// Returns every query_history row in the conversation, tenant-scoped,
+// ordered by created_at ascending. The tasking SPA's detail view
+// renders this as the full chat thread so staff don't have to ask
+// "what did the patient say last month" — they can scroll.
+//
+// Status is NOT filtered: closed_no_reply, sent, closed, and
+// backfilled rows are all visible. The renderer decides how each is
+// shown (patient/staff bubble, system note, etc.).
+//
+// Field shape mirrors TASK_FIELDS plus the columns the thread renderer
+// needs (conversation_id, actual_response_sent, parent_task_id). The
+// reduced payload keeps the network response tight when threads run
+// long.
+
+const THREAD_FIELDS = [
+  'id', 'conversation_id', 'parent_task_id', 'status',
+  'source_channel', 'external_id',
+  'patient_message', 'actual_response_sent', 'internal_note',
+  'clinical_category', 'urgency_original', 'urgency_score',
+  'nurse_name', 'claimed_by',
+  'created_at',
+].join(',');
+
+async function handleThread(event) {
+  if (event.httpMethod !== 'GET') return json(405, { error: 'Method not allowed.' });
+
+  const caller = await authedCaller(event);
+  if (caller.error) return caller.error;
+  const { profile } = caller;
+
+  // conversation_id arrives as a query-string parameter. The Netlify
+  // event shape provides this pre-parsed at event.queryStringParameters.
+  const qs = event.queryStringParameters || {};
+  const conversationId = typeof qs.conversation_id === 'string' ? qs.conversation_id.trim() : '';
+  if (!conversationId) {
+    return json(400, { error: 'Missing or invalid `conversation_id` query parameter.' });
+  }
+
+  const h = writeHeaders();
+  const url = `${SUPABASE_URL}/rest/v1/query_history`
+    + `?company_id=eq.${encodeURIComponent(profile.company_id)}`
+    + `&conversation_id=eq.${encodeURIComponent(conversationId)}`
+    + `&select=${THREAD_FIELDS}`
+    + `&order=created_at.asc`;
+  try {
+    const r = await fetch(url, { headers: h });
+    if (!r.ok) {
+      console.error('queue.thread:', r.status);
+      return json(500, { error: 'Thread load failed.' });
+    }
+    const rows = await r.json();
+    return json(200, { rows: Array.isArray(rows) ? rows : [] });
+  } catch (e) {
+    console.error('queue.thread:', e.message);
+    return json(500, { error: 'Internal error.' });
+  }
+}
+
 module.exports = {
   // HTTP handlers
   handlePull,
@@ -1297,6 +1363,7 @@ module.exports = {
   handleVote,
   handleCloseNoReply,
   handleSpawnFollowup,
+  handleThread,
   // Pure helpers (exported for unit tests; not used by the router)
   inFilter,
   makeTaskPriorityCmp,

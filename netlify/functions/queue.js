@@ -17,6 +17,7 @@
 //   POST /queue/vote            → queue.handleVote
 //   POST /queue/close-no-reply  → queue.handleCloseNoReply
 //   POST /queue/spawn-followup  → queue.handleSpawnFollowup
+//   GET  /queue/thread          → queue.handleThread
 //   GET  /queue/mine            → queue.handleMine
 //
 // Invocation paths:
@@ -42,6 +43,7 @@ exports.handler = async function (event) {
     // future routes might).
     if (path.includes("/queue/close-no-reply")) return queueRoute.handleCloseNoReply(event);
     if (path.includes("/queue/spawn-followup")) return queueRoute.handleSpawnFollowup(event);
+    if (path.includes("/queue/thread"))   return queueRoute.handleThread(event);
     if (path.includes("/queue/pull"))     return queueRoute.handlePull(event);
     if (path.includes("/queue/retask"))   return queueRoute.handleRetask(event);
     if (path.includes("/queue/reassign")) return queueRoute.handleReassign(event);

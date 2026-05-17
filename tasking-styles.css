@@ -797,7 +797,9 @@ body {
 }
 
 /* Chat-box container. White on white card with a thin internal divider
-   between bubbles. Patient on the left, staff on the right (chat convention). */
+   between bubbles. Patient on the left, staff on the right (chat convention).
+   Capped at ~480px tall so a long thread scrolls inside the box rather
+   than pushing the action bar off-screen. */
 .chat-box {
   background: white;
   border: 1px solid var(--border);
@@ -807,6 +809,48 @@ body {
   flex-direction: column;
   gap: 14px;
   min-height: 160px;
+  max-height: 480px;
+  overflow-y: auto;
+}
+.chat-box.is-loading {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* Highlight the bubble for the task you're currently working on. The
+   subtle ring keeps the thread context readable while making it clear
+   which entry the action bar applies to. */
+.chat-message.is-current .chat-bubble {
+  box-shadow: 0 0 0 2px var(--brand);
+}
+
+/* System note for workflow events (follow-up created, task closed
+   without reply, etc.). Centered, smaller, monochrome — visually
+   distinct from patient/staff bubbles. */
+.chat-system-note {
+  align-self: center;
+  max-width: 90%;
+  padding: 8px 14px;
+  background: var(--bg-page);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: center;
+}
+.chat-system-note-title {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  font-size: 11px;
+  margin-bottom: 4px;
+}
+.chat-system-note-body {
+  white-space: pre-wrap;
+  word-break: break-word;
+  text-align: left;
+  color: var(--text-primary);
+  font-weight: 400;
 }
 .chat-message {
   display: flex;

@@ -722,31 +722,14 @@
       +   '<span class="detail-header-chip detail-header-channel">' + renderChannelChip(channel) + ' <span class="detail-header-chip-text">' + escapeHtml(channelDisplay) + '</span></span>'
       + '</div>';
 
-    // ── Build chat bubbles (patient → optional staff reply) ──────────
-    // For v0 we have at most one inbound + one outbound (actual_response_sent).
-    // Future Week-3 chart view will stitch multiple messages from the
-    // same patient anchor; the bubble structure is forward-compatible.
-    const patientBubble =
-        '<div class="chat-message patient">'
-      +   '<div class="chat-bubble">'
-      +     '<div class="chat-bubble-meta">'
-      +       '<span class="chat-author">Patient</span>'
-      +       '<span class="chat-time">' + escapeHtml(formatDateTime(t.created_at)) + '</span>'
-      +     '</div>'
-      +     '<div class="chat-bubble-text">' + escapeHtml(t.patient_message || '(empty)') + '</div>'
-      +   '</div>'
-      + '</div>';
-    const staffBubble = (t.actual_response_sent && t.status === 'sent')
-      ? '<div class="chat-message staff">'
-        +   '<div class="chat-bubble">'
-        +     '<div class="chat-bubble-meta">'
-        +       '<span class="chat-author">Staff reply</span>'
-        +       '<span class="chat-time">sent</span>'
-        +     '</div>'
-        +     '<div class="chat-bubble-text">' + escapeHtml(t.actual_response_sent) + '</div>'
-        +   '</div>'
-        + '</div>'
-      : '';
+    // ── Chat bubbles ─────────────────────────────────────────────────
+    // Initial render shows just this task's bubble(s). If the task has
+    // a conversation_id (Intercom rows do; manual paste rows don't),
+    // loadThread() replaces the chat box with the full chronological
+    // thread once it loads. Single-bubble fallback keeps the page
+    // useful for manual rows and degrades gracefully if /queue/thread
+    // fails.
+    const initialBubbles = renderThreadFallback(t);
 
     // ── Left column: classification + routing breadcrumb ─────────────
     // Urgency dropdown — staff can override the AI's value. The set
@@ -807,9 +790,8 @@
     const rightCol =
         '<div class="detail-section">'
       +   '<div class="detail-section-label">Conversation</div>'
-      +   '<div class="chat-box">'
-      +     patientBubble
-      +     staffBubble
+      +   '<div class="chat-box" id="chatBox">'
+      +     initialBubbles
       +   '</div>'
       + '</div>'
 
@@ -850,6 +832,153 @@
     // session; we don't fetch existing pending_parent children on
     // reload (out of scope — see PLAN for "originator visibility").
     refreshFollowupChip();
+
+    // Fetch the full conversation thread (if this row is part of one)
+    // and replace the chat-box content. Falls back silently to the
+    // single-bubble render if the task has no conversation_id (e.g.,
+    // manual paste rows) or the endpoint errors.
+    if (t.conversation_id) {
+      loadThread(t.conversation_id, t.id);
+    }
+  }
+
+  // Single-bubble fallback used as the initial chat-box content. Also
+  // the final answer for any task without a conversation_id.
+  function renderThreadFallback(t) {
+    const patientBubble = t.patient_message
+      ? renderBubble({
+          side: 'patient', author: 'Patient',
+          time: formatDateTime(t.created_at),
+          text: t.patient_message,
+        })
+      : '';
+    const staffBubble = (t.actual_response_sent && t.status === 'sent')
+      ? renderBubble({
+          side: 'staff', author: 'Staff reply',
+          time: 'sent',
+          text: t.actual_response_sent,
+        })
+      : '';
+    return patientBubble + staffBubble;
+  }
+
+  // Build a chat bubble HTML fragment. Centralized so the thread
+  // renderer and the fallback agree on shape + escaping.
+  function renderBubble(opts) {
+    const isCurrent = opts.isCurrent ? ' is-current' : '';
+    return (
+      '<div class="chat-message ' + opts.side + isCurrent + '">'
+      +   '<div class="chat-bubble">'
+      +     '<div class="chat-bubble-meta">'
+      +       '<span class="chat-author">' + escapeHtml(opts.author || '') + '</span>'
+      +       '<span class="chat-time">' + escapeHtml(opts.time || '') + '</span>'
+      +     '</div>'
+      +     '<div class="chat-bubble-text">' + escapeHtml(opts.text || '') + '</div>'
+      +   '</div>'
+      + '</div>'
+    );
+  }
+
+  // Build a system-note HTML fragment (centered, smaller, italic).
+  // Used inline in the thread for spawned follow-ups, close-no-reply
+  // events, and other workflow markers.
+  function renderSystemNote(opts) {
+    return (
+      '<div class="chat-system-note">'
+      +   '<div class="chat-system-note-title">' + escapeHtml(opts.title || '') + '</div>'
+      +   (opts.body
+            ? '<div class="chat-system-note-body">' + escapeHtml(opts.body) + '</div>'
+            : '')
+      + '</div>'
+    );
+  }
+
+  // Render the thread rows as a chronological stream of bubbles +
+  // system notes. The current task's row is highlighted; follow-ups
+  // (parent_task_id set) render as system notes; closed_no_reply
+  // rows render as system notes.
+  function renderThreadBubbles(rows, currentTaskId) {
+    if (!Array.isArray(rows) || rows.length === 0) {
+      return '<div class="chat-system-note">No conversation history available.</div>';
+    }
+    const parts = [];
+    for (const r of rows) {
+      const isCurrent = r.id === currentTaskId;
+      // Follow-up spawn — render as a system note positioned at its
+      // creation time. The internal_note breadcrumb is self-describing.
+      if (r.parent_task_id) {
+        parts.push(renderSystemNote({
+          title: 'Follow-up created' + (r.clinical_category ? ' → ' + r.clinical_category : '') + ' · ' + formatDateTime(r.created_at),
+          body: r.internal_note || '',
+        }));
+        continue;
+      }
+      // Close-no-reply — render as a system note marking the task
+      // close. Don't suppress the patient bubble on the same row.
+      if (r.status === 'closed_no_reply') {
+        if (r.patient_message) {
+          parts.push(renderBubble({
+            side: 'patient', author: 'Patient',
+            time: formatDateTime(r.created_at),
+            text: r.patient_message,
+            isCurrent: isCurrent,
+          }));
+        }
+        parts.push(renderSystemNote({
+          title: 'Task closed without reply · ' + formatDateTime(r.created_at),
+          body: r.internal_note || '',
+        }));
+        continue;
+      }
+      // Regular row — patient bubble (if any) + staff bubble (if sent).
+      if (r.patient_message) {
+        parts.push(renderBubble({
+          side: 'patient', author: 'Patient',
+          time: formatDateTime(r.created_at),
+          text: r.patient_message,
+          isCurrent: isCurrent,
+        }));
+      }
+      if (r.actual_response_sent) {
+        const author = r.nurse_name ? ('Staff (' + r.nurse_name + ')') : 'Staff reply';
+        parts.push(renderBubble({
+          side: 'staff', author: author,
+          time: r.status === 'sent' ? 'sent' : formatDateTime(r.created_at),
+          text: r.actual_response_sent,
+          isCurrent: isCurrent,
+        }));
+      }
+    }
+    return parts.join('');
+  }
+
+  async function loadThread(conversationId, currentTaskId) {
+    const box = document.getElementById('chatBox');
+    if (!box) return;
+    box.classList.add('is-loading');
+    try {
+      const resp = await api(
+        '/queue/thread?conversation_id=' + encodeURIComponent(conversationId),
+        { method: 'GET' }
+      );
+      const rows = (resp && Array.isArray(resp.rows)) ? resp.rows : [];
+      // Race guard: only update if the user hasn't navigated away.
+      if (state.openTaskId !== currentTaskId) return;
+      box.innerHTML = renderThreadBubbles(rows, currentTaskId);
+      box.classList.remove('is-loading');
+      // Scroll to the highlighted current bubble if present, else to
+      // the bottom (most recent message).
+      const cur = box.querySelector('.chat-message.is-current');
+      if (cur) {
+        cur.scrollIntoView({ block: 'center', behavior: 'auto' });
+      } else {
+        box.scrollTop = box.scrollHeight;
+      }
+    } catch (e) {
+      // Keep the fallback bubble; surface the failure quietly.
+      box.classList.remove('is-loading');
+      console.error('loadThread:', e.message);
+    }
   }
 
   function refreshFollowupChip() {

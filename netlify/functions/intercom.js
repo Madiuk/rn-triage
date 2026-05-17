@@ -105,6 +105,12 @@ const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
 const INTERCOM_WEBHOOK_SECRET = process.env.INTERCOM_WEBHOOK_SECRET;
 const INTERCOM_TENANT_COMPANY_ID = process.env.INTERCOM_TENANT_COMPANY_ID;
+// Optional: enables thread backfill on first sight of a conversation
+// (Phase A — 2026-05-17). If unset, the webhook still processes
+// inbound messages correctly; only the historical-context fetch is
+// skipped. Logging surfaces the skip so ops can spot it.
+const INTERCOM_ACCESS_TOKEN = process.env.INTERCOM_ACCESS_TOKEN;
+const INTERCOM_API_VERSION = '2.11';
 
 // ── Pure helpers (exported for tests) ──────────────────────────────
 
@@ -279,6 +285,216 @@ function isAiAgentParticipated(payload) {
   return payload.data.item.ai_agent_participated === true;
 }
 
+// Extract the conversation_id portion of an Intercom-shaped external_id.
+// Format: "intercom:<conv_id>:<part_id>" → returns <conv_id>, or null
+// if the input doesn't match. Used both at insert time (where we
+// already have conversationId from the payload, so this is the
+// fallback) and by the migration 0028 backfill UPDATE.
+function extractConversationIdFromExternalId(externalId) {
+  if (typeof externalId !== 'string') return null;
+  const m = /^intercom:([^:]+):/.exec(externalId);
+  return m ? m[1] : null;
+}
+
+// Turn an Intercom conversation API response into the list of historical
+// rows we want to insert. Pure for testing.
+//
+// Inputs:
+//   intercomConv  — the JSON body returned by GET /conversations/<id>
+//   companyId     — tenant company_id to stamp on each row
+//   skipPartId    — the part id of the message we just inserted via the
+//                   webhook (so the backfill doesn't double-write it)
+//
+// Output: array of records ready to POST to query_history. Sorted by
+//   created_at ascending so the thread view renders in time order.
+//   - user-authored parts → patient_message set, actual_response_sent null
+//   - admin-authored parts → patient_message null, actual_response_sent set
+//   - parts with empty/whitespace body → skipped
+//   - parts whose id matches skipPartId → skipped
+//
+// All rows get status='closed' (terminal; won't be picked up by the
+// worker or the queue pull) and a backfill breadcrumb in internal_note
+// so future readers can tell which rows came from this code path.
+function buildBackfillRecords(intercomConv, companyId, skipPartId) {
+  if (!intercomConv || !intercomConv.id) return [];
+  const conversationId = intercomConv.id;
+  const parts = [];
+
+  // The `source` object on a conversation is the very first message
+  // (typically the user-created event). Treat it like any other part.
+  if (intercomConv.source && intercomConv.source.body) {
+    parts.push({
+      id: intercomConv.source.id || conversationId,
+      body: intercomConv.source.body,
+      authorType: intercomConv.source.author && intercomConv.source.author.type,
+      authorName: intercomConv.source.author && intercomConv.source.author.name,
+      createdAt: intercomConv.created_at,
+    });
+  }
+
+  const cp = intercomConv.conversation_parts && intercomConv.conversation_parts.conversation_parts;
+  if (Array.isArray(cp)) {
+    for (const p of cp) {
+      if (!p || !p.id) continue;
+      if (!p.body) continue;  // assignment / system parts have no body
+      parts.push({
+        id: p.id,
+        body: p.body,
+        authorType: p.author && p.author.type,
+        authorName: p.author && p.author.name,
+        createdAt: p.created_at,
+      });
+    }
+  }
+
+  // Sort ascending so the records insert in time order.
+  parts.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+
+  const backfillBreadcrumb =
+    'BACKFILLED from Intercom on ' + new Date().toISOString() + '. ' +
+    'Historical context for thread view; not part of the active queue.';
+
+  const records = [];
+  for (const part of parts) {
+    if (part.id === skipPartId) continue;
+    const clean = stripHtml(part.body).trim();
+    if (!clean) continue;
+    if (isSystemPlaceholder(clean)) continue;
+
+    const isUser = part.authorType === 'user';
+    const externalId = 'intercom:' + conversationId + ':' + part.id;
+    const createdAt = part.createdAt
+      ? new Date(part.createdAt * 1000).toISOString()
+      : null;
+
+    const record = {
+      company_id: companyId,
+      source_channel: 'intercom',
+      external_id: externalId,
+      conversation_id: conversationId,
+      status: 'closed',
+      internal_note: backfillBreadcrumb,
+    };
+    if (createdAt) record.created_at = createdAt;
+
+    if (isUser) {
+      record.patient_message = clean;
+    } else {
+      // Admin (staff) authored. patient_message stays NULL; the staff
+      // text is the actual_response_sent so the thread renders it as
+      // a staff bubble.
+      record.actual_response_sent = clean;
+      record.nurse_name = part.authorName || 'Intercom admin';
+    }
+    records.push(record);
+  }
+  return records;
+}
+
+// Backfill historical conversation parts on first sight of a
+// conversation. Fire-and-forget — the webhook's primary job (insert
+// the current event) succeeds independently. Failures here are logged
+// and the audit row is updated with the outcome, but do NOT propagate
+// to Intercom.
+//
+// Triggered when:
+//   * INTERCOM_ACCESS_TOKEN is set (otherwise we have no API access)
+//   * The current event is conversation.user.replied (a fresh
+//     conversation.user.created can't have prior parts by definition)
+//   * No other rows exist for this conversation_id (other than the one
+//     we just inserted)
+//
+// Best-effort idempotency: each insert uses
+// `Prefer: resolution=ignore-duplicates` so a concurrent webhook
+// inserting the same part doesn't 409 us; the unique
+// (company_id, external_id) partial index from migration 0001 is the
+// conflict target.
+async function backfillIntercomThread(h, ctx) {
+  const { topic, conversationId, currentPartId, companyId, currentTriageId } = ctx;
+  if (!INTERCOM_ACCESS_TOKEN) {
+    logError('intercom.backfill.skipped', null, {
+      reason: 'INTERCOM_ACCESS_TOKEN not set',
+      conversation_id: conversationId,
+    });
+    return;
+  }
+  if (topic === 'conversation.user.created') {
+    // Brand-new conversation; no prior parts to fetch.
+    return;
+  }
+
+  // Are there other rows for this conversation already? If yes,
+  // we've ingested some history before — skip the (expensive)
+  // Intercom API call. The id != currentTriageId guard means we
+  // count rows other than the one we just inserted.
+  try {
+    const checkUrl = `${SUPABASE_URL}/rest/v1/query_history`
+      + `?company_id=eq.${encodeURIComponent(companyId)}`
+      + `&conversation_id=eq.${encodeURIComponent(conversationId)}`
+      + `&id=neq.${encodeURIComponent(currentTriageId)}`
+      + `&select=id&limit=1`;
+    const checkRes = await fetch(checkUrl, { headers: h });
+    if (checkRes.ok) {
+      const rows = await checkRes.json();
+      if (Array.isArray(rows) && rows.length > 0) {
+        // We've seen this conversation before; nothing to backfill.
+        return;
+      }
+    }
+  } catch (e) {
+    logError('intercom.backfill.checkExisting', e, { conversation_id: conversationId });
+    // Continue with the fetch anyway; the idempotent inserts are safe.
+  }
+
+  // Fetch the full conversation from Intercom.
+  let intercomConv;
+  try {
+    const r = await fetch(
+      'https://api.intercom.io/conversations/' + encodeURIComponent(conversationId),
+      {
+        headers: {
+          'Authorization': 'Bearer ' + INTERCOM_ACCESS_TOKEN,
+          'Accept': 'application/json',
+          'Intercom-Version': INTERCOM_API_VERSION,
+        },
+      }
+    );
+    if (!r.ok) {
+      logError('intercom.backfill.fetch_failed', null, {
+        status: r.status,
+        conversation_id: conversationId,
+      });
+      return;
+    }
+    intercomConv = await r.json();
+  } catch (e) {
+    logError('intercom.backfill.fetch_exception', e, { conversation_id: conversationId });
+    return;
+  }
+
+  const records = buildBackfillRecords(intercomConv, companyId, currentPartId);
+  if (records.length === 0) return;
+
+  // Idempotent insert. Prefer: resolution=ignore-duplicates uses the
+  // unique partial index on (company_id, external_id) as the
+  // conflict target. Already-present rows are silently skipped.
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/query_history`, {
+      method: 'POST',
+      headers: {
+        ...h,
+        'Prefer': 'resolution=ignore-duplicates,return=minimal',
+      },
+      body: JSON.stringify(records),
+    });
+  } catch (e) {
+    logError('intercom.backfill.insert', e, {
+      conversation_id: conversationId,
+      record_count: records.length,
+    });
+  }
+}
+
 // ── Handler ────────────────────────────────────────────────────────
 
 exports.handler = async function (event) {
@@ -442,11 +658,17 @@ exports.handler = async function (event) {
   // produces. nurse_name is set to the patient's name for now since
   // we don't yet have a real "system actor" concept; it makes the
   // origin obvious when looking at history.
+  //
+  // conversation_id (migration 0028) groups every row in the same
+  // Intercom conversation so the tasking SPA's detail view can render
+  // the full thread. Parsed from the event payload — msg.conversationId
+  // is the canonical Intercom conversation id, NOT a part id.
   const record = {
     company_id: companyId,
     patient_message: text,
     source_channel: 'intercom',
     external_id: externalId,
+    conversation_id: msg.conversationId,
     status: 'pending',
     urgency_original: 'routine',           // worker overrides post-triage
     non_clinical_flag: false,
@@ -493,6 +715,19 @@ exports.handler = async function (event) {
       triage_id: result[0].id,
     });
 
+    // Fire-and-forget backfill of historical conversation parts.
+    // Only fires on conversation.user.replied (not on .created, which
+    // is by definition the first message) and only when this is the
+    // first row we have for the conversation. INTERCOM_ACCESS_TOKEN
+    // must be set; if not, the helper logs the skip and returns.
+    backfillIntercomThread(h, {
+      topic: topic,
+      conversationId: msg.conversationId,
+      currentPartId: msg.partId,
+      companyId: companyId,
+      currentTriageId: result[0].id,
+    }).catch(e => logError('intercom.backfill.unhandled', e));
+
     return {
       statusCode: 201,
       headers: { 'Content-Type': 'application/json' },
@@ -527,4 +762,6 @@ exports.stripHtml = stripHtml;
 exports.extractMessage = extractMessage;
 exports.isAiAgentParticipated = isAiAgentParticipated;
 exports.isSystemPlaceholder = isSystemPlaceholder;
+exports.extractConversationIdFromExternalId = extractConversationIdFromExternalId;
+exports.buildBackfillRecords = buildBackfillRecords;
 exports.INTERCOM_SYSTEM_PLACEHOLDERS = INTERCOM_SYSTEM_PLACEHOLDERS;
