@@ -68,6 +68,9 @@ shipped to production:
 | Triage core extraction (`_lib/triage-core.js`); `triage.js` reduced to HTTP wrapper | ✓ landed, behavior-preserving | `289f288` |
 | Worker: real triage via `triage-core`, Fin defense routing, retry-on-failure | ✓ landed | `173896e` |
 | SLA sweep: 24h-from-pull + 8h-from-reply Due-state flip (separate function) | ✓ landed | `a0dbf17` |
+| Queue endpoint tests + handler refactor for testability (9 pure helpers extracted; 85 new tests) | ✓ landed | `8b02e64` |
+
+**Test suite: 697 / 697 passing** as of this commit.
 
 **Production smoke test passed end-to-end** (Intercom Developer Hub
 endpoint verification, 2026-05-16 ~8:30 PM). Webhook reachable,
@@ -95,14 +98,10 @@ signature verification operational, env vars wired:
 
 ### Still outstanding in Week 1
 
-- **Queue endpoint tests.** The five `/queue/*` handlers in
-  `_lib/routes/queue.js` are fully implemented and verified manually,
-  but have zero direct test coverage. Clinical-workflow code; worth
-  landing before Week 2's SPA consumes them.
 - **First real-message smoke test through the worker.** Webhook
   reachability verified; full path (Intercom message → DB row → worker
   triage → triaged status with classification fields) not yet exercised
-  with a live test message.
+  with a live test message. Operational check, not code.
 
 ### Known gaps surfaced during build (not Week 1 blockers)
 
