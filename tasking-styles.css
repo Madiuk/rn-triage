@@ -756,11 +756,15 @@ body {
   flex: 1;
 }
 
-/* Two-column grid: 40% classification (left) / 60% chat + draft (right).
-   Collapses to a single column on narrow viewports, chat-first. */
+/* Two-column grid: ~40% classification (left) / ~60% chat + draft (right).
+   Uses `fr` units (not percentages) so the 28px gap reduces the column
+   widths instead of overflowing — `40% 60%` with a gap would push the
+   right column ~28px past the sticky header, which is exactly what the
+   2026-05-17 bug report described. Collapses to a single column on
+   narrow viewports, chat-first. */
 .detail-grid {
   display: grid;
-  grid-template-columns: 40% 60%;
+  grid-template-columns: 2fr 3fr;
   gap: 28px;
   align-items: start;
 }
