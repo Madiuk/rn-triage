@@ -1,15 +1,19 @@
 # Care Station — Codebase Summary (Technical)
 
-**Version:** 0.4.1 · **Status:** Active trial, internal use only
+**Version:** 0.4.2 · **Status:** Active trial, internal use only
 
 ## Purpose
 
-AI-assisted customer-service triage and task-routing SPA. Staff paste an
-inbound patient/customer message; Claude classifies it against a
-per-tenant Knowledge Base and returns a structured triage decision —
-urgency, clinical category, severity, suggested response draft, and
-routing for non-clinical items. What's actually sent feeds back as a
-learning signal (`edit_distance`, `session_duration_seconds`).
+AI-assisted customer-service triage and task-routing SPA. Inbound
+patient/customer messages arrive through pluggable channels (Intercom
+live; EHR/email/SMS/web-form planned), get classified by Claude
+against a per-tenant Knowledge Base, and surface as tasks in a shared
+pull queue. The queue SPA is the staff home page at `/`; staff pull
+tasks, review the AI's draft response in a two-column detail view,
+edit and send (or release back to the pool). What's actually sent
+feeds back as a learning signal (`edit_distance`,
+`session_duration_seconds`); staff overrides of urgency and category
+are captured per row.
 
 Single-tenant today (Big Easy Weight Loss, clinical telehealth).
 Architected to become a multi-tenant, vertical-agnostic SaaS — channels,
@@ -59,11 +63,19 @@ No build step. `npm test` runs plain-Node unit + contract tests;
 
 ## Main Files
 
-**SPA**
-- [index.html](index.html) — SPA shell. Tabs: Inquiry, Knowledge Base; Help & Review reached via profile dropdown.
+**Tasking SPA (site default)**
+- [index.html](index.html) — Tasking SPA shell. Queue + detail views, hash routing (`#queue`, `#task/<id>`, `#events`).
+- [tasking.js](tasking.js) — Tasking SPA logic.
+- [tasking-helpers.js](tasking-helpers.js) — Pure helpers, Node-testable.
+- [tasking-styles.css](tasking-styles.css) — Tasking SPA styles.
+
+**Legacy paste-and-triage SPA (super-user fallback)**
+- [manual.html](manual.html) — Legacy SPA shell. Hidden from non-super-users; reached via the profile-panel "Manual paste (legacy)" link.
+- [app.js](app.js) — Legacy SPA logic (monolithic; split deferred).
+- [styles.css](styles.css) — Legacy SPA styles.
+
+**Shared**
 - [login.html](login.html) — magic-link landing.
-- [app.js](app.js) — monolithic SPA logic (~130 KB; split deferred).
-- [styles.css](styles.css) — class-based styles, CSS variables.
 
 **Shared data / pure helpers**
 - [data/defaults.js](data/defaults.js) — fallback constants (brand, model IDs, confidence threshold).
@@ -73,32 +85,35 @@ No build step. `npm test` runs plain-Node unit + contract tests;
 
 **Netlify functions** (`netlify/functions/`) — **thin-router pattern as of v0.4.0**
 - [auth.js](netlify/functions/auth.js) — profile + tenant config + invite + signout.
-- [kb.js](netlify/functions/kb.js) — thin router; dispatches by path to `_lib/routes/*`.
+- [kb.js](netlify/functions/kb.js) — thin router; dispatches by path to `_lib/routes/*` (KB CRUD, history, reviews, analyze, admin, admin-events, profile).
+- [queue.js](netlify/functions/queue.js) — pull-queue actions (`pull`/`mine`/`retask`/`reassign`/`send`/`vote`); public path `/queue/<action>` via redirect.
 - [triage.js](netlify/functions/triage.js) — Anthropic `/v1/messages` proxy with model allowlist.
 - [ingest.js](netlify/functions/ingest.js) — generic inbound webhook (`X-Relai-Api-Key`), idempotent.
-- [worker.js](netlify/functions/worker.js) — background processor for pending rows (stub).
+- [worker.js](netlify/functions/worker.js) — background processor for pending rows; scheduled every 4h plus manual fire from the tasking SPA.
 - [intercom.js](netlify/functions/intercom.js) — Intercom inbound webhook (HMAC-verified).
 - [bask.js](netlify/functions/bask.js) — Bask Health outbound adapter (stub).
+- [sla-sweep.js](netlify/functions/sla-sweep.js) — operator-triggered SLA sweep (not scheduled).
 
 **Server shared lib** (`netlify/functions/_lib/`)
 - `auth.js`, `db.js`, `permissions.js`, `supabase.js`, `history-aggregations.js`
 - `routes/` — `kb-crud.js`, `history.js`, `reviews.js`, `analyze.js`, `admin.js`, `profile.js`
 
-**Database** ([migrations/](migrations/), 0001–0014)
+**Database** ([migrations/](migrations/), 0001–0025)
 - `profiles`, `companies`, `tenants`, `kb_entries`, `query_history`,
-  `review_requests`, `audit_log`, `api_keys`, `category_metadata`.
-  Append-only, idempotent SQL files. 0011–0014 add an explicit RLS
-  deny baseline on `query_history` plus CHECK constraints on its
-  `urgency_override`, `urgency_original`, and `clinical_routing_level`
-  enum columns, with allowlists kept in sync with code via
-  source-text contract tests.
+  `review_requests`, `audit_log`, `api_keys`, `category_metadata`,
+  `inbound_raw_event`. Append-only, idempotent SQL files. 0011–0019
+  add an explicit RLS deny baseline on `query_history` plus CHECK
+  constraints on its enum columns, with allowlists kept in sync with
+  code via source-text contract tests. 0024 introduces the
+  `inbound_raw_event` audit log. 0025 narrows `urgency_override` to
+  three values aligned with the tasking SPA's dropdown.
 
-**Tests** ([tests/](tests/)) — 23 suites / 322 individual checks
-covering pure helpers, route contracts, role gates, permissions, KB
-promotion, Intercom HMAC, triage proxy, `/auth/invite` auth gate,
-first-admin bootstrap, urgency-score call sites,
-parse/normalize/classify, and DB ↔ code allowlist parity for the
-new CHECK constraints.
+**Tests** ([tests/](tests/)) — 785 individual checks covering pure
+helpers, route contracts, role gates, permissions, KB promotion,
+Intercom HMAC, triage proxy, `/auth/invite` auth gate, first-admin
+bootstrap, urgency-score call sites, parse/normalize/classify, DB ↔
+code allowlist parity for the CHECK constraints, and the tasking
+SPA's helper modules.
 
 **Eval** ([eval/](eval/)) — 13 case fixtures including
 `anaphylaxis`, `panc`, `dehydration`, `hypoglycemia`, `missed-dose`,
@@ -106,19 +121,33 @@ new CHECK constraints.
 
 **Docs**
 - [README.md](README.md) — setup, env vars, schema overview.
+- [ARCHITECTURE.md](ARCHITECTURE.md) — URL routing, function map, external services.
 - [AGENTS.md](AGENTS.md) — rules for AI agents working on the repo.
 - [PLAN.md](PLAN.md) — multi-tenant / channel-framework roadmap.
 - [CHANGELOG.md](CHANGELOG.md) — version history.
 
 ## Recent Direction
 
-v0.4.0 split the monolithic `kb.js` Netlify function into a thin
-router + 6 route modules under `_lib/routes/`, added server-side
-tests, and introduced a triage-path contract test. v0.4.1 fixed a
-sign-out race and removed the Activity section.
+**Tasking SPA promoted to site default (2026-05-17).** The pull-queue
+SPA (formerly at `/tasking.html`) now serves at `/`. The legacy
+paste-and-triage SPA moved to `/manual.html` and is super-user-only;
+it remains functional for occasional ad-hoc queries by the operator.
+A 301 redirect at `/tasking.html` preserves pre-rename bookmarks.
+Same-week additions to the tasking detail view: editable urgency
+dropdown (3 values — Routine / Same Day / Urgent — wired to the
+existing `update_urgency` action), single source for category +
+pencil (consolidated into the AI-classification section), Intercom
+channel chip pushed to the far right of the top bar, AI confidence
+hidden from the detail view (still captured server-side).
+`urgency_override` allowlist narrowed from five values to three
+(migration 0025; dropped legacy `24h` and `24-72h`).
 
-Subsequent v0.4.x hardening pass (committed against this snapshot):
-three audits compiled
+**Earlier:** v0.4.0 split the monolithic `kb.js` Netlify function
+into a thin router + 6 route modules under `_lib/routes/`, added
+server-side tests, and introduced a triage-path contract test.
+v0.4.1 fixed a sign-out race and removed the Activity section.
+
+Subsequent v0.4.x hardening pass: three audits compiled
 ([RELAI_INPUT_SURFACES.md](RELAI_INPUT_SURFACES.md),
 [RELAI_VALIDATION_AUDIT.md](RELAI_VALIDATION_AUDIT.md),
 [RELAI_DB_INTEGRITY_AUDIT.md](RELAI_DB_INTEGRITY_AUDIT.md));
@@ -131,5 +160,7 @@ cutting rate limiting, AI output semantic trust) tracked in
 [PLAN.md](PLAN.md) "Security backlog" with explicit triggers and
 fix shapes — none urgent for the single-tenant trial.
 
-Frontend [app.js](app.js) remains monolithic; split deferred per
-[AGENTS.md](AGENTS.md).
+The legacy [app.js](app.js) (loaded by `manual.html`) remains
+monolithic; split deferred per [AGENTS.md](AGENTS.md). Going forward,
+new feature work targets the tasking SPA ([tasking.js](tasking.js))
+rather than `app.js`.

@@ -17,22 +17,26 @@ audit on what's still vertical-shaped today.
 
 ## What it does
 
-Staff paste a patient message; Claude classifies it against a per-tenant
-Knowledge Base and returns a structured triage decision: urgency,
-clinical category, severity, suggested response draft, and routing
-information for non-clinical items. Staff approve / edit / send and
-optionally paste back what they actually sent — that becomes a learning
-signal that's stored against the triage record.
+Patient messages arrive through pluggable **channels** — Intercom is
+live today; EHR webhooks (Bask Health, Healthie), forwarded email,
+SMS, and web forms are planned. Each inbound message lands in
+`query_history` as `pending`, then `worker.js` runs it through Claude
+against the tenant's Knowledge Base and writes back a structured
+triage decision: urgency, clinical category, routing level, and a
+drafted response. Triaged rows surface in the **tasking queue**, the
+staff-facing SPA at `/`.
 
-Patient messages can arrive through any number of input **channels** —
-EHR webhooks (Bask Health, Healthie, etc.), forwarded email, live
-chat, SMS, web forms, or just staff-paste. The system treats channels
-as pluggable adapters: inbound flows through `ingest.js` →
-`worker.js` → triage; outbound flows back through whichever channel
-the message came from. Triage, KB, queue, and learning are
-channel-agnostic. Big Easy Weight Loss happens to use Bask, so a
-Bask adapter is on the near-term roadmap; other tenants will mix and
-match. See `PLAN.md` Phase 3 for the channel framework design.
+Staff pull tasks from the queue, review the AI's draft in a two-column
+detail view, edit and send (or release back to the pool). What they
+actually send feeds back as a learning signal (`edit_distance`,
+`session_duration_seconds`); staff overrides of the AI's urgency or
+category are captured per row. Triage, KB, queue, and learning are
+channel-agnostic. See `PLAN.md` Phase 3 for the channel framework
+design.
+
+A legacy paste-a-message SPA at `/manual.html` remains available for
+the super-user to run occasional ad-hoc queries; it's hidden from
+other staff and is not part of the production flow.
 
 ---
 
@@ -40,31 +44,44 @@ match. See `PLAN.md` Phase 3 for the channel framework design.
 
 ```
 /                          repo root
-├── index.html             SPA shell. Visible tabs: Triage, Knowledge Base.
-│                          Help & Triage Queue tabs are reached from the
-│                          profile dropdown (top-right chip).
-├── login.html             magic-link landing
-├── app.js                 SPA logic (kept monolithic — split deferred)
-├── styles.css             class-based styles, CSS variables
+├── index.html             Tasking SPA shell — the site default at /.
+│                          Queue view + full-page detail view; hash
+│                          routing (#queue, #task/<id>, #events).
+├── tasking.js             Tasking SPA logic.
+├── tasking-helpers.js     Pure helpers (Node-testable) used by tasking.js.
+├── tasking-styles.css     Tasking SPA styles.
+├── manual.html            Legacy paste-and-triage SPA. Super-user only;
+│                          reached via the profile-panel link. Kept for
+│                          occasional ad-hoc queries by the super-user
+│                          (it pre-dates the tasking system).
+├── app.js                 Legacy SPA logic (loaded by manual.html).
+├── styles.css             Legacy SPA styles (loaded by manual.html).
+├── login.html             Magic-link landing.
 ├── data/
-│   ├── defaults.js        fallback constants (brand, models)
+│   ├── defaults.js        fallback constants (brand, models, thresholds)
 │   ├── triage-lib.js      pure helpers — testable in Node
 │   ├── base-prompt.js     system prompt template
 │   └── default-kb.js      seed KB (used on first run if DB empty)
 ├── netlify/
 │   └── functions/
 │       ├── auth.js        profile + tenant config + invite + signout
-│       ├── kb.js          KB / history / reviews / analyze proxy
+│       ├── kb.js          KB / history / reviews / analyze / admin
+│       │                  thin router; route modules in _lib/routes/
+│       ├── queue.js       Pull-queue actions (pull/mine/retask/reassign/
+│       │                  send/vote) — exposed at /queue/* via rewrite
 │       ├── triage.js      Anthropic /v1/messages proxy with allowlist
 │       ├── ingest.js      Generic inbound webhook (any channel with
 │       │                  an X-Relai-Api-Key); idempotent by external_id
-│       ├── worker.js      Background processor for pending rows (stub)
+│       ├── worker.js      Background processor for pending rows
+│       │                  (scheduled every 4h + manual fire button)
+│       ├── intercom.js    Intercom channel adapter (inbound webhook,
+│       │                  HMAC-verified; outbound deferred)
 │       ├── bask.js        Bask Health channel adapter (outbound) — stub
-│       └── intercom.js    Intercom channel adapter (inbound webhook —
-│                          real; outbound — deferred until worker is wired)
+│       └── sla-sweep.js   Operator-triggered SLA sweep (not scheduled)
 ├── migrations/            SQL migrations — single source of DB truth
 ├── tests/                 plain-Node unit tests (npm test)
 ├── eval/                  eval harness skeleton for triage regression tests
+├── ARCHITECTURE.md        URL routing, function map, external services
 ├── AGENTS.md              project rules for AI agents
 ├── PLAN.md                strategic roadmap
 └── README.md              this file

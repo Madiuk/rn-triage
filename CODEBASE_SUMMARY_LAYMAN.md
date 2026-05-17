@@ -1,15 +1,16 @@
 # Care Station — Codebase Summary (Plain English)
 
-**Version:** 0.4.1 · **Stage:** Internal trial
+**Version:** 0.4.2 · **Stage:** Internal trial
 
 ## What it is
 
 Care Station is a web tool that helps a clinic's staff handle the steady stream
 of patient messages — questions about medication, side effects,
 shipping, billing, appointments, anything. Instead of every message
-landing in someone's inbox to be read and answered from scratch, staff
-paste the message into Care Station and an AI assistant (Claude) does a
-first-pass read for them.
+landing in someone's inbox to be read and answered from scratch,
+messages flow into Care Station automatically (from Intercom today,
+and other channels in the future), and an AI assistant (Claude) does
+a first-pass read on each one.
 
 The AI tells staff three useful things:
 
@@ -18,6 +19,11 @@ The AI tells staff three useful things:
 2. **Who should handle it?** A nurse? Billing? Shipping? Two of those?
 3. **What might a reply look like?** A drafted response staff can edit,
    approve, and send.
+
+Triaged messages land in a shared **tasking queue**. Staff pull tasks
+from the queue (up to five at a time), open one, review the AI's draft
+in a side-by-side detail view, and edit and send (or release it back
+to the pool if it should go to someone else).
 
 If the AI isn't sure, it flags the message for a clinician to weigh in
 on. When the clinician answers, that answer is automatically added to
@@ -68,11 +74,16 @@ knowledge base.
 ## The main parts of the codebase
 
 **What the user sees**
-- `index.html` — the single page the app lives in (tabs for Inquiry and
-  Knowledge Base; help and review queue in the profile menu).
+- `index.html` + `tasking.js` + `tasking-styles.css` — the tasking
+  queue. This is the staff home page at `/`: a list of triaged tasks
+  waiting to be handled, plus a full-page detail view for whichever
+  task you're working on.
+- `tasking-helpers.js` — small helper functions used by the queue page
+  (separated so they can be unit-tested in Node).
 - `login.html` — the sign-in page.
-- `app.js` — all the page logic in one big file.
-- `styles.css` — colors, layout, fonts.
+- `manual.html` + `app.js` + `styles.css` — a legacy "paste a message
+  and triage it" page. Hidden from staff; kept around for the
+  super-user to run occasional ad-hoc queries when needed.
 
 **Shared data and helpers**
 - `data/defaults.js` — fallback settings (brand name, AI model names).
@@ -98,8 +109,8 @@ knowledge base.
   audit log, API keys). Run in order on a fresh database.
 
 **Tests and quality checks**
-- `tests/` — 23 small test files (322 individual checks) that confirm
-  helper functions and server routes behave correctly.
+- `tests/` — small test files (785 individual checks today) that
+  confirm helper functions and server routes behave correctly.
 - `eval/` — a set of sample patient messages used to check that the AI
   still gives the right answers after changes.
 
@@ -112,9 +123,13 @@ knowledge base.
 ## Where it is right now
 
 It works. It's being used internally. The latest round of work
-(versions 0.4.0–0.4.1) tidied up the server side — what used to be one
-big file is now a small router that hands work off to focused modules,
-and there are tests covering those routes. Next-up themes per the
-roadmap: making the app comfortably multi-tenant and finishing the
-pluggable-channel framework so new message sources can be added without
-rewriting the core.
+promoted the tasking queue to the main page — staff now land in the
+queue when they sign in, instead of the old "paste a message and
+triage it" flow. The legacy paste flow is still around for the
+super-user's occasional ad-hoc use, but everyone else sees only the
+queue. Earlier in 2026, versions 0.4.0–0.4.1 tidied up the server
+side — what used to be one big file is now a small router that hands
+work off to focused modules, with tests covering those routes.
+Next-up themes per the roadmap: making the app comfortably
+multi-tenant and finishing the pluggable-channel framework so new
+message sources can be added without rewriting the core.

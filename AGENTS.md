@@ -40,31 +40,44 @@ If a rule prevents an action, ask the user before bypassing it.
 
 ```
 /                          repo root
-├── index.html             single-page app shell + tabs
+├── index.html             Tasking SPA shell — the site default at /
+├── tasking.js             Tasking SPA logic
+├── tasking-helpers.js     Pure helpers (Node-testable) for tasking.js
+├── tasking-styles.css     Tasking SPA styles
+├── manual.html            Legacy paste-and-triage SPA (super-user-only;
+│                          loaded by app.js + styles.css). Pre-dates the
+│                          tasking system; reachable from the profile
+│                          panel for the super-user only.
+├── app.js                 Legacy SPA logic (monolithic; split deferred)
+├── styles.css             Legacy SPA styles
 ├── login.html             magic-link auth landing
-├── app.js                 monolithic SPA logic (modular split deferred)
-├── styles.css             all visual styles, class-based
 ├── data/
-│   ├── base-prompt.js     BASE_PROMPT (loaded as global before app.js)
+│   ├── base-prompt.js     BASE_PROMPT (loaded as global before tasking.js/app.js)
 │   ├── default-kb.js      DEFAULT_KB (loaded as global before app.js)
 │   └── defaults.js        single source for fallback constants (company name,
 │                          model IDs, etc.) — never hardcode these elsewhere
 ├── netlify/
 │   ├── functions/
 │   │   ├── auth.js        profile, invite, signout
-│   │   ├── kb.js          KB CRUD, history, reviews, /analyze proxy
+│   │   ├── kb.js          thin router — KB CRUD, history, reviews,
+│   │   │                  /analyze, /admin/*, /profile, /handoff-template
+│   │   ├── queue.js       pull-queue actions (pull/mine/retask/reassign/
+│   │   │                  send/vote) — exposed at /queue/* via rewrite
 │   │   ├── triage.js      Anthropic /v1/messages proxy with model allowlist
 │   │   ├── ingest.js      generic inbound webhook (any channel —
 │   │   │                  EHR, email, Healthie, etc.); idempotent by external_id
-│   │   ├── worker.js      background processor for pending ingests (stub)
-│   │   └── bask.js        first channel adapter (Bask Health) — stub.
-│   │                      future adapters land under channels/ — see PLAN Phase 3
+│   │   ├── worker.js      background processor for pending ingests
+│   │   │                  (scheduled every 4h + manual "Fetch & triage")
+│   │   ├── intercom.js    Intercom inbound webhook (HMAC-verified)
+│   │   ├── bask.js        Bask Health channel adapter — outbound stub
+│   │   └── sla-sweep.js   operator-triggered SLA sweep (not scheduled)
 │   └── (netlify.toml)
 ├── migrations/            SQL files — single source of truth for DB schema.
 │                          Run in numeric order. New schema changes = new file.
 ├── tests/                 plain-Node unit tests (no framework). `npm test`.
 ├── eval/                  eval harness skeleton (eval cases for regression
 │                          testing of triage outputs)
+├── ARCHITECTURE.md        URL routing, function map, external services
 ├── AGENTS.md              this file
 ├── PLAN.md                strategic roadmap
 └── README.md              human-facing project doc
@@ -83,10 +96,11 @@ If a rule prevents an action, ask the user before bypassing it.
    minimum: `console.error('<context>:', e.message)`. Better: surface to
    the user via a toast or status indicator.
 
-3. **Never hardcode tenant-specific values** in `app.js`, `index.html`, or
-   any function. Company name, theme colors, allowed categories, model
-   names — all come from `data/defaults.js` (fallback) or the `tenants`
-   table (when populated). One source per value.
+3. **Never hardcode tenant-specific values** in `tasking.js`, `app.js`,
+   `index.html`, `manual.html`, or any function. Company name, theme
+   colors, allowed categories, model names — all come from
+   `data/defaults.js` (fallback) or the `tenants` table (when
+   populated). One source per value.
 
 4. **Never introduce a build step or new framework dependency** without
    user approval. The site must keep deploying as static files + Netlify
@@ -164,8 +178,9 @@ Don't repeat them.
   a 1000-line file from scratch unless you've just read all 1000 lines.
 - **Half-removed features** where the UI is gone but the backend handler
   still exists, or vice versa. When removing a feature, search across
-  `app.js`, `kb.js`, `index.html`, `styles.css` for every reference and
-  remove all of them in one commit.
+  `tasking.js`, `app.js`, `kb.js`, `index.html`, `manual.html`,
+  `styles.css`, `tasking-styles.css` for every reference and remove
+  all of them in one commit.
 - **Dead branches**: `if (s === 'snippets') return 'notes' else return 'notes'`.
   When you find one, delete it; don't preserve it "just in case."
 - **Two sources of truth** for one value. Centralize in `data/defaults.js`
