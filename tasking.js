@@ -612,9 +612,9 @@
       + '<div class="detail-section">'
       + '<div class="detail-section-label">Actions</div>'
       + '<div class="detail-actions">'
-      +   '<button class="action-btn primary" onclick="sendTask()">Send <span class="sandbox-tag">Sandbox</span></button>'
-      +   '<button class="action-btn" onclick="retaskTask()">Re-task</button>'
-      +   '<button class="action-btn warning" onclick="openReassign()">Reassign category</button>'
+      +   '<button id="sendBtn" class="action-btn primary" onclick="sendTask()">Send <span class="sandbox-tag">Sandbox</span></button>'
+      +   '<button id="retaskBtn" class="action-btn" onclick="retaskTask()">Re-task</button>'
+      +   '<button id="reassignBtn" class="action-btn warning" onclick="openReassign()">Reassign category</button>'
       + '</div>'
       + '</div>';
 
@@ -634,7 +634,33 @@
   // Task actions
   // ─────────────────────────────────────────────────────────────────
 
-  window.sendTask = async function () {
+  // Helper for the action buttons — disables every action button
+  // for the duration of the in-flight call so a double-click or
+  // accidental second click can't race the first request to a
+  // now-stale DB state (the cause of the "Re-task 404 after success"
+  // pattern reported 2026-05-17). Sets the active button's text
+  // while disabled so the user sees something's happening.
+  function withButtonLock(activeBtnId, busyLabel, fn) {
+    const ids = ['sendBtn', 'retaskBtn', 'reassignBtn'];
+    const buttons = ids.map(id => document.getElementById(id)).filter(Boolean);
+    const active = document.getElementById(activeBtnId);
+    const originalText = active ? active.innerHTML : '';
+    buttons.forEach(b => { b.disabled = true; });
+    if (active) active.innerHTML = busyLabel;
+    return (async () => {
+      try {
+        await fn();
+      } finally {
+        // Re-enable. On a successful action that closes the panel,
+        // the buttons disappear with the panel anyway; this only
+        // matters on the failure path.
+        buttons.forEach(b => { b.disabled = false; });
+        if (active && active.isConnected) active.innerHTML = originalText;
+      }
+    })();
+  }
+
+  window.sendTask = function () {
     const tid = state.openTaskId;
     if (!tid) return;
     const textarea = document.getElementById('detailDraft');
@@ -643,40 +669,44 @@
       toast('Cannot send an empty response.', 'warn');
       return;
     }
-    try {
-      const resp = await api('/queue/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ triage_id: tid, final_text: finalText }),
-      });
-      const sentVia = resp && resp.sent_via;
-      const sandboxed = sentVia && sentVia.indexOf('sandbox:') === 0;
-      toast(
-        sandboxed ? 'Sent (sandbox — no Intercom delivery). State recorded.' : 'Sent via ' + sentVia,
-        sandboxed ? 'warn' : 'success'
-      );
-      closeSidePanel();
-      await refreshQueue();
-    } catch (e) {
-      toast('Send failed: ' + e.message, 'error');
-    }
+    return withButtonLock('sendBtn', 'Sending…', async () => {
+      try {
+        const resp = await api('/queue/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ triage_id: tid, final_text: finalText }),
+        });
+        const sentVia = resp && resp.sent_via;
+        const sandboxed = sentVia && sentVia.indexOf('sandbox:') === 0;
+        toast(
+          sandboxed ? 'Sent (sandbox — no Intercom delivery). State recorded.' : 'Sent via ' + sentVia,
+          sandboxed ? 'warn' : 'success'
+        );
+        closeSidePanel();
+        await refreshQueue();
+      } catch (e) {
+        toast('Send failed: ' + e.message, 'error');
+      }
+    });
   };
 
-  window.retaskTask = async function () {
+  window.retaskTask = function () {
     const tid = state.openTaskId;
     if (!tid) return;
-    try {
-      await api('/queue/retask', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ triage_id: tid }),
-      });
-      toast('Task returned to the pool.', 'success');
-      closeSidePanel();
-      await refreshQueue();
-    } catch (e) {
-      toast('Re-task failed: ' + e.message, 'error');
-    }
+    return withButtonLock('retaskBtn', 'Re-tasking…', async () => {
+      try {
+        await api('/queue/retask', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ triage_id: tid }),
+        });
+        toast('Task returned to the pool.', 'success');
+        closeSidePanel();
+        await refreshQueue();
+      } catch (e) {
+        toast('Re-task failed: ' + e.message, 'error');
+      }
+    });
   };
 
   // ─────────────────────────────────────────────────────────────────
