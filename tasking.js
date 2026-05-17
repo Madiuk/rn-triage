@@ -729,7 +729,7 @@
     const tbody = document.getElementById('staffTableBody');
     if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="loading-row">Loading…</td></tr>';
     try {
-      const resp = await api('/auth/staff', { method: 'GET' });
+      const resp = await api('/.netlify/functions/auth/staff', { method: 'GET' });
       state.staffList = (resp && Array.isArray(resp.staff)) ? resp.staff : [];
       renderStaffList();
     } catch (e) {
@@ -868,7 +868,7 @@
     showInviteMsg('', '');
 
     try {
-      await api('/auth/invite', {
+      await api('/.netlify/functions/auth/invite', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
