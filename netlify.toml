@@ -3,7 +3,7 @@
   # Skip the build if no deployable file changed in the commit. Migrations,
   # tests, eval cases, and root markdown docs don't affect the served site,
   # so a doc-only commit shouldn't burn a build minute.
-  ignore = "git diff --quiet HEAD^ HEAD -- index.html login.html app.js styles.css data/ netlify/ demo.html demo.js demo-styles.css demo-data.json tasking.html tasking.js tasking-styles.css"
+  ignore = "git diff --quiet HEAD^ HEAD -- index.html login.html app.js styles.css data/ netlify/ demo.html demo.js demo-styles.css demo-data.json tasking.html tasking.js tasking-helpers.js tasking-styles.css"
 
 [functions]
   node_bundler = "esbuild"
@@ -18,8 +18,21 @@
   status = 200
   force = true
 
-# Background worker — processes pending query_history rows once per
-# minute. Comment out until Bask ingest goes live.
-# [[scheduled.functions]]
-#   name = "worker"
-#   schedule = "* * * * *"
+# Background worker — processes pending query_history rows on a cron.
+# Cadence: every 4 hours (00:00, 04:00, 08:00, 12:00, 16:00, 20:00 UTC).
+# Conservative for the current sandbox/training phase: Intercom is the
+# only live inbound channel, volume is low, OUTBOUND_LIVE_MODE is off
+# (no replies actually ship to patients), and the user can hit the
+# manual "Fetch & triage" button in tasking.html anytime for immediate
+# processing.
+#
+# When this moves to real production patient care, the cadence should
+# tighten to every 15–30 minutes so tripwire-flagged messages get
+# safety-classified faster.
+#
+# Cost note: idle invocations (empty queue) make zero Anthropic calls;
+# the only cost is per actual triage. At current volume (~10 rows/day),
+# expect $0.05–$0.10/day total Anthropic spend through this path.
+[[scheduled.functions]]
+  name = "worker"
+  schedule = "0 */4 * * *"

@@ -722,6 +722,59 @@
   window.refreshQueue = refreshQueue;
 
   // ─────────────────────────────────────────────────────────────────
+  // Manual "Fetch & triage" — fires the background worker, then
+  // refreshes the queue. The scheduler in netlify.toml runs every 4h
+  // automatically; this button is the on-demand counterpart for
+  // moments when staff sits down and wants today's batch processed
+  // immediately.
+  //
+  // The worker call can take 25-30s for a full batch of 5 (Sonnet
+  // latency ~5-7s per row). The button is disabled with a "Triaging…"
+  // label during the call so users don't double-fire.
+  //
+  // The buildWorkerToast helper is defined in tasking-helpers.js
+  // (loaded before this file) so it's Node-testable in isolation.
+  // ─────────────────────────────────────────────────────────────────
+
+  window.fetchAndTriage = async function () {
+    const btn = document.getElementById('fetchBtn');
+    if (!btn || btn.disabled) return;
+    const labelEl = btn.querySelector('.fetch-btn-label');
+    const iconEl = btn.querySelector('.fetch-btn-icon');
+    const originalLabel = labelEl ? labelEl.textContent : '';
+    const originalIcon = iconEl ? iconEl.textContent : '';
+
+    btn.disabled = true;
+    if (labelEl) labelEl.textContent = 'Triaging…';
+    if (iconEl) iconEl.textContent = '⏳';
+    toast('Firing worker — this may take 30–60s for a full batch.', 'warn');
+
+    try {
+      // Worker endpoint is intended for the scheduler / manual fires.
+      // No auth required at the function side; the gate is "you have
+      // to be on the page already" (logged in to reach tasking.html).
+      const r = await fetch('/.netlify/functions/worker', { method: 'GET' });
+      const body = await r.json().catch(() => null);
+      if (!r.ok) {
+        toast('Worker error (' + r.status + '): ' + (body && body.error || 'unknown'), 'error');
+        return;
+      }
+      // buildWorkerToast is a top-level helper loaded by tasking-helpers.js
+      const t = (typeof buildWorkerToast === 'function')
+        ? buildWorkerToast(body)
+        : { msg: 'Triaged ' + ((body && body.processed) || 0) + ' task(s).', kind: 'success' };
+      toast(t.msg, t.kind);
+      await refreshQueue();
+    } catch (e) {
+      toast('Worker call failed: ' + e.message, 'error');
+    } finally {
+      btn.disabled = false;
+      if (labelEl) labelEl.textContent = originalLabel;
+      if (iconEl) iconEl.textContent = originalIcon;
+    }
+  };
+
+  // ─────────────────────────────────────────────────────────────────
   // Toast + small helpers
   // ─────────────────────────────────────────────────────────────────
 
