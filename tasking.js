@@ -166,24 +166,22 @@
   // ─────────────────────────────────────────────────────────────────
 
   async function init() {
-    // 0. Hash-returning auth flow handler. Supabase emails (magic
-    // link / invite / recovery) drop the user back at a redirect URL
-    // with a session JWT in the URL hash:
+    // 0. Hash-returning auth flow handler. Supabase emails (invite,
+    // recovery, etc.) drop the user back at a redirect URL with a
+    // session JWT in the URL hash:
     //   #access_token=...&refresh_token=...&type=<recovery|invite|magiclink|signup>
     //
-    // For misconfiguration / dashboard-drift / old-email-in-inbox
-    // reasons, recovery and invite tokens can land here even though
-    // login.html / auth.js try to route them to the dedicated
-    // pages. Silently accepting them as a session is the bug Brad
-    // hit 2026-05-17 — a "reset password" email link logged him in
-    // without ever prompting for a new password.
+    // Phase 4 retired magic-link sign-in entirely. Only recovery and
+    // invite tokens are still recognized; everything else (magiclink,
+    // signup, no type) is bounced to /login.html with a banner. The
+    // alternative — silently accepting the session — is exactly the
+    // bug that hit Brad 2026-05-17 (a recovery token logged him in
+    // without ever prompting for a new password).
     //
-    //   recovery  → bounce to /reset-password.html with hash preserved
-    //   invite    → bounce to /accept-invite.html with hash preserved
-    //   magiclink → accept as session (legacy; goes away phase 4)
-    //   signup    → accept as session (shouldn't fire post-phase-1)
-    //   no type   → accept as session (back-compat with the old OTP
-    //               path; also goes away phase 4)
+    //   recovery  → /reset-password.html (with hash preserved)
+    //   invite    → /accept-invite.html  (with hash preserved)
+    //   anything  → /login.html?reason=magiclink_disabled (no session)
+    //   else
     const h = window.location.hash;
     if (h && h.indexOf('access_token') !== -1) {
       try {
@@ -198,14 +196,13 @@
           window.location.replace('/accept-invite.html' + h);
           return;
         }
-        const refresh = params.get('refresh_token');
         if (token) {
-          localStorage.setItem('relai_session', JSON.stringify({
-            access_token: token,
-            refresh_token: refresh || '',
-            timestamp: Date.now(),
-          }));
-          history.replaceState(null, '', window.location.pathname);
+          // Magic-link / signup / no-type: bounce to login with a
+          // reason flag. login.html surfaces the banner explaining
+          // that magic-link sign-in is no longer supported. No
+          // session is saved.
+          window.location.replace('/login.html?reason=magiclink_disabled');
+          return;
         }
       } catch (e) {
         console.error('tasking.parseAuthHash:', e.message);

@@ -97,6 +97,12 @@ input[type=password]:focus{
   font-size:13px;color:#6c757d;text-decoration:none;
 }
 .back-link:hover{color:#2563eb;}
+.banner{
+  margin-bottom:20px;padding:12px 14px;
+  border-radius:10px;font-size:13px;line-height:1.5;
+  background:#fffbeb;border:1.5px solid #fde68a;color:#92400e;
+}
+.banner strong{color:#78350f;}
 </style>
 </head>
 <body>
@@ -112,6 +118,16 @@ input[type=password]:focus{
 
   <!-- View 1: Sign in (email + password) -->
   <div id="signInView">
+    <!-- Banner shown when a user arrives here from a deprecated auth
+         flow (an old magic-link email, or a hash with type=signup/
+         no-type). Surfaced by the hash handler below or by a
+         ?reason=magiclink_disabled query param from tasking.js. -->
+    <div id="signInBanner" class="banner" style="display:none;">
+      <strong>Magic-link sign-in is no longer supported.</strong>
+      Sign in with your email and password below. If you don't
+      remember your password, use <em>Forgot password?</em>
+    </div>
+
     <h1>Sign in to your workspace</h1>
     <p class="sub">Enter your email and password to continue.</p>
 
@@ -165,19 +181,6 @@ input[type=password]:focus{
     <a href="#" class="back-link" style="display:block;text-align:center;margin-top:18px;" onclick="showSignInView();return false;">&larr; Back to sign in</a>
   </div>
 
-  <!-- View 4: Signed in via magic link (legacy magic-link return path).
-       Kept so anyone with an old magic-link email lying around still
-       lands somewhere coherent until phase 4 disables magic link in
-       the Supabase dashboard. -->
-  <div id="signedInView" style="display:none;">
-    <span class="check-icon">&#10003;</span>
-    <h1 style="text-align:center;margin-bottom:10px;color:#15803d;">You're signed in</h1>
-    <p class="sub" style="text-align:center;">Your identity has been verified. Click below to enter your workspace.</p>
-    <button class="btn" onclick="window.location.href = getPostLoginUrl()">
-      Enter Workspace &rarr;
-    </button>
-  </div>
-
   <div class="footer">Protected by Care Station</div>
 </div>
 
@@ -189,22 +192,21 @@ var SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 
 // ── Handle hash-returning auth flows ─────────────────────────────────────────
 //
-// Supabase emails land users back here (or at the Site URL) with a
-// session JWT in the URL hash, e.g.:
+// Supabase emails land users back here with a session JWT in the URL
+// hash, e.g.:
 //   #access_token=...&refresh_token=...&type=<recovery|invite|magiclink|signup>
 //
-// What we do depends on `type` — accepting a recovery token as a
-// session would log the user in WITHOUT requiring a new password
-// (the bug that hit Brad 2026-05-17). Recovery + invite tokens
-// belong on the dedicated set-password pages.
+// Only recovery and invite are accepted as legitimate hash-returning
+// flows — they redirect to their dedicated set-password pages.
+// Everything else (magiclink, signup, no type) is rejected: phase 4
+// retired magic-link sign-in entirely, and self-signup never existed
+// post-phase-1. The user is bounced to the sign-in form with an
+// explanatory banner instead of being silently signed in.
 //
 //   recovery  → /reset-password.html (with hash preserved)
 //   invite    → /accept-invite.html  (with hash preserved)
-//   magiclink → View 4 ("you're signed in") — legacy until phase 4
-//   signup    → View 4 — shouldn't happen post-phase-1 (no self-
-//               signup), but the path is defensive
-//   no type   → fall through to magic-link behavior for back-compat
-//               with the old OTP path (also goes away phase 4)
+//   anything  → strip hash, show sign-in form + banner via
+//   else       ?reason=magiclink_disabled
 (function () {
   var h = window.location.hash;
   if (!h || !h.includes('access_token')) return;
@@ -223,25 +225,10 @@ var SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
     return;
   }
 
-  var refresh = p.get('refresh_token');
-  localStorage.setItem('relai_session', JSON.stringify({
-    access_token: token,
-    refresh_token: refresh || '',
-    timestamp: Date.now(),
-  }));
-  history.replaceState(null, '', window.location.pathname);
-
-  function showSignedIn() {
-    ['signInView','forgotView','resetSentView','signedInView'].forEach(function (id) {
-      var el = document.getElementById(id);
-      if (el) el.style.display = (id === 'signedInView') ? 'block' : 'none';
-    });
-  }
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', showSignedIn);
-  } else {
-    showSignedIn();
-  }
+  // Reject magic-link / signup / no-type. Strip the hash so a
+  // refresh doesn't replay it, and set the reason query string
+  // so the load-time banner handler shows the explanation.
+  history.replaceState(null, '', '/login.html?reason=magiclink_disabled');
 })();
 
 // ── Post-login destination (supports ?next= for return-URL redirects) ────────
@@ -276,11 +263,33 @@ function getPostLoginUrl() {
 
 // ── View toggling ────────────────────────────────────────────────────────────
 function showOnly(viewId) {
-  ['signInView','forgotView','resetSentView','signedInView'].forEach(function (id) {
+  ['signInView','forgotView','resetSentView'].forEach(function (id) {
     var el = document.getElementById(id);
     if (el) el.style.display = (id === viewId) ? 'block' : 'none';
   });
 }
+
+// ── Banner: surfaced when arriving from a deprecated auth flow ──────────────
+// Triggered by ?reason=magiclink_disabled on the URL. Set by the
+// hash handler above (when a magiclink/signup hash arrives here) and
+// by tasking.js's init handler (when the same hash arrives at /).
+(function () {
+  try {
+    var reason = new URLSearchParams(window.location.search).get('reason');
+    if (reason !== 'magiclink_disabled') return;
+    function reveal() {
+      var b = document.getElementById('signInBanner');
+      if (b) b.style.display = 'block';
+    }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', reveal);
+    } else {
+      reveal();
+    }
+  } catch (e) {
+    console.error('login.banner:', e.message);
+  }
+})();
 function showSignInView() {
   showOnly('signInView');
   var msg = document.getElementById('signInMsg'); if (msg) msg.className = 'msg';
