@@ -2,7 +2,7 @@ const {
   buildTriagePatch,
   buildFinSkipPatch,
   FIN_SKIP_NOTE,
-} = require('../netlify/functions/worker.js');
+} = require('../netlify/functions/worker-background.js');
 
 describe('buildFinSkipPatch', () => {
   it('returns status=reviewed', () => {

@@ -2272,24 +2272,37 @@
     btn.disabled = true;
     if (labelEl) labelEl.textContent = 'Triaging…';
     if (iconEl) iconEl.textContent = '⏳';
-    toast('Firing worker — this may take 30–60s for a full batch.', 'warn');
 
+    // Background functions on Netlify return 202 Accepted immediately
+    // with no body and keep running for up to 15 minutes. Before this
+    // migration, the sync function timed out at 10s and surfaced as a
+    // 502 + "unknown" toast whenever a full batch ran (Brad 2026-05-17).
+    //
+    // Trade-off: we no longer get the processed-count toast when the
+    // worker finishes. The queue auto-refreshes after WORKER_BG_POLL
+    // seconds as a convenience; the user can also click Refresh
+    // manually to see the rows land.
+    const WORKER_BG_POLL = 45000;
+    let pollTimer = null;
     try {
-      // Worker endpoint is intended for the scheduler / manual fires.
-      // No auth required at the function side; the gate is "you have
-      // to be on the page already" (logged in to reach tasking.html).
-      const r = await fetch('/.netlify/functions/worker', { method: 'GET' });
-      const body = await r.json().catch(() => null);
-      if (!r.ok) {
-        toast('Worker error (' + r.status + '): ' + (body && body.error || 'unknown'), 'error');
+      const r = await fetch('/.netlify/functions/worker-background', { method: 'POST' });
+      if (r.status !== 202 && !r.ok) {
+        // 202 is the documented background-function success status;
+        // tolerate 2xx too. Anything else is an actual error — try
+        // to surface its body (worker-background.js returns plain
+        // text for errors, so the JSON parse may fail).
+        const text = await r.text().catch(() => '');
+        let detail = '';
+        try { const j = JSON.parse(text); detail = j.error || ''; } catch (_) { detail = text.slice(0, 200); }
+        toast('Worker error (' + r.status + '): ' + (detail || 'unknown'), 'error');
         return;
       }
-      // buildWorkerToast is a top-level helper loaded by tasking-helpers.js
-      const t = (typeof buildWorkerToast === 'function')
-        ? buildWorkerToast(body)
-        : { msg: 'Triaged ' + ((body && body.processed) || 0) + ' task(s).', kind: 'success' };
-      toast(t.msg, t.kind);
-      await refreshQueue();
+      toast('Worker started — queue will refresh in ~45s. Click Refresh anytime to see new rows.', 'warn');
+      pollTimer = setTimeout(function () {
+        // refreshQueue is the same handler the Refresh button uses;
+        // safe to call repeatedly.
+        refreshQueue();
+      }, WORKER_BG_POLL);
     } catch (e) {
       toast('Worker call failed: ' + e.message, 'error');
     } finally {
