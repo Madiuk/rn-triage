@@ -96,6 +96,10 @@
           <span>Pull from these categories</span>
           <button class="pull-dropdown-close" onclick="togglePullDropdown()">&times;</button>
         </div>
+        <div class="pull-dropdown-toolbar">
+          <button class="pull-dropdown-select-all" onclick="selectAllEligible()">Select all eligible</button>
+          <button class="pull-dropdown-select-none" onclick="selectNone()">Clear</button>
+        </div>
         <div class="pull-dropdown-body" id="pullDropdownBody"></div>
         <div class="pull-dropdown-foot">
           <button class="pull-dropdown-cancel" onclick="togglePullDropdown()">Cancel</button>

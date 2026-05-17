@@ -406,6 +406,32 @@ body {
   font-size: 20px; color: var(--text-muted);
   cursor: pointer; padding: 0; width: 24px; height: 24px;
 }
+.pull-dropdown-toolbar {
+  display: flex;
+  gap: 6px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  background: #fafbfc;
+}
+.pull-dropdown-select-all,
+.pull-dropdown-select-none {
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid var(--border);
+  background: white;
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+.pull-dropdown-select-all:hover,
+.pull-dropdown-select-none:hover {
+  background: var(--bg-page);
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+
 .pull-dropdown-body {
   padding: 8px 4px;
   max-height: 360px;

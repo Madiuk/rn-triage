@@ -214,6 +214,30 @@ function extractMessage(payload) {
   return null;
 }
 
+// Intercom-emitted system placeholder bodies. These are NOT real
+// patient text — Intercom inserts them when a conversation.user.created
+// event fires without an actual typed message (button-initiated
+// conversations, certain Messenger entry points, API-initiated chats).
+// Letting them through wastes Anthropic spend on triaging an empty
+// message + pollutes the staff queue with rows whose AI draft is
+// always "your message didn't come through." Observed 2026-05-17:
+// 9 of 12 inbound rows from one morning matched this exact body.
+//
+// Match is exact-string (after trim). If Intercom changes the
+// wording, this filter no-ops and we'd see junk rows again — at
+// which point we add the new pattern. Better than a fuzzy regex
+// that could swallow real short messages from patients.
+const INTERCOM_SYSTEM_PLACEHOLDERS = new Set([
+  'SYSTEM MESSAGE: CONVERSATION STARTED',
+]);
+
+function isSystemPlaceholder(text) {
+  if (typeof text !== 'string') return false;
+  const trimmed = text.trim();
+  if (!trimmed) return false;  // empty bodies are handled by the earlier `if (!text)` branch
+  return INTERCOM_SYSTEM_PLACEHOLDERS.has(trimmed);
+}
+
 // Pull the Fin (Intercom AI Agent) participation flag from a webhook
 // payload. Strict-equals on `true` so missing field, undefined, null,
 // 0, '' all return false safely. When true, the handler logs a
@@ -293,6 +317,18 @@ exports.handler = async function (event) {
       statusCode: 200,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ignored: true, reason: 'empty message after html strip' }),
+    };
+  }
+  if (isSystemPlaceholder(text)) {
+    logError('intercom.system_placeholder_skipped', null, {
+      topic: topic,
+      intercom_conversation_id: msg.conversationId,
+      body_preview: text.slice(0, 80),
+    });
+    return {
+      statusCode: 200,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ignored: true, reason: 'system_placeholder' }),
     };
   }
 
@@ -417,3 +453,5 @@ exports.verifyIntercomSignature = verifyIntercomSignature;
 exports.stripHtml = stripHtml;
 exports.extractMessage = extractMessage;
 exports.isAiAgentParticipated = isAiAgentParticipated;
+exports.isSystemPlaceholder = isSystemPlaceholder;
+exports.INTERCOM_SYSTEM_PLACEHOLDERS = INTERCOM_SYSTEM_PLACEHOLDERS;

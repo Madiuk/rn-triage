@@ -465,6 +465,33 @@
     d.setAttribute('aria-hidden', d.classList.contains('active') ? 'false' : 'true');
   };
 
+  // Select all categories the caller is eligible for (i.e., the
+  // checkboxes that aren't disabled). Quick-win for the no-pre-check
+  // problem when profile.category_preferences isn't yet implemented.
+  window.selectAllEligible = function () {
+    const body = document.getElementById('pullDropdownBody');
+    if (!body) return;
+    const inputs = body.querySelectorAll('input[type="checkbox"]');
+    inputs.forEach(input => {
+      if (!input.disabled) {
+        input.checked = true;
+        state.selectedPullCategories.add(input.dataset.cat);
+      }
+    });
+    updatePullConfirmState();
+  };
+
+  window.selectNone = function () {
+    const body = document.getElementById('pullDropdownBody');
+    if (!body) return;
+    const inputs = body.querySelectorAll('input[type="checkbox"]');
+    inputs.forEach(input => {
+      input.checked = false;
+    });
+    state.selectedPullCategories.clear();
+    updatePullConfirmState();
+  };
+
   window.confirmPull = async function () {
     const btn = document.getElementById('pullDropdownConfirm');
     if (!btn || btn.disabled) return;

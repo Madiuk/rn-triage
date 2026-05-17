@@ -1,5 +1,12 @@
 const crypto = require('crypto');
-const { verifyIntercomSignature, stripHtml, extractMessage, isAiAgentParticipated } = require('../netlify/functions/intercom.js');
+const {
+  verifyIntercomSignature,
+  stripHtml,
+  extractMessage,
+  isAiAgentParticipated,
+  isSystemPlaceholder,
+  INTERCOM_SYSTEM_PLACEHOLDERS,
+} = require('../netlify/functions/intercom.js');
 
 describe('verifyIntercomSignature', () => {
   const secret = 'test-secret-for-hmac-verification';
@@ -227,5 +234,52 @@ describe('isAiAgentParticipated', () => {
   it('returns false for truthy-but-not-strict-true values', () => {
     assert.equal(isAiAgentParticipated({ data: { item: { ai_agent_participated: 1 } } }), false);
     assert.equal(isAiAgentParticipated({ data: { item: { ai_agent_participated: 'true' } } }), false);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────
+// isSystemPlaceholder — Intercom-emitted placeholder filter
+// ─────────────────────────────────────────────────────────────────
+
+describe('isSystemPlaceholder', () => {
+  it('returns true for the exact known placeholder', () => {
+    assert.equal(isSystemPlaceholder('SYSTEM MESSAGE: CONVERSATION STARTED'), true);
+  });
+
+  it('returns true with leading/trailing whitespace (trim-tolerant)', () => {
+    assert.equal(isSystemPlaceholder('  SYSTEM MESSAGE: CONVERSATION STARTED  '), true);
+    assert.equal(isSystemPlaceholder('\nSYSTEM MESSAGE: CONVERSATION STARTED\n'), true);
+  });
+
+  it('returns false for real patient messages', () => {
+    assert.equal(isSystemPlaceholder('Hi, I have a question about my prescription.'), false);
+    assert.equal(isSystemPlaceholder('Hello ?? Are you going to be fixing this'), false);
+    assert.equal(isSystemPlaceholder('I am having severe side effects'), false);
+  });
+
+  it('is case-sensitive — a stray lowercase variant is NOT filtered (we want to know if Intercom changes the wording)', () => {
+    // If Intercom ever emits a lowercase variant, this returns false
+    // → row lands in queue → human investigates → we extend the list.
+    // The conservative choice: catch what we know, surface what we don't.
+    assert.equal(isSystemPlaceholder('system message: conversation started'), false);
+  });
+
+  it('returns false for empty / whitespace-only / non-string input', () => {
+    assert.equal(isSystemPlaceholder(''), false);
+    assert.equal(isSystemPlaceholder('   '), false);
+    assert.equal(isSystemPlaceholder(null), false);
+    assert.equal(isSystemPlaceholder(undefined), false);
+    assert.equal(isSystemPlaceholder(42), false);
+  });
+
+  it('exports the placeholder set so callers can introspect / extend', () => {
+    assert.ok(INTERCOM_SYSTEM_PLACEHOLDERS instanceof Set);
+    assert.ok(INTERCOM_SYSTEM_PLACEHOLDERS.has('SYSTEM MESSAGE: CONVERSATION STARTED'));
+  });
+
+  it('returns false for messages that CONTAIN the placeholder but are longer', () => {
+    // A real patient could quote the placeholder back as part of their
+    // message; we should NOT filter those — exact match only.
+    assert.equal(isSystemPlaceholder('Hi! SYSTEM MESSAGE: CONVERSATION STARTED is weird'), false);
   });
 });
