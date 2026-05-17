@@ -1,5 +1,5 @@
 const crypto = require('crypto');
-const { verifyIntercomSignature, stripHtml, extractMessage } = require('../netlify/functions/intercom.js');
+const { verifyIntercomSignature, stripHtml, extractMessage, isAiAgentParticipated } = require('../netlify/functions/intercom.js');
 
 describe('verifyIntercomSignature', () => {
   const secret = 'test-secret-for-hmac-verification';
@@ -189,5 +189,43 @@ describe('extractMessage', () => {
     assert.equal(extractMessage({}), null);
     assert.equal(extractMessage({ topic: 'conversation.user.created' }), null);
     assert.equal(extractMessage({ topic: 'conversation.user.created', data: {} }), null);
+  });
+});
+
+describe('isAiAgentParticipated', () => {
+  it('returns true when the flag is true on the conversation item', () => {
+    const payload = { topic: 'conversation.user.replied', data: { item: { id: 'c1', ai_agent_participated: true } } };
+    assert.equal(isAiAgentParticipated(payload), true);
+  });
+
+  it('returns false when the flag is explicitly false', () => {
+    const payload = { topic: 'conversation.user.replied', data: { item: { id: 'c1', ai_agent_participated: false } } };
+    assert.equal(isAiAgentParticipated(payload), false);
+  });
+
+  it('returns false when the flag is missing from the item', () => {
+    const payload = { topic: 'conversation.user.replied', data: { item: { id: 'c1' } } };
+    assert.equal(isAiAgentParticipated(payload), false);
+  });
+
+  it('returns false when item is missing', () => {
+    assert.equal(isAiAgentParticipated({ topic: 'x', data: {} }), false);
+  });
+
+  it('returns false when data is missing', () => {
+    assert.equal(isAiAgentParticipated({ topic: 'x' }), false);
+  });
+
+  it('returns false for null / undefined input', () => {
+    assert.equal(isAiAgentParticipated(null), false);
+    assert.equal(isAiAgentParticipated(undefined), false);
+  });
+
+  // Strict equality with `true` — only the boolean true counts. A
+  // string 'true' or a numeric 1 must NOT trigger the routing change;
+  // we only react when Intercom sends an actual boolean.
+  it('returns false for truthy-but-not-strict-true values', () => {
+    assert.equal(isAiAgentParticipated({ data: { item: { ai_agent_participated: 1 } } }), false);
+    assert.equal(isAiAgentParticipated({ data: { item: { ai_agent_participated: 'true' } } }), false);
   });
 });

@@ -15,6 +15,16 @@
 //   Phase 4 lands, the webhook URL would be tenant-keyed (e.g.
 //   /intercom/<tenant-slug>) and we'd resolve tenant from the path.
 //
+// No-DELETE policy:
+//   Care Station never initiates destructive operations on clinical
+//   conversations. This file is inbound-only today; when outbound is
+//   added (Week 3 ROADMAP), the outbound surface must NOT include
+//   DELETE /conversations/{id} or any equivalent. Incoming deletion
+//   events (conversation_part.redacted, message.deleted) are
+//   observations of upstream UI actions — if we later choose to
+//   reflect them in local state, that's still observation, not
+//   initiation.
+//
 // Supported event topics (everything else is acknowledged with 200
 // so Intercom doesn't retry):
 //   conversation.user.created — initial user message in a new
@@ -204,6 +214,17 @@ function extractMessage(payload) {
   return null;
 }
 
+// Pull the Fin (Intercom AI Agent) participation flag from a webhook
+// payload. Strict-equals on `true` so missing field, undefined, null,
+// 0, '' all return false safely. When true, the handler logs a
+// high-visibility warning and persists fin_participated on the
+// inserted row; the worker uses that flag to route the task to human
+// review instead of running Care Station's AI on top of Fin's output.
+function isAiAgentParticipated(payload) {
+  if (!payload || !payload.data || !payload.data.item) return false;
+  return payload.data.item.ai_agent_participated === true;
+}
+
 // ── Handler ────────────────────────────────────────────────────────
 
 exports.handler = async function (event) {
@@ -275,6 +296,20 @@ exports.handler = async function (event) {
     };
   }
 
+  // Fin defense: if Intercom's AI Agent participated in this
+  // conversation, log it high-visibility and flag the row. The worker
+  // sees fin_participated=true and routes to human review instead of
+  // running Care Station's AI on top of Fin's output. Fin is dormant
+  // in this workspace today, so any occurrence here means the
+  // workspace configuration has changed and we want to know about it.
+  const finFlag = isAiAgentParticipated(payload);
+  if (finFlag) {
+    logError('intercom.fin_participated', null, {
+      topic: topic,
+      intercom_conversation_id: msg.conversationId,
+    });
+  }
+
   const writeKey = SUPABASE_SERVICE_KEY || SUPABASE_ANON_KEY;
   const h = {
     'Content-Type': 'application/json',
@@ -330,6 +365,7 @@ exports.handler = async function (event) {
     follow_up_questions: [],
     draft_response: '',
     nurse_name: msg.authorName || 'Intercom',
+    fin_participated: finFlag,
   };
 
   try {
@@ -380,3 +416,4 @@ exports.handler = async function (event) {
 exports.verifyIntercomSignature = verifyIntercomSignature;
 exports.stripHtml = stripHtml;
 exports.extractMessage = extractMessage;
+exports.isAiAgentParticipated = isAiAgentParticipated;

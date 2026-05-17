@@ -1,0 +1,38 @@
+-- 0023_query_history_fin_participated.sql
+--
+-- Defense-in-depth flag for Intercom inbound — records whether
+-- Intercom's AI Agent ("Fin") participated in a conversation before
+-- the row landed in our triage queue. Set by
+-- netlify/functions/intercom.js when
+-- payload.data.item.ai_agent_participated === true on an inbound
+-- webhook.
+--
+-- Background:
+--   Fin is currently dormant in the Big Easy workspace (no active
+--   workflows, no charges). If a workflow is ever added that routes
+--   conversations through Fin — intentionally or not — we don't
+--   want Care Station's AI stacking on top of Fin's output. That's
+--   an AI-on-AI scenario with no clinical oversight. The flag
+--   captures the moment Fin touches a conversation so the worker
+--   can route that row to human review instead of automated triage.
+--
+-- Adds:
+--   1. fin_participated boolean — true when Intercom's AI Agent was
+--      involved in the source conversation. Defaults false; legacy
+--      rows correctly read false (Fin has been dormant throughout
+--      this workspace's history).
+--
+-- SAFETY:
+--   - NOT NULL DEFAULT false: in Postgres 11+ this is a catalog-only
+--     change. No table rewrite, no row locks, no backfill.
+--   - No existing code reads this column; default behavior unchanged
+--     for every current path.
+--   - Worker integration (routes fin_participated=true rows to human
+--     review without calling Claude) lands later in Week 1.
+--   - No index needed at current volume. If Fin activates and we
+--     need to query touched rows, a partial index
+--     `where fin_participated = true` is a follow-up migration.
+--   - Idempotent — `add column if not exists`. Safe to re-run.
+
+alter table public.query_history
+  add column if not exists fin_participated boolean not null default false;
