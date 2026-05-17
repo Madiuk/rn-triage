@@ -997,22 +997,129 @@
   // server-side at MAX_LIMIT). Click a row to see full detail
   // (especially raw_payload for inbound webhook events).
 
-  state.eventsCache = { inbound: null, reviews: null, errors: null };
+  // Loaded rows for the active sub-tab. Replaced on date-filter
+  // change / subtab switch / refresh; appended on Load more.
+  state.eventsRows = [];
   state.eventsSubtab = 'inbound';
+  state.eventsSince = null;         // ISO string or null
+  state.eventsDateRange = 'all';    // dropdown value
+  state.eventsQuery = '';           // current keyword (client-side filter)
+  state.eventsHasMore = false;      // last fetch hit the limit?
 
-  async function loadEvents(subtab) {
+  const EVENTS_PAGE_SIZE = 50;
+
+  // Build the API URL with current filter + pagination params.
+  function buildEventsUrl(subtab, offset) {
+    const params = new URLSearchParams();
+    params.set('limit', String(EVENTS_PAGE_SIZE));
+    if (offset > 0) params.set('offset', String(offset));
+    if (state.eventsSince) params.set('since', state.eventsSince);
+    const qs = params.toString();
+    return '/.netlify/functions/kb/admin/events/' + subtab + (qs ? '?' + qs : '');
+  }
+
+  // Translate the date-range dropdown value into an ISO `since`
+  // string the server understands. 'all' returns null.
+  function dateRangeToSince(range) {
+    const now = Date.now();
+    const offsets = {
+      '1h':  60 * 60 * 1000,
+      '24h': 24 * 60 * 60 * 1000,
+      '7d':  7  * 24 * 60 * 60 * 1000,
+      '30d': 30 * 24 * 60 * 60 * 1000,
+    };
+    const off = offsets[range];
+    if (!off) return null;
+    return new Date(now - off).toISOString();
+  }
+
+  async function loadEvents(subtab, options) {
+    options = options || {};
+    const append = !!options.append;
     const body = document.getElementById('eventsBody');
+    const loadMoreBtn = document.getElementById('eventsLoadMoreBtn');
     if (!body) return;
-    body.innerHTML = '<div class="loading-row">Loading…</div>';
+
+    if (!append) {
+      body.innerHTML = '<div class="loading-row">Loading…</div>';
+      state.eventsRows = [];
+    }
+    if (loadMoreBtn) loadMoreBtn.disabled = true;
+
     try {
-      const resp = await api('/.netlify/functions/kb/admin/events/' + subtab, { method: 'GET' });
+      const offset = append ? state.eventsRows.length : 0;
+      const url = buildEventsUrl(subtab, offset);
+      const resp = await api(url, { method: 'GET' });
       const events = (resp && resp.events) || [];
-      state.eventsCache[subtab] = events;
-      renderEventsList(subtab, events);
-      setText('eventsCount' + capFirst(subtab), '(' + events.length + ')');
+
+      if (append) {
+        state.eventsRows = state.eventsRows.concat(events);
+      } else {
+        state.eventsRows = events;
+      }
+      // If the fetch returned a full page, assume more available
+      // (next call returns 0 rows → hasMore flips false).
+      state.eventsHasMore = events.length >= EVENTS_PAGE_SIZE;
+
+      renderFilteredEvents();
+      setText('eventsCount' + capFirst(subtab),
+        '(' + state.eventsRows.length + (state.eventsHasMore ? '+' : '') + ')');
     } catch (e) {
       body.innerHTML = '<div class="loading-row" style="color:var(--severe)">Failed to load: ' + escapeHtml(e.message) + '</div>';
+      state.eventsHasMore = false;
+    } finally {
+      if (loadMoreBtn) loadMoreBtn.disabled = false;
+      updateLoadMoreVisibility();
     }
+  }
+
+  // Apply the client-side keyword filter to state.eventsRows and
+  // re-render. Server already filtered by date (?since).
+  function renderFilteredEvents() {
+    const subtab = state.eventsSubtab;
+    const q = (state.eventsQuery || '').trim().toLowerCase();
+    let rows = state.eventsRows;
+    if (q) {
+      rows = rows.filter(r => matchesKeyword(r, subtab, q));
+    }
+    renderEventsList(subtab, rows);
+    const filterStatus = document.getElementById('eventsFilterStatus');
+    if (filterStatus) {
+      if (q && rows.length !== state.eventsRows.length) {
+        filterStatus.textContent = 'Showing ' + rows.length + ' of ' + state.eventsRows.length + ' loaded';
+      } else {
+        filterStatus.textContent = '';
+      }
+    }
+  }
+
+  // Per-subtab keyword match: searches the columns that matter for
+  // each stream. Case-insensitive substring match.
+  function matchesKeyword(row, subtab, q) {
+    if (!row) return false;
+    if (subtab === 'inbound') {
+      return [
+        row.topic, row.processed_reason, row.external_id, row.source_channel,
+      ].some(v => v && String(v).toLowerCase().indexOf(q) !== -1);
+    }
+    if (subtab === 'reviews') {
+      return [
+        row.clinical_category, row.source_channel, row.external_id,
+        row.patient_message, row.internal_note, row.urgency_original,
+      ].some(v => v && String(v).toLowerCase().indexOf(q) !== -1);
+    }
+    if (subtab === 'errors') {
+      return [
+        row.event_type, row.entity_type, row.entity_id, row.actor_name,
+      ].some(v => v && String(v).toLowerCase().indexOf(q) !== -1);
+    }
+    return false;
+  }
+
+  function updateLoadMoreVisibility() {
+    const row = document.getElementById('eventsLoadMoreRow');
+    if (!row) return;
+    row.style.display = state.eventsHasMore ? '' : 'none';
   }
 
   function capFirst(s) {
@@ -1021,6 +1128,22 @@
 
   window.reloadEvents = function () {
     loadEvents(state.eventsSubtab);
+  };
+
+  window.applyEventsDateFilter = function (range) {
+    state.eventsDateRange = range;
+    state.eventsSince = dateRangeToSince(range);
+    loadEvents(state.eventsSubtab);
+  };
+
+  window.applyEventsKeywordFilter = function (text) {
+    state.eventsQuery = text || '';
+    // Pure client-side filter — no refetch.
+    renderFilteredEvents();
+  };
+
+  window.loadMoreEvents = function () {
+    loadEvents(state.eventsSubtab, { append: true });
   };
 
   function renderEventsList(subtab, events) {

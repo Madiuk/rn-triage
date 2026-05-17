@@ -43,20 +43,42 @@ const {
   isSuperUser,
 } = require("../permissions");
 
-// Maximum rows per response. Fixed limit (no pagination yet) — the
-// UI shows newest-first and the user can refresh for newer.
+// Default + hard-cap for `?limit=`. Server-side ceiling so a
+// `?limit=99999` URL param can't blow up the response.
 const DEFAULT_LIMIT = 50;
-
-// Hard cap so a `?limit=99999` URL param can't blow up the
-// response. Server-side guard even though the SPA only ever sends
-// the default.
 const MAX_LIMIT = 200;
 
+// Sanity cap on `?offset=`. Past a few thousand rows you're better
+// off with a date filter anyway; this prevents pathological scrolling.
+const MAX_OFFSET = 10000;
+
 function parseLimit(event) {
-  const q = (event.queryStringParameters || {}).limit;
+  const q = ((event && event.queryStringParameters) || {}).limit;
   const n = parseInt(q, 10);
   if (!isFinite(n) || n <= 0) return DEFAULT_LIMIT;
   return Math.min(n, MAX_LIMIT);
+}
+
+function parseOffset(event) {
+  const q = ((event && event.queryStringParameters) || {}).offset;
+  const n = parseInt(q, 10);
+  if (!isFinite(n) || n <= 0) return 0;
+  return Math.min(n, MAX_OFFSET);
+}
+
+// Parse `?since=<ISO>` into a canonical UTC ISO string. Returns null
+// for missing/invalid input (handlers treat null as "no filter").
+// Strict format check first so a creative input can't slip through
+// to PostgREST's query string — we still validate by round-tripping
+// through `new Date()` but the regex is the first wall.
+function parseSince(event) {
+  const q = ((event && event.queryStringParameters) || {}).since;
+  if (typeof q !== 'string' || !q) return null;
+  // Loose ISO-8601 check: YYYY-MM-DD plus optional Tnn:nn[:nn[.ms]][Z|±nn:nn]
+  if (!/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2}(\.\d{1,6})?)?(Z|[+\-]\d{2}:\d{2})?)?$/.test(q)) return null;
+  const d = new Date(q);
+  if (isNaN(d.getTime())) return null;
+  return d.toISOString();
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -66,14 +88,18 @@ function parseLimit(event) {
 async function handleInbound(event, ctx) {
   if (ctx.method !== 'GET') return json(405, { error: 'Method not allowed.' });
   const limit = parseLimit(event);
+  const offset = parseOffset(event);
+  const since = parseSince(event);
   const h = writeHeaders();
 
   // Newest-first. raw_payload is jsonb; PostgREST returns it inline.
-  const url = `${SUPABASE_URL}/rest/v1/inbound_raw_event`
+  let url = `${SUPABASE_URL}/rest/v1/inbound_raw_event`
     + `?company_id=eq.${encodeURIComponent(ctx.callerCompanyId)}`
     + `&select=id,source_channel,topic,external_id,processed,processed_reason,triage_id,raw_payload,created_at`
     + `&order=created_at.desc`
-    + `&limit=${limit}`;
+    + `&limit=${limit}`
+    + `&offset=${offset}`;
+  if (since) url += `&created_at=gte.${encodeURIComponent(since)}`;
   try {
     const r = await fetch(url, { headers: h });
     if (!r.ok) {
@@ -82,7 +108,10 @@ async function handleInbound(event, ctx) {
       return json(500, { error: 'Lookup failed.' });
     }
     const rows = await r.json();
-    return json(200, { events: Array.isArray(rows) ? rows : [], limit });
+    return json(200, {
+      events: Array.isArray(rows) ? rows : [],
+      limit, offset, since: since || null,
+    });
   } catch (e) {
     console.error('admin-events.inbound:', e.message);
     return json(500, { error: 'Internal error.' });
@@ -101,14 +130,18 @@ async function handleInbound(event, ctx) {
 async function handleReviews(event, ctx) {
   if (ctx.method !== 'GET') return json(405, { error: 'Method not allowed.' });
   const limit = parseLimit(event);
+  const offset = parseOffset(event);
+  const since = parseSince(event);
   const h = writeHeaders();
 
-  const url = `${SUPABASE_URL}/rest/v1/query_history`
+  let url = `${SUPABASE_URL}/rest/v1/query_history`
     + `?company_id=eq.${encodeURIComponent(ctx.callerCompanyId)}`
     + `&status=eq.reviewed`
     + `&select=id,source_channel,external_id,status,clinical_category,urgency_score,urgency_original,clinical_routing_level,internal_note,ai_confidence,patient_message,created_at,claimed_by`
     + `&order=created_at.desc`
-    + `&limit=${limit}`;
+    + `&limit=${limit}`
+    + `&offset=${offset}`;
+  if (since) url += `&created_at=gte.${encodeURIComponent(since)}`;
   try {
     const r = await fetch(url, { headers: h });
     if (!r.ok) {
@@ -117,7 +150,10 @@ async function handleReviews(event, ctx) {
       return json(500, { error: 'Lookup failed.' });
     }
     const rows = await r.json();
-    return json(200, { events: Array.isArray(rows) ? rows : [], limit });
+    return json(200, {
+      events: Array.isArray(rows) ? rows : [],
+      limit, offset, since: since || null,
+    });
   } catch (e) {
     console.error('admin-events.reviews:', e.message);
     return json(500, { error: 'Internal error.' });
@@ -143,18 +179,22 @@ const ERROR_EVENT_TYPES = [
 async function handleErrors(event, ctx) {
   if (ctx.method !== 'GET') return json(405, { error: 'Method not allowed.' });
   const limit = parseLimit(event);
+  const offset = parseOffset(event);
+  const since = parseSince(event);
   const h = writeHeaders();
 
   // PostgREST `in.(...)` filter with the allowlist.
   const inFilter = ERROR_EVENT_TYPES
     .map(s => '"' + encodeURIComponent(s) + '"')
     .join(',');
-  const url = `${SUPABASE_URL}/rest/v1/audit_log`
+  let url = `${SUPABASE_URL}/rest/v1/audit_log`
     + `?company_id=eq.${encodeURIComponent(ctx.callerCompanyId)}`
     + `&event_type=in.(${inFilter})`
     + `&select=id,event_type,entity_type,entity_id,actor_name,actor_id,payload,created_at`
     + `&order=created_at.desc`
-    + `&limit=${limit}`;
+    + `&limit=${limit}`
+    + `&offset=${offset}`;
+  if (since) url += `&created_at=gte.${encodeURIComponent(since)}`;
   try {
     const r = await fetch(url, { headers: h });
     if (!r.ok) {
@@ -163,7 +203,10 @@ async function handleErrors(event, ctx) {
       return json(500, { error: 'Lookup failed.' });
     }
     const rows = await r.json();
-    return json(200, { events: Array.isArray(rows) ? rows : [], limit });
+    return json(200, {
+      events: Array.isArray(rows) ? rows : [],
+      limit, offset, since: since || null,
+    });
   } catch (e) {
     console.error('admin-events.errors:', e.message);
     return json(500, { error: 'Internal error.' });
@@ -202,7 +245,10 @@ module.exports = {
   handle,
   // Pure helpers / constants exported for tests.
   parseLimit,
+  parseOffset,
+  parseSince,
   ERROR_EVENT_TYPES,
   DEFAULT_LIMIT,
   MAX_LIMIT,
+  MAX_OFFSET,
 };

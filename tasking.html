@@ -183,8 +183,30 @@
         &#8634; Refresh
       </button>
     </div>
+    <!-- Filter row: server-side date filter (?since=...) + client-side
+         keyword search (filters loaded rows only). -->
+    <div class="events-filter-row">
+      <label class="events-filter-label">When:</label>
+      <select class="events-filter-select" id="eventsDateFilter" onchange="applyEventsDateFilter(this.value)">
+        <option value="all">All time</option>
+        <option value="1h">Last hour</option>
+        <option value="24h">Last 24 hours</option>
+        <option value="7d">Last 7 days</option>
+        <option value="30d">Last 30 days</option>
+      </select>
+      <label class="events-filter-label" style="margin-left:16px">Search:</label>
+      <input type="text" class="events-filter-input" id="eventsSearchInput"
+             placeholder="topic, reason, category, id…"
+             oninput="applyEventsKeywordFilter(this.value)">
+      <span class="events-filter-status" id="eventsFilterStatus"></span>
+    </div>
     <div class="events-body" id="eventsBody">
       <div class="loading-row">Loading…</div>
+    </div>
+    <div class="events-load-more-row" id="eventsLoadMoreRow" style="display:none">
+      <button class="events-load-more-btn" id="eventsLoadMoreBtn" onclick="loadMoreEvents()">
+        Load more
+      </button>
     </div>
   </section>
 
