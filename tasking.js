@@ -716,7 +716,11 @@
     localStorage.removeItem('relai_session');
     localStorage.removeItem('relai_profile_cache');
     fetch('/.netlify/functions/auth/signout', { method: 'POST' }).catch(() => {});
-    window.location.replace('/login.html');
+    // Carry tasking.html as the post-login destination so when the
+    // user signs back in via login.html, they return here rather than
+    // bouncing to the legacy app at /. login.html's getPostLoginUrl
+    // validates the ?next= value as a same-origin absolute path.
+    window.location.replace('/login.html?next=/tasking.html');
   };
 
   window.refreshQueue = refreshQueue;
