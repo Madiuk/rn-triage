@@ -754,7 +754,7 @@ body {
    narrow viewports, chat-first. */
 .detail-grid {
   display: grid;
-  grid-template-columns: 2fr 3fr;
+  grid-template-columns: 1fr 1fr;
   gap: 28px;
   align-items: start;
 }
@@ -1150,18 +1150,11 @@ body {
   border: 1px dashed var(--border-strong);
 }
 
-/* Left-column wrapper for the Follow-up button and its count chip. */
-.detail-section-followup {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-/* "Care Station suggests" sidecar — visually distinct from the reply
-   textarea so staff reads it as a recommendation, not a default. The
-   dashed border + page background telegraph "this is optional." */
+/* "Care Station suggests" sidecar — white background so the draft
+   text reads clearly. The dashed border carries the "this is optional"
+   signal so staff doesn't mistake it for the reply they have to send. */
 .suggestion-card {
-  background: var(--bg-page);
+  background: white;
   border: 1px dashed var(--border-strong);
   border-radius: var(--radius);
   padding: 14px 16px;
@@ -1177,6 +1170,32 @@ body {
 }
 .suggestion-actions {
   display: flex;
+  justify-content: flex-end;
+}
+
+/* Right-column reply textarea — taller than the old draft box so staff
+   can compose a real reply without scrolling inside the field. */
+.detail-reply-textarea {
+  width: 100%;
+  min-height: 260px;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.55;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  resize: vertical;
+}
+.detail-reply-textarea:focus {
+  outline: none;
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+/* Send sits alone in the right column action bar — right-align so it
+   aligns with the textarea's right edge and reads as the primary
+   commit action for what's been typed. */
+.detail-action-bar-send {
   justify-content: flex-end;
 }
 

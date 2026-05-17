@@ -1213,6 +1213,36 @@
     const showRoutingLevel = !!t.clinical_routing_level
       && t.clinical_routing_level !== 'none';
 
+    const upActive   = t.upvoted   === true ? ' active' : '';
+    const downActive = t.downvoted === true ? ' active' : '';
+    const hasSuggestion = !!(t.draft_response && t.draft_response.trim());
+
+    // Suggestion card lives in the left column under the classification
+    // card. White background + dashed border + explicit "Insert into
+    // reply" action keeps it readable but visually optional — staff
+    // shouldn't feel pressured to use it.
+    const suggestionSection = hasSuggestion
+      ? '<div class="detail-section">'
+      +   '<div class="detail-section-label">'
+      +     '<span>Care Station suggests</span>'
+      +     '<span class="vote-row">'
+      +       '<button class="vote-btn up' + upActive + '" id="voteUpBtn" onclick="voteTask(\'up\')" title="Helpful draft">'
+      +         '<span class="vote-icon">&#x1F44D;</span>'
+      +       '</button>'
+      +       '<button class="vote-btn down' + downActive + '" id="voteDownBtn" onclick="voteTask(\'down\')" title="Needs work">'
+      +         '<span class="vote-icon">&#x1F44E;</span>'
+      +       '</button>'
+      +     '</span>'
+      +   '</div>'
+      +   '<div class="suggestion-card">'
+      +     '<div class="suggestion-text">' + escapeHtml(t.draft_response) + '</div>'
+      +     '<div class="suggestion-actions">'
+      +       '<button class="action-btn ghost" onclick="insertSuggestion()">Insert into reply</button>'
+      +     '</div>'
+      +   '</div>'
+      + '</div>'
+      : '';
+
     const leftCol =
         '<div class="detail-section">'
       +   '<div class="detail-section-label">Classification &amp; routing</div>'
@@ -1241,44 +1271,17 @@
       +   '</div>'
       + '</div>'
       + internalNoteSection
-      + '<div class="detail-section detail-section-followup">'
-      +   '<button id="spawnFollowupBtn" class="action-btn neutral" onclick="openSpawnFollowup()">+ Follow-up task</button>'
-      +   '<span id="followupCountChip" class="followup-count-chip" style="display:none"></span>'
+      + suggestionSection
+      + '<div class="detail-section">'
+      +   '<div class="detail-action-bar inline">'
+      +     '<button id="closeNoReplyBtn" class="action-btn neutral" onclick="openCloseNoReply()">Close (no reply)</button>'
+      +     '<button id="spawnFollowupBtn" class="action-btn neutral" onclick="openSpawnFollowup()">+ Follow-up task</button>'
+      +     '<span id="followupCountChip" class="followup-count-chip" style="display:none"></span>'
+      +     '<button id="retaskBtn" class="action-btn warning" onclick="releaseTask()">Release to queue</button>'
+      +   '</div>'
       + '</div>';
 
-    // ── Right column: chat + suggestion sidecar + reply + action bar ──
-    const upActive   = t.upvoted   === true ? ' active' : '';
-    const downActive = t.downvoted === true ? ' active' : '';
-    const hasSuggestion = !!(t.draft_response && t.draft_response.trim());
-
-    // Sidecar card hides entirely when there's no AI suggestion — staff
-    // just sees the empty reply box and types. When a suggestion exists,
-    // the card sits above the reply box with thumbs + an explicit
-    // "Insert into reply" action. The reply textarea (#detailReply) is
-    // what sendTask() reads — keeping the suggestion out of it avoids
-    // implying staff must use the AI draft.
-    const suggestionSection = hasSuggestion
-      ? '<div class="detail-section">'
-      +   '<div class="detail-section-label">'
-      +     '<span>Care Station suggests</span>'
-      +     '<span class="vote-row">'
-      +       '<button class="vote-btn up' + upActive + '" id="voteUpBtn" onclick="voteTask(\'up\')" title="Helpful draft">'
-      +         '<span class="vote-icon">&#x1F44D;</span>'
-      +       '</button>'
-      +       '<button class="vote-btn down' + downActive + '" id="voteDownBtn" onclick="voteTask(\'down\')" title="Needs work">'
-      +         '<span class="vote-icon">&#x1F44E;</span>'
-      +       '</button>'
-      +     '</span>'
-      +   '</div>'
-      +   '<div class="suggestion-card">'
-      +     '<div class="suggestion-text">' + escapeHtml(t.draft_response) + '</div>'
-      +     '<div class="suggestion-actions">'
-      +       '<button class="action-btn ghost" onclick="insertSuggestion()">Insert into reply</button>'
-      +     '</div>'
-      +   '</div>'
-      + '</div>'
-      : '';
-
+    // ── Right column: chat + reply box + Send ─────────────────────────
     const rightCol =
         '<div class="detail-section">'
       +   '<div class="detail-section-label">Conversation</div>'
@@ -1287,18 +1290,14 @@
       +   '</div>'
       + '</div>'
 
-      + suggestionSection
-
       + '<div class="detail-section">'
       +   '<div class="detail-section-label">Your reply</div>'
-      +   '<textarea id="detailReply" class="detail-draft-textarea" placeholder="Type your reply…"></textarea>'
+      +   '<textarea id="detailReply" class="detail-reply-textarea" placeholder="Type your reply…"></textarea>'
       + '</div>'
 
       + '<div class="detail-section">'
-      +   '<div class="detail-action-bar inline">'
+      +   '<div class="detail-action-bar inline detail-action-bar-send">'
       +     '<button id="sendBtn" class="action-btn primary" onclick="sendTask()">Send <span class="sandbox-tag">Sandbox</span></button>'
-      +     '<button id="closeNoReplyBtn" class="action-btn neutral" onclick="openCloseNoReply()">Close (no reply)</button>'
-      +     '<button id="retaskBtn" class="action-btn warning" onclick="releaseTask()">Release to queue</button>'
       +   '</div>'
       + '</div>';
 
