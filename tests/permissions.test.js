@@ -17,6 +17,7 @@ const {
   isNonClinical,
   isAdmin,
   isSuperUser,
+  isAppTier,
   rowIsClinical,
   canMutateRow,
   canResolveReview,
@@ -25,6 +26,7 @@ const {
   canVoteOnDraft,
   canSaveActualResponse,
   canMarkEscalated,
+  categoryEligibility,
 } = require('../netlify/functions/_lib/permissions.js');
 
 // ─────────────────────────────────────────────────────────────────
@@ -261,5 +263,194 @@ describe('canMarkEscalated', () => {
     assert.equal(canMarkEscalated({ role: 'Non-Clinical' }), true);
     assert.equal(canMarkEscalated({ role: 'staff' }), true);
     assert.equal(canMarkEscalated(null), true);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────
+// Phase 3 queue eligibility — isAppTier
+// ─────────────────────────────────────────────────────────────────
+
+describe('isAppTier — title-based APP classification', () => {
+  const appTitles = ['MD', 'NP', 'DO', 'PA'];
+
+  it('returns true when title is in the list', () => {
+    assert.equal(isAppTier({ title: 'MD' }, appTitles), true);
+    assert.equal(isAppTier({ title: 'NP' }, appTitles), true);
+    assert.equal(isAppTier({ title: 'DO' }, appTitles), true);
+    assert.equal(isAppTier({ title: 'PA' }, appTitles), true);
+  });
+
+  it('returns false for titles not in the list', () => {
+    assert.equal(isAppTier({ title: 'RN' }, appTitles), false);
+    assert.equal(isAppTier({ title: 'CSR' }, appTitles), false);
+    assert.equal(isAppTier({ title: 'LPN' }, appTitles), false);
+  });
+
+  it('returns false when title is missing / empty / null', () => {
+    assert.equal(isAppTier({}, appTitles), false);
+    assert.equal(isAppTier({ title: '' }, appTitles), false);
+    assert.equal(isAppTier({ title: null }, appTitles), false);
+  });
+
+  it('returns false when profile is null / undefined', () => {
+    assert.equal(isAppTier(null, appTitles), false);
+    assert.equal(isAppTier(undefined, appTitles), false);
+  });
+
+  it('returns false when appTitles is missing / empty / not-array', () => {
+    assert.equal(isAppTier({ title: 'MD' }, null), false);
+    assert.equal(isAppTier({ title: 'MD' }, []), false);
+    assert.equal(isAppTier({ title: 'MD' }, undefined), false);
+    assert.equal(isAppTier({ title: 'MD' }, 'MD'), false);
+  });
+
+  it('is case-sensitive — matches production title strings exactly', () => {
+    // Production data stores 'MD' uppercase. Lowercased or mixed
+    // case must not match — otherwise an admin who typed 'md' in
+    // a profile would silently slip past the APP gate.
+    assert.equal(isAppTier({ title: 'md' }, ['MD']), false);
+    assert.equal(isAppTier({ title: 'Md' }, ['MD']), false);
+    assert.equal(isAppTier({ title: 'MD ' }, ['MD']), false);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────
+// Phase 3 queue eligibility — categoryEligibility
+// ─────────────────────────────────────────────────────────────────
+
+describe('categoryEligibility — Routing Hub (special category)', () => {
+  const defaults = {
+    routingHubCategory: 'Routing Hub',
+    appTitles: ['MD', 'NP', 'DO', 'PA'],
+  };
+
+  it('Non-Clinical → always (the routing-hub primary audience)', () => {
+    assert.equal(
+      categoryEligibility({ role: 'Non-Clinical', title: 'CSR' }, 'Routing Hub', false, defaults),
+      'always'
+    );
+  });
+
+  it('Clinical (non-APP, e.g. RN) → idle_only (helps during quiet clinical periods)', () => {
+    assert.equal(
+      categoryEligibility({ role: 'Clinical', title: 'RN' }, 'Routing Hub', false, defaults),
+      'idle_only'
+    );
+  });
+
+  it('Clinical + APP title (MD) → never (APP attention reserved for clinical work)', () => {
+    assert.equal(
+      categoryEligibility({ role: 'Clinical', title: 'MD' }, 'Routing Hub', false, defaults),
+      'never'
+    );
+  });
+
+  it('Clinical + APP title (NP) → never', () => {
+    assert.equal(
+      categoryEligibility({ role: 'Clinical', title: 'NP' }, 'Routing Hub', false, defaults),
+      'never'
+    );
+  });
+
+  it('null profile → never (defensive)', () => {
+    assert.equal(categoryEligibility(null, 'Routing Hub', false, defaults), 'never');
+  });
+});
+
+describe('categoryEligibility — clinical-required categories', () => {
+  const defaults = {
+    routingHubCategory: 'Routing Hub',
+    appTitles: ['MD', 'NP', 'DO', 'PA'],
+  };
+
+  it('Clinical RN → always', () => {
+    assert.equal(
+      categoryEligibility({ role: 'Clinical', title: 'RN' }, 'Side Effects', true, defaults),
+      'always'
+    );
+  });
+
+  it('Clinical APP (MD) → always (APPs do clinical work)', () => {
+    assert.equal(
+      categoryEligibility({ role: 'Clinical', title: 'MD' }, 'Side Effects', true, defaults),
+      'always'
+    );
+  });
+
+  it('Non-Clinical CSR → never (capability missing)', () => {
+    assert.equal(
+      categoryEligibility({ role: 'Non-Clinical', title: 'CSR' }, 'Side Effects', true, defaults),
+      'never'
+    );
+  });
+
+  it('legacy / null role → never (under-gate principle)', () => {
+    assert.equal(
+      categoryEligibility({ role: 'staff' }, 'Side Effects', true, defaults),
+      'never'
+    );
+    assert.equal(
+      categoryEligibility({}, 'Side Effects', true, defaults),
+      'never'
+    );
+  });
+});
+
+describe('categoryEligibility — non-clinical, non-Routing-Hub categories', () => {
+  const defaults = {
+    routingHubCategory: 'Routing Hub',
+    appTitles: ['MD', 'NP', 'DO', 'PA'],
+  };
+
+  it('Non-Clinical CSR → always', () => {
+    assert.equal(
+      categoryEligibility({ role: 'Non-Clinical', title: 'CSR' }, 'Billing/Payment', false, defaults),
+      'always'
+    );
+  });
+
+  it('Clinical RN → idle_only (clinical-to-non-clinical idle-unlock)', () => {
+    assert.equal(
+      categoryEligibility({ role: 'Clinical', title: 'RN' }, 'Billing/Payment', false, defaults),
+      'idle_only'
+    );
+  });
+
+  it('Clinical + APP (MD) → never (APP doesn\'t dabble in non-clinical)', () => {
+    assert.equal(
+      categoryEligibility({ role: 'Clinical', title: 'MD' }, 'Billing/Payment', false, defaults),
+      'never'
+    );
+  });
+
+  it('legacy / unknown role → never', () => {
+    assert.equal(
+      categoryEligibility({ role: 'staff' }, 'Billing/Payment', false, defaults),
+      'never'
+    );
+  });
+});
+
+describe('categoryEligibility — input safety', () => {
+  it('returns never for null defaults (no routing-hub identification possible)', () => {
+    // Without defaults the rule has no way to know what's APP /
+    // what's the routing hub. Fail closed.
+    const r = categoryEligibility({ role: 'Non-Clinical' }, 'Routing Hub', false, null);
+    // With null defaults, 'Routing Hub' won't match defaults.routingHubCategory
+    // (undefined), so the rule falls through to the generic non-clinical
+    // path — Non-Clinical sees non-clinical 'always'.
+    assert.equal(r, 'always');
+  });
+
+  it('treats missing appTitles as "no one is APP"', () => {
+    // Without an appTitles list, no one is APP — so a Clinical+MD
+    // profile gets the regular Clinical treatment.
+    const r = categoryEligibility(
+      { role: 'Clinical', title: 'MD' },
+      'Routing Hub',
+      false,
+      { routingHubCategory: 'Routing Hub' }  // no appTitles
+    );
+    assert.equal(r, 'idle_only');  // RN-equivalent because MD doesn't match anything
   });
 });

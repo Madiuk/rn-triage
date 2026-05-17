@@ -207,21 +207,162 @@ async function fetchTask(triageId, companyId, h) {
 //   2. Due tasks next
 //   3. Then by urgency_score (high → low)
 //   4. Tie-break by created_at (oldest first)
-function taskPriorityCmp(a, b) {
-  const threshold = RELAI_DEFAULTS.severityUrgencyThreshold;
-  const aSevere = (a.urgency_score || 0) >= threshold ? 1 : 0;
-  const bSevere = (b.urgency_score || 0) >= threshold ? 1 : 0;
-  if (aSevere !== bSevere) return bSevere - aSevere;
-  const aDue = a.due_state ? 1 : 0;
-  const bDue = b.due_state ? 1 : 0;
-  if (aDue !== bDue) return bDue - aDue;
-  const aUrg = a.urgency_score || 0;
-  const bUrg = b.urgency_score || 0;
-  if (aUrg !== bUrg) return bUrg - aUrg;
-  // Older first.
-  const aCreated = a.created_at || '';
-  const bCreated = b.created_at || '';
-  return aCreated < bCreated ? -1 : aCreated > bCreated ? 1 : 0;
+//
+// Factory form: the threshold is injected so the comparator is
+// pure and unit-testable without depending on the RELAI_DEFAULTS
+// global. `taskPriorityCmp` below binds the tenant default.
+function makeTaskPriorityCmp(severityThreshold) {
+  return function (a, b) {
+    const aSevere = (a.urgency_score || 0) >= severityThreshold ? 1 : 0;
+    const bSevere = (b.urgency_score || 0) >= severityThreshold ? 1 : 0;
+    if (aSevere !== bSevere) return bSevere - aSevere;
+    const aDue = a.due_state ? 1 : 0;
+    const bDue = b.due_state ? 1 : 0;
+    if (aDue !== bDue) return bDue - aDue;
+    const aUrg = a.urgency_score || 0;
+    const bUrg = b.urgency_score || 0;
+    if (aUrg !== bUrg) return bUrg - aUrg;
+    // Older first.
+    const aCreated = a.created_at || '';
+    const bCreated = b.created_at || '';
+    return aCreated < bCreated ? -1 : aCreated > bCreated ? 1 : 0;
+  };
+}
+
+const taskPriorityCmp = makeTaskPriorityCmp(RELAI_DEFAULTS.severityUrgencyThreshold);
+
+// ─────────────────────────────────────────────────────────────────
+// Pure helpers (validators + precondition + eligibility split)
+// ─────────────────────────────────────────────────────────────────
+//
+// These are the protocol decision points pulled out of the handler
+// bodies so they can be unit-tested without a Supabase mock. Each
+// returns a plain shape; the handlers translate that shape into a
+// JSON response.
+
+// POST /queue/pull body shape.
+function parsePullBody(body) {
+  if (!body || typeof body !== 'object') {
+    return { ok: false, error: 'Invalid JSON body.' };
+  }
+  const requested = Array.isArray(body.categories)
+    ? body.categories.filter(s => typeof s === 'string')
+    : [];
+  if (requested.length === 0) {
+    return { ok: false, error: 'Provide at least one category in `categories[]` to pull from.' };
+  }
+  return { ok: true, categories: requested };
+}
+
+// POST /queue/retask body shape.
+function parseRetaskBody(body) {
+  if (!body || typeof body !== 'object') {
+    return { ok: false, error: 'Invalid JSON body.' };
+  }
+  const triageId = typeof body.triage_id === 'string' ? body.triage_id.trim() : '';
+  if (!triageId) return { ok: false, error: 'Missing or invalid `triage_id`.' };
+  return { ok: true, triageId };
+}
+
+// POST /queue/reassign body shape. The note cap (1000 chars) is
+// also enforced here so the test suite pins it down.
+function parseReassignBody(body) {
+  if (!body || typeof body !== 'object') {
+    return { ok: false, error: 'Invalid JSON body.' };
+  }
+  const triageId = typeof body.triage_id === 'string' ? body.triage_id.trim() : '';
+  const newCategory = typeof body.new_category === 'string' ? body.new_category.trim() : '';
+  const note = typeof body.note === 'string' ? body.note.slice(0, 1000) : null;
+  if (!triageId) return { ok: false, error: 'Missing or invalid `triage_id`.' };
+  if (!newCategory) return { ok: false, error: 'Missing or invalid `new_category`.' };
+  return { ok: true, triageId, newCategory, note };
+}
+
+// POST /queue/send body shape. `maxTextLen` is injected so tests
+// can exercise the boundary cheaply without producing 50k-char
+// fixtures.
+function parseSendBody(body, maxTextLen) {
+  if (!body || typeof body !== 'object') {
+    return { ok: false, error: 'Invalid JSON body.' };
+  }
+  const triageId = typeof body.triage_id === 'string' ? body.triage_id.trim() : '';
+  const finalText = typeof body.final_text === 'string' ? body.final_text : '';
+  if (!triageId) return { ok: false, error: 'Missing or invalid `triage_id`.' };
+  if (!finalText) return { ok: false, error: 'Missing or empty `final_text`.' };
+  if (finalText.length > maxTextLen) {
+    return { ok: false, error: 'final_text exceeds ' + maxTextLen + ' char cap.' };
+  }
+  return { ok: true, triageId, finalText };
+}
+
+// Strict-batch refill + sticky-Due queue-lock check.
+//
+// Returns { proceed: true } when the caller has zero open tasks,
+// or { proceed: false, status, body } describing the 409 response
+// the handler should return. The two reasons are 'queue_lock_due'
+// (5 Due tasks held — must clear before pulling) and 'strict_batch'
+// (still working through current queue).
+function checkPullPrecondition(myOpen, queueCap) {
+  if (!Array.isArray(myOpen) || myOpen.length === 0) return { proceed: true };
+  const dueCount = myOpen.filter(t => t && t.due_state === true).length;
+  if (dueCount >= queueCap) {
+    return {
+      proceed: false,
+      status: 409,
+      body: {
+        error: 'Queue locked: ' + dueCount + ' of ' + queueCap + ' tasks are Due. Clear or re-task at least one before pulling.',
+        reason: 'queue_lock_due',
+        due_count: dueCount,
+      },
+    };
+  }
+  return {
+    proceed: false,
+    status: 409,
+    body: {
+      error: 'Strict-batch refill: finish your current queue before pulling more.',
+      reason: 'strict_batch',
+      pending_count: myOpen.length,
+    },
+  };
+}
+
+// Partition requested category names by eligibility for the caller.
+// Unknown (not in this tenant's category_metadata) and 'never'
+// categories drop silently — the staff member's dropdown never
+// shows them either way. The 'unknown' bucket is returned for
+// debugging / audit; the handler ignores it.
+function splitCategoriesByEligibility(profile, requested, categoriesMeta, defaults) {
+  const granted = [];
+  const idleOnly = [];
+  const unknown = [];
+  if (!Array.isArray(requested)) return { granted, idleOnly, unknown };
+  for (const name of requested) {
+    const meta = categoriesMeta && categoriesMeta[name];
+    if (!meta) { unknown.push(name); continue; }
+    const elig = categoryEligibility(profile, name, meta.is_clinical, defaults);
+    if (elig === 'always') granted.push(name);
+    else if (elig === 'idle_only') idleOnly.push(name);
+    // 'never' → silently drop
+  }
+  return { granted, idleOnly, unknown };
+}
+
+// Partition candidate rows by whether they've been pulled before.
+// Used in the two-PATCH claim batch: rows with first_pulled_at IS
+// NULL get the anchor set (first pull); rows with it already set
+// preserve the original anchor (re-pull after re-tasking or SLA
+// release).
+function partitionForClaim(candidates) {
+  const firstTime = [];
+  const rePull = [];
+  if (!Array.isArray(candidates)) return { firstTime, rePull };
+  for (const row of candidates) {
+    if (!row) continue;
+    if (!row.first_pulled_at) firstTime.push(row);
+    else rePull.push(row);
+  }
+  return { firstTime, rePull };
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -275,47 +416,22 @@ async function handlePull(event) {
   if (caller.error) return caller.error;
   const { profile } = caller;
 
-  const body = parseBody(event);
-  if (body === null) return json(400, { error: 'Invalid JSON body.' });
-
-  const requested = Array.isArray(body.categories) ? body.categories.filter(s => typeof s === 'string') : [];
-  if (requested.length === 0) {
-    return json(400, { error: 'Provide at least one category in `categories[]` to pull from.' });
-  }
+  const parsed = parsePullBody(parseBody(event));
+  if (!parsed.ok) return json(400, { error: parsed.error });
 
   const companyId = profile.company_id;
   const h = writeHeaders();
 
   // Strict-batch refill + sticky-Due queue-lock checks.
   const mine = await fetchOwnOpenTasks(profile.id, companyId, h);
-  if (mine.length > 0) {
-    const dueCount = mine.filter(t => t.due_state === true).length;
-    if (dueCount >= QUEUE_CAP) {
-      return json(409, {
-        error: 'Queue locked: ' + dueCount + ' of ' + QUEUE_CAP + ' tasks are Due. Clear or re-task at least one before pulling.',
-        reason: 'queue_lock_due',
-        due_count: dueCount,
-      });
-    }
-    return json(409, {
-      error: 'Strict-batch refill: finish your current queue before pulling more.',
-      reason: 'strict_batch',
-      pending_count: mine.length,
-    });
-  }
+  const pre = checkPullPrecondition(mine, QUEUE_CAP);
+  if (!pre.proceed) return json(pre.status, pre.body);
 
   // Resolve which requested categories the caller is eligible for.
   const categoriesMeta = await fetchCategoriesMeta(companyId, h);
-  const granted = [];
-  const idleOnly = [];
-  for (const name of requested) {
-    const meta = categoriesMeta[name];
-    if (!meta) continue;  // unknown to this tenant — drop silently
-    const elig = categoryEligibility(profile, name, meta.is_clinical, RELAI_DEFAULTS);
-    if (elig === 'always') granted.push(name);
-    else if (elig === 'idle_only') idleOnly.push(name);
-    // 'never' → drop silently
-  }
+  const { granted, idleOnly } = splitCategoriesByEligibility(
+    profile, parsed.categories, categoriesMeta, RELAI_DEFAULTS
+  );
 
   if (granted.length === 0 && idleOnly.length === 0) {
     return json(400, { error: 'No eligible categories in request. Check your role / title and the category list.' });
@@ -353,6 +469,7 @@ async function handlePull(event) {
   const now = new Date().toISOString();
   const ids = candidates.map(c => c.id);
   const idList = ids.map(encodeURIComponent).join(',');
+  const { firstTime, rePull } = partitionForClaim(candidates);
 
   async function claimBatch(extraFilter, payload) {
     const url = `${SUPABASE_URL}/rest/v1/query_history`
@@ -375,14 +492,21 @@ async function handlePull(event) {
     }
   }
 
-  const firstClaimed = await claimBatch(
-    '&first_pulled_at=is.null',
-    { claimed_by: profile.id, claimed_at: now, first_pulled_at: now }
-  );
-  const secondClaimed = await claimBatch(
-    '&first_pulled_at=not.is.null',
-    { claimed_by: profile.id, claimed_at: now }
-  );
+  // Skip the PATCH when its partition is empty — avoids two
+  // round-trips on every pull that happens to be all-rePull or
+  // all-firstTime.
+  const firstClaimed = firstTime.length > 0
+    ? await claimBatch(
+        '&first_pulled_at=is.null',
+        { claimed_by: profile.id, claimed_at: now, first_pulled_at: now }
+      )
+    : [];
+  const secondClaimed = rePull.length > 0
+    ? await claimBatch(
+        '&first_pulled_at=not.is.null',
+        { claimed_by: profile.id, claimed_at: now }
+      )
+    : [];
   const claimed = firstClaimed.concat(secondClaimed);
 
   claimed.sort(taskPriorityCmp);
@@ -393,7 +517,7 @@ async function handlePull(event) {
     event_type: 'queue.pull',
     entity_type: 'query_history',
     payload: {
-      requested_categories: requested,
+      requested_categories: parsed.categories,
       granted_categories: grantedForAudit,
       idle_unlock_used: idleUnlockUsed,
       task_ids: claimed.map(t => t.id),
@@ -433,10 +557,9 @@ async function handleRetask(event) {
   if (caller.error) return caller.error;
   const { profile } = caller;
 
-  const body = parseBody(event);
-  if (body === null) return json(400, { error: 'Invalid JSON body.' });
-  const triageId = typeof body.triage_id === 'string' ? body.triage_id.trim() : '';
-  if (!triageId) return json(400, { error: 'Missing or invalid `triage_id`.' });
+  const parsed = parseRetaskBody(parseBody(event));
+  if (!parsed.ok) return json(400, { error: parsed.error });
+  const { triageId } = parsed;
 
   const h = writeHeaders();
 
@@ -492,15 +615,9 @@ async function handleReassign(event) {
   if (caller.error) return caller.error;
   const { profile } = caller;
 
-  const body = parseBody(event);
-  if (body === null) return json(400, { error: 'Invalid JSON body.' });
-
-  const triageId = typeof body.triage_id === 'string' ? body.triage_id.trim() : '';
-  const newCategory = typeof body.new_category === 'string' ? body.new_category.trim() : '';
-  const note = typeof body.note === 'string' ? body.note.slice(0, 1000) : null;
-
-  if (!triageId) return json(400, { error: 'Missing or invalid `triage_id`.' });
-  if (!newCategory) return json(400, { error: 'Missing or invalid `new_category`.' });
+  const parsed = parseReassignBody(parseBody(event));
+  if (!parsed.ok) return json(400, { error: parsed.error });
+  const { triageId, newCategory, note } = parsed;
 
   const h = writeHeaders();
 
@@ -639,16 +756,9 @@ async function handleSend(event) {
   if (caller.error) return caller.error;
   const { profile } = caller;
 
-  const body = parseBody(event);
-  if (body === null) return json(400, { error: 'Invalid JSON body.' });
-
-  const triageId = typeof body.triage_id === 'string' ? body.triage_id.trim() : '';
-  const finalText = typeof body.final_text === 'string' ? body.final_text : '';
-  if (!triageId) return json(400, { error: 'Missing or invalid `triage_id`.' });
-  if (!finalText) return json(400, { error: 'Missing or empty `final_text`.' });
-  if (finalText.length > SEND_TEXT_MAX) {
-    return json(400, { error: 'final_text exceeds ' + SEND_TEXT_MAX + ' char cap.' });
-  }
+  const parsed = parseSendBody(parseBody(event), SEND_TEXT_MAX);
+  if (!parsed.ok) return json(400, { error: parsed.error });
+  const { triageId, finalText } = parsed;
 
   const h = writeHeaders();
 
@@ -725,9 +835,26 @@ async function handleSend(event) {
 }
 
 module.exports = {
+  // HTTP handlers
   handlePull,
   handleMine,
   handleRetask,
   handleReassign,
   handleSend,
+  // Pure helpers (exported for unit tests; not used by the router)
+  inFilter,
+  makeTaskPriorityCmp,
+  taskPriorityCmp,
+  parsePullBody,
+  parseRetaskBody,
+  parseReassignBody,
+  parseSendBody,
+  checkPullPrecondition,
+  splitCategoriesByEligibility,
+  partitionForClaim,
+  dispatchOutbound,
+  // Constants (exported for tests that reference them)
+  OPEN_STATUSES,
+  QUEUE_CAP,
+  SEND_TEXT_MAX,
 };
