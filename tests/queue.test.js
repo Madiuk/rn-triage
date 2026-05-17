@@ -17,6 +17,7 @@ const {
   parseRetaskBody,
   parseReassignBody,
   parseSendBody,
+  parseVoteBody,
   checkPullPrecondition,
   splitCategoriesByEligibility,
   partitionForClaim,
@@ -303,6 +304,67 @@ describe('parseSendBody', () => {
 
   it('rejects non-string final_text', () => {
     assert.equal(parseSendBody({ triage_id: 'a', final_text: 42 }, 1000).ok, false);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────
+// parseVoteBody
+// ─────────────────────────────────────────────────────────────────
+
+describe('parseVoteBody', () => {
+  it('accepts an upvote with no reason', () => {
+    const r = parseVoteBody({ triage_id: 'abc', vote: 'up' });
+    assert.equal(r.ok, true);
+    assert.equal(r.triageId, 'abc');
+    assert.equal(r.vote, 'up');
+    assert.equal(r.reason, null);
+  });
+
+  it('accepts a downvote with a reason', () => {
+    const r = parseVoteBody({ triage_id: 'abc', vote: 'down', reason: 'Too clinical for this patient' });
+    assert.equal(r.ok, true);
+    assert.equal(r.vote, 'down');
+    assert.equal(r.reason, 'Too clinical for this patient');
+  });
+
+  it('lowercases the vote string', () => {
+    assert.equal(parseVoteBody({ triage_id: 'a', vote: 'UP' }).vote, 'up');
+    assert.equal(parseVoteBody({ triage_id: 'a', vote: 'Down' }).vote, 'down');
+  });
+
+  it('trims whitespace around triage_id and vote', () => {
+    const r = parseVoteBody({ triage_id: '  abc  ', vote: '  up  ' });
+    assert.equal(r.triageId, 'abc');
+    assert.equal(r.vote, 'up');
+  });
+
+  it('truncates reason to 500 chars', () => {
+    const long = 'x'.repeat(2000);
+    const r = parseVoteBody({ triage_id: 'a', vote: 'up', reason: long });
+    assert.equal(r.reason.length, 500);
+  });
+
+  it('rejects an unknown vote value', () => {
+    assert.equal(parseVoteBody({ triage_id: 'a', vote: 'maybe' }).ok, false);
+    assert.equal(parseVoteBody({ triage_id: 'a', vote: '' }).ok, false);
+  });
+
+  it('rejects missing triage_id', () => {
+    assert.equal(parseVoteBody({ vote: 'up' }).ok, false);
+  });
+
+  it('rejects missing vote', () => {
+    assert.equal(parseVoteBody({ triage_id: 'a' }).ok, false);
+  });
+
+  it('rejects null / non-object body', () => {
+    assert.equal(parseVoteBody(null).ok, false);
+    assert.equal(parseVoteBody('not-an-object').ok, false);
+  });
+
+  it('coerces non-string reason to null', () => {
+    const r = parseVoteBody({ triage_id: 'a', vote: 'up', reason: 12345 });
+    assert.equal(r.reason, null);
   });
 });
 

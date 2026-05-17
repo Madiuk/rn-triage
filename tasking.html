@@ -73,9 +73,12 @@
   </div>
 </div>
 
-<!-- Main content -->
+<!-- Main content — two views, queue and detail. Only one visible at a time;
+     hash routing (#queue / #task/<id>) drives the switch. -->
 <main class="main-content">
-  <section class="view view-queue active">
+
+  <!-- Queue view (default) -->
+  <section class="view view-queue active" id="queueView">
     <div class="queue-header">
       <div class="queue-header-left">
         <h1 class="queue-title">Your queue</h1>
@@ -84,7 +87,6 @@
       <div class="queue-stats" id="queueStats"></div>
     </div>
 
-    <!-- Pull dropdown row -->
     <div class="pull-row">
       <button class="pull-btn" id="pullBtn" onclick="togglePullDropdown()">
         <span class="pull-btn-icon">+</span>
@@ -115,7 +117,6 @@
       </button>
     </div>
 
-    <!-- Queue table -->
     <div class="task-table-wrap">
       <table class="task-table" id="taskTable">
         <thead>
@@ -138,18 +139,22 @@
       </div>
     </div>
   </section>
-</main>
 
-<!-- Task detail side panel (slides in from right) -->
-<div class="side-panel-overlay" id="sidePanelOverlay" onclick="closeSidePanel()"></div>
-<aside class="side-panel" id="sidePanel" aria-hidden="true">
-  <div class="side-panel-head">
-    <button class="side-panel-close" onclick="closeSidePanel()" aria-label="Close panel">&times;</button>
-    <div class="side-panel-eyebrow" id="sidePanelEyebrow">Task detail</div>
-    <div class="side-panel-title" id="sidePanelTitle"></div>
-  </div>
-  <div class="side-panel-body" id="sidePanelBody"></div>
-</aside>
+  <!-- Detail view (shown on click of a queue row). Full-page; replaces queue.
+       Header is sticky so action buttons remain accessible when the message
+       and draft scroll. -->
+  <section class="view view-detail" id="detailView" style="display:none">
+    <div class="detail-header">
+      <button class="detail-back-btn" onclick="backToQueue()">
+        <span class="detail-back-icon">&larr;</span>
+        <span>Back to queue</span>
+      </button>
+      <div class="detail-header-info" id="detailHeaderInfo"></div>
+    </div>
+    <div class="detail-body" id="detailViewBody"></div>
+  </section>
+
+</main>
 
 <!-- Toast for transient feedback -->
 <div class="toast" id="toast" role="status" aria-live="polite"></div>

@@ -644,7 +644,157 @@ body {
 .empty-body { font-size: 13px; color: var(--text-muted); }
 
 /* ─────────────────────────────────────────────────────────────────
- * Side panel (task detail)
+ * Full-page task detail view (replaces the old side panel)
+ * ───────────────────────────────────────────────────────────────── */
+
+.view-detail {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - var(--banner-h) - var(--topbar-h) - 48px);
+}
+
+.detail-header {
+  position: sticky;
+  top: 0;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 18px;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  box-shadow: var(--shadow-card);
+  z-index: 10;
+}
+
+.detail-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  padding: 7px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 120ms ease;
+  flex-shrink: 0;
+}
+.detail-back-btn:hover {
+  background: var(--bg-page);
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+.detail-back-icon { font-size: 16px; line-height: 1; }
+
+.detail-header-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+.detail-header-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.detail-header-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.detail-header-sep { color: var(--text-faint); }
+
+.detail-edit-cat-btn {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--border);
+  background: white;
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 120ms ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  line-height: 1;
+}
+.detail-edit-cat-btn:hover {
+  background: var(--bg-page);
+  color: var(--brand);
+  border-color: var(--brand);
+}
+.pencil-icon { font-size: 13px; }
+
+.detail-body {
+  flex: 1;
+  padding-bottom: 80px;  /* room for the sticky action bar */
+}
+
+.detail-action-bar {
+  position: sticky;
+  bottom: 0;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 18px;
+  display: flex;
+  gap: 10px;
+  box-shadow: 0 -1px 8px rgba(0,0,0,0.04);
+  z-index: 10;
+}
+
+/* Vote buttons next to the AI draft */
+
+.vote-row {
+  display: inline-flex;
+  gap: 6px;
+}
+.vote-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  background: white;
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 120ms ease;
+}
+.vote-btn:hover:not(:disabled) {
+  background: var(--bg-page);
+  border-color: var(--border-strong);
+}
+.vote-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.vote-btn.up.active {
+  background: var(--success-bg);
+  border-color: var(--success);
+  color: var(--success);
+}
+.vote-btn.down.active {
+  background: var(--severe-bg);
+  border-color: var(--severe);
+  color: var(--severe);
+}
+.vote-icon { font-size: 14px; line-height: 1; }
+
+/* ─────────────────────────────────────────────────────────────────
+ * Side panel (legacy — superseded by full-page detail view above;
+ * kept temporarily for the reassign modal which still uses overlay)
  * ───────────────────────────────────────────────────────────────── */
 
 .side-panel-overlay {

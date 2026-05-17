@@ -45,9 +45,32 @@
     queue: [],            // current pending queue (own tasks)
     selectedPullCategories: new Set(),
     openTaskId: null,
+    activeView: 'queue',  // 'queue' | 'detail'
     isSigningOut: false,
     refreshInFlight: null,
   };
+
+  // ── Display helpers ────────────────────────────────────────────────
+
+  // Map DB status values to user-friendly labels. The DB enum stays
+  // exactly as documented in PLAN.md (pending / triaged / reviewed /
+  // patient_replied / sent / closed / completed) — these are just the
+  // strings the SPA shows the user. "Triaged" sounded misleading in
+  // testing (it suggested someone had ACTED on the row when really
+  // the AI had just classified it); "Awaiting reply" is closer to
+  // what a clinician would expect to see.
+  const STATUS_LABELS = {
+    'pending':         'Pending triage',
+    'triaged':         'Awaiting reply',
+    'reviewed':        'Needs human review',
+    'patient_replied': 'Patient followed up',
+    'sent':            'Sent',
+    'closed':          'Closed',
+    'completed':       'Completed',
+  };
+  function displayStatus(s) {
+    return STATUS_LABELS[s] || (s || '—');
+  }
 
   // ─────────────────────────────────────────────────────────────────
   // Auth helpers (inline; mirror app.js's pattern)
@@ -196,6 +219,15 @@
 
     // 4. Load own queue.
     await refreshQueue();
+
+    // 5. Wire hash routing AFTER the initial queue load so a deep
+    // link (#task/<id>) finds the task in state.queue.
+    window.addEventListener('hashchange', handleHashChange);
+    // Apply current hash (in case the user landed directly on
+    // #task/<id> or reloaded with a hash set).
+    if (window.location.hash) {
+      handleHashChange();
+    }
   }
 
   // ─────────────────────────────────────────────────────────────────
@@ -305,7 +337,12 @@
       + '<td>' + renderCategoryTag(t.clinical_category) + '</td>'
       + '<td class="summary-cell">' + escapeHtml(summarize(t)) + '</td>'
       + '<td>' + renderStatusBadge(t) + '</td>';
-    tr.addEventListener('click', () => openSidePanel(t.id));
+    tr.addEventListener('click', () => {
+      // Navigate via hash so back/forward + reload preserve the
+      // current task view. The hash listener handles the actual
+      // render swap (showDetailView).
+      window.location.hash = '#task/' + t.id;
+    });
     return tr;
   }
 
@@ -354,9 +391,7 @@
 
   function renderStatusBadge(t) {
     const s = t.status || 'pending';
-    let label = s.charAt(0).toUpperCase() + s.slice(1);
-    if (s === 'patient_replied') label = 'Patient replied';
-    let badge = '<span class="status-badge ' + s + '">' + label + '</span>';
+    let badge = '<span class="status-badge ' + s + '">' + escapeHtml(displayStatus(s)) + '</span>';
     if (t.due_state) badge += '<span class="due-flag">DUE</span>';
     return badge;
   }
@@ -531,27 +566,95 @@
   };
 
   // ─────────────────────────────────────────────────────────────────
-  // Side panel (task detail)
+  // View switching (queue ↔ detail)
+  // ─────────────────────────────────────────────────────────────────
+  //
+  // Two views in main.main-content:
+  //   - #queueView  — the list of pulled tasks (default)
+  //   - #detailView — full-page task detail
+  //
+  // Navigation is hash-driven so browser back/forward + reload work:
+  //   #queue (or no hash)  → queue view
+  //   #task/<id>            → detail view for that task
+  //
+  // The hash listener (installed in init()) is the single dispatch
+  // point. Functions that want to navigate just set the hash; they
+  // don't render directly.
+
+  function showQueueView() {
+    state.activeView = 'queue';
+    state.openTaskId = null;
+    document.getElementById('queueView').style.display = '';
+    document.getElementById('detailView').style.display = 'none';
+    // Refresh in case the queue mutated while we were in detail
+    // (e.g., a retask/send + back).
+    refreshQueue();
+  }
+
+  function showDetailView(taskId) {
+    const t = state.queue.find(x => x.id === taskId);
+    if (!t) {
+      // Task isn't in the cached queue (could be a stale URL hash,
+      // or someone pulled before clicking a row). Fall back to
+      // queue view; toast for diagnostics.
+      toast('That task is no longer in your queue.', 'warn');
+      window.location.hash = '#queue';
+      return;
+    }
+    state.activeView = 'detail';
+    state.openTaskId = taskId;
+    document.getElementById('queueView').style.display = 'none';
+    document.getElementById('detailView').style.display = '';
+    renderDetailView(t);
+    // Scroll the detail body to top after content swap.
+    const body = document.getElementById('detailViewBody');
+    if (body) body.scrollTop = 0;
+  }
+
+  window.backToQueue = function () {
+    window.location.hash = '#queue';
+  };
+
+  // Listen for hash changes (browser back/forward AND programmatic
+  // hash writes from elsewhere in this file). Single dispatch.
+  function handleHashChange() {
+    const h = (window.location.hash || '').replace(/^#/, '');
+    if (h.indexOf('task/') === 0) {
+      const id = h.slice('task/'.length);
+      showDetailView(id);
+    } else {
+      showQueueView();
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // Detail view rendering
   // ─────────────────────────────────────────────────────────────────
 
-  function openSidePanel(taskId) {
-    const t = state.queue.find(x => x.id === taskId);
-    if (!t) return;
-    state.openTaskId = taskId;
-
+  function renderDetailView(t) {
     const cat = t.clinical_category || '—';
-    const sev = renderSeverityBadge(t);
     const channel = (t.source_channel || 'manual');
-    const conf = (typeof t.ai_confidence === 'number') ? t.ai_confidence : null;
-    const confPct = conf != null ? Math.round(conf * 100) : null;
-    const confCls = conf == null ? '' : (conf < REVIEW_THRESHOLD ? 'low' : (conf < 0.9 ? 'mid' : ''));
+    const conf = (typeof t.ai_confidence === 'number') ? t.ai_confidence
+                : (typeof t.ai_confidence === 'string' ? parseFloat(t.ai_confidence) : null);
+    const confValid = (conf != null && !isNaN(conf));
+    const confPct = confValid ? Math.round(conf * 100) : null;
+    const confCls = !confValid ? '' : (conf < REVIEW_THRESHOLD ? 'low' : (conf < 0.9 ? 'mid' : ''));
 
-    setText('sidePanelEyebrow', cat + ' · ' + (t.urgency_original || 'routine'));
-    setText('sidePanelTitle', 'Patient ' + (t.external_id || t.id).slice(-12));
+    // Header content (sticky strip above the body)
+    const patientLabel = 'Patient ' + (t.external_id || t.id).slice(-12);
+    const header = document.getElementById('detailHeaderInfo');
+    header.innerHTML =
+      '<div class="detail-header-title">' + escapeHtml(patientLabel) + '</div>'
+      + '<div class="detail-header-meta">'
+      +   renderCategoryTag(t.clinical_category)
+      +   '<button class="detail-edit-cat-btn" onclick="openReassign()" title="Reassign category" aria-label="Edit category">'
+      +     '<span class="pencil-icon">&#9998;</span>'
+      +   '</button>'
+      +   '<span class="detail-header-sep">·</span>'
+      +   renderStatusBadge(t)
+      + '</div>';
 
-    // Confidence bar fragment — extracted because nesting a multi-line
-    // ternary inside string concatenation parses ambiguously.
-    const confHtml = (confPct != null)
+    const confHtml = confValid
       ? '<span class="confidence-bar"><span class="confidence-bar-track">'
         + '<span class="confidence-bar-fill ' + confCls + '" style="width:' + confPct + '%"></span>'
         + '</span>' + confPct + '%</span>'
@@ -564,8 +667,13 @@
         + '</div>'
       : '';
 
-    const body = document.getElementById('sidePanelBody');
+    // Vote state for thumb-button styling.
+    const upActive   = t.upvoted   === true ? ' active' : '';
+    const downActive = t.downvoted === true ? ' active' : '';
+
+    const body = document.getElementById('detailViewBody');
     body.innerHTML =
+      // Meta block (no h1 — header has the title)
       '<div class="detail-section">'
       + '<div class="detail-meta-row">'
       + '<div class="detail-meta-item">'
@@ -578,7 +686,7 @@
       + '</div>'
       + '<div class="detail-meta-item">'
       +   '<span class="detail-meta-key">Priority</span>'
-      +   '<span class="detail-meta-val">' + sev + '</span>'
+      +   '<span class="detail-meta-val">' + renderSeverityBadge(t) + '</span>'
       + '</div>'
       + '<div class="detail-meta-item">'
       +   '<span class="detail-meta-key">Status</span>'
@@ -587,11 +695,13 @@
       + '</div>'
       + '</div>'
 
+      // Inbound message
       + '<div class="detail-section">'
       + '<div class="detail-section-label">Inbound message</div>'
       + '<div class="detail-message-box">' + escapeHtml(t.patient_message || '(empty)') + '</div>'
       + '</div>'
 
+      // AI classification
       + '<div class="detail-section">'
       + '<div class="detail-section-label">AI classification</div>'
       + '<div class="detail-ai-box">'
@@ -604,31 +714,28 @@
 
       + internalNoteSection
 
+      // AI draft + vote bar
       + '<div class="detail-section">'
-      + '<div class="detail-section-label">AI-drafted response (editable)</div>'
+      + '<div class="detail-section-label">'
+      +   '<span>AI-drafted response (editable)</span>'
+      +   '<span class="vote-row">'
+      +     '<button class="vote-btn up' + upActive + '" id="voteUpBtn" onclick="voteTask(\'up\')" title="Helpful draft">'
+      +       '<span class="vote-icon">&#x1F44D;</span>'
+      +     '</button>'
+      +     '<button class="vote-btn down' + downActive + '" id="voteDownBtn" onclick="voteTask(\'down\')" title="Needs work">'
+      +       '<span class="vote-icon">&#x1F44E;</span>'
+      +     '</button>'
+      +   '</span>'
+      + '</div>'
       + '<textarea id="detailDraft" class="detail-draft-textarea">' + escapeHtml(t.draft_response || '') + '</textarea>'
       + '</div>'
 
-      + '<div class="detail-section">'
-      + '<div class="detail-section-label">Actions</div>'
-      + '<div class="detail-actions">'
+      // Action bar (fixed at bottom of the body)
+      + '<div class="detail-action-bar">'
       +   '<button id="sendBtn" class="action-btn primary" onclick="sendTask()">Send <span class="sandbox-tag">Sandbox</span></button>'
       +   '<button id="retaskBtn" class="action-btn" onclick="retaskTask()">Re-task</button>'
-      +   '<button id="reassignBtn" class="action-btn warning" onclick="openReassign()">Reassign category</button>'
-      + '</div>'
       + '</div>';
-
-    document.getElementById('sidePanel').classList.add('active');
-    document.getElementById('sidePanelOverlay').classList.add('active');
-    document.getElementById('sidePanel').setAttribute('aria-hidden', 'false');
   }
-
-  window.closeSidePanel = function () {
-    document.getElementById('sidePanel').classList.remove('active');
-    document.getElementById('sidePanelOverlay').classList.remove('active');
-    document.getElementById('sidePanel').setAttribute('aria-hidden', 'true');
-    state.openTaskId = null;
-  };
 
   // ─────────────────────────────────────────────────────────────────
   // Task actions
@@ -682,8 +789,8 @@
           sandboxed ? 'Sent (sandbox — no Intercom delivery). State recorded.' : 'Sent via ' + sentVia,
           sandboxed ? 'warn' : 'success'
         );
-        closeSidePanel();
-        await refreshQueue();
+        // Return to queue view; showQueueView() also refreshes.
+        window.location.hash = '#queue';
       } catch (e) {
         toast('Send failed: ' + e.message, 'error');
       }
@@ -701,12 +808,47 @@
           body: JSON.stringify({ triage_id: tid }),
         });
         toast('Task returned to the pool.', 'success');
-        closeSidePanel();
-        await refreshQueue();
+        window.location.hash = '#queue';
       } catch (e) {
         toast('Re-task failed: ' + e.message, 'error');
       }
     });
+  };
+
+  // Thumbs up / down on the AI draft. Records to query_history's
+  // upvoted/downvoted columns (mutually exclusive); feeds the existing
+  // learning-loop reward signal.
+  window.voteTask = async function (vote) {
+    const tid = state.openTaskId;
+    if (!tid) return;
+    if (vote !== 'up' && vote !== 'down') return;
+    const upBtn = document.getElementById('voteUpBtn');
+    const downBtn = document.getElementById('voteDownBtn');
+    if (upBtn) upBtn.disabled = true;
+    if (downBtn) downBtn.disabled = true;
+    try {
+      await api('/queue/vote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ triage_id: tid, vote: vote }),
+      });
+      // Optimistic UI update: flip the active classes locally so the
+      // user sees the result immediately. Server is the source of
+      // truth on reload.
+      const t = state.queue.find(x => x.id === tid);
+      if (t) {
+        t.upvoted   = (vote === 'up');
+        t.downvoted = (vote === 'down');
+      }
+      if (upBtn)   upBtn.classList.toggle('active', vote === 'up');
+      if (downBtn) downBtn.classList.toggle('active', vote === 'down');
+      toast(vote === 'up' ? 'Thanks — recorded as a good draft.' : 'Got it — noted as needs work.', 'success');
+    } catch (e) {
+      toast('Vote failed: ' + e.message, 'error');
+    } finally {
+      if (upBtn) upBtn.disabled = false;
+      if (downBtn) downBtn.disabled = false;
+    }
   };
 
   // ─────────────────────────────────────────────────────────────────
@@ -757,8 +899,9 @@
       });
       toast('Reassigned: ' + (resp.from_category || '—') + ' → ' + resp.to_category, 'success');
       closeReassign();
-      closeSidePanel();
-      await refreshQueue();
+      // Reassign releases ownership server-side, so the task is no
+      // longer in the caller's queue. Pop back to the queue view.
+      window.location.hash = '#queue';
     } catch (e) {
       toast('Reassign failed: ' + e.message, 'error');
     }

@@ -38,6 +38,7 @@ exports.handler = async function (event) {
     if (path.includes("/queue/retask"))   return queueRoute.handleRetask(event);
     if (path.includes("/queue/reassign")) return queueRoute.handleReassign(event);
     if (path.includes("/queue/send"))     return queueRoute.handleSend(event);
+    if (path.includes("/queue/vote"))     return queueRoute.handleVote(event);
     if (path.includes("/queue/mine"))     return queueRoute.handleMine(event);
 
     return json(404, { error: "Not found", path: path });

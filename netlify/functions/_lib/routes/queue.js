@@ -81,9 +81,10 @@ const TASK_FIELDS = [
   'id', 'company_id', 'source_channel', 'external_id', 'status',
   'patient_message', 'draft_response',
   'clinical_category', 'urgency_score', 'urgency_original',
-  'clinical_routing_level',
+  'clinical_routing_level', 'ai_confidence', 'internal_note',
   'claimed_by', 'claimed_at', 'first_pulled_at',
   'last_patient_reply_at', 'due_state',
+  'upvoted', 'downvoted', 'upvote_reason', 'downvote_reason',
   'created_at',
 ].join(',');
 
@@ -278,6 +279,25 @@ function parseReassignBody(body) {
   if (!triageId) return { ok: false, error: 'Missing or invalid `triage_id`.' };
   if (!newCategory) return { ok: false, error: 'Missing or invalid `new_category`.' };
   return { ok: true, triageId, newCategory, note };
+}
+
+// POST /queue/vote body shape. `vote` must be 'up' or 'down';
+// reason is optional and capped (defensive). The handler writes the
+// result to query_history's upvoted / downvoted / upvote_reason /
+// downvote_reason columns which existed since 0001_baseline as
+// reward-signal columns for the learning loop.
+function parseVoteBody(body) {
+  if (!body || typeof body !== 'object') {
+    return { ok: false, error: 'Invalid JSON body.' };
+  }
+  const triageId = typeof body.triage_id === 'string' ? body.triage_id.trim() : '';
+  const vote = typeof body.vote === 'string' ? body.vote.trim().toLowerCase() : '';
+  const reason = typeof body.reason === 'string' ? body.reason.slice(0, 500) : null;
+  if (!triageId) return { ok: false, error: 'Missing or invalid `triage_id`.' };
+  if (vote !== 'up' && vote !== 'down') {
+    return { ok: false, error: 'Vote must be "up" or "down".' };
+  }
+  return { ok: true, triageId, vote, reason };
 }
 
 // POST /queue/send body shape. `maxTextLen` is injected so tests
@@ -852,6 +872,80 @@ async function handleSend(event) {
   return json(200, { ok: true, sent_via: dispatch.sent_via });
 }
 
+// ─────────────────────────────────────────────────────────────────
+// POST /queue/vote
+// ─────────────────────────────────────────────────────────────────
+//
+// Records staff feedback on the AI's draft. Upvote ↔ downvote are
+// mutually exclusive at the row level; voting one way clears the
+// other. The columns (upvoted, downvoted, upvote_reason,
+// downvote_reason) existed since 0001_baseline as reward-signal
+// inputs to the learning loop. The /queue/vote surface just makes
+// them writable from the new tasking SPA.
+//
+// Caller must own (claimed_by = caller) OR have voted before — the
+// vote write is allowed for any task in the caller's tenant since
+// the reward signal isn't sensitive (staff seeing each other's
+// votes is fine; correcting your own is allowed; voting a task you
+// don't currently own happens during retrospectives).
+
+async function handleVote(event) {
+  if (event.httpMethod !== 'POST') return json(405, { error: 'Method not allowed.' });
+
+  const caller = await authedCaller(event);
+  if (caller.error) return caller.error;
+  const { profile } = caller;
+
+  const parsed = parseVoteBody(parseBody(event));
+  if (!parsed.ok) return json(400, { error: parsed.error });
+  const { triageId, vote, reason } = parsed;
+
+  const h = writeHeaders();
+
+  // Mutually exclusive: voting one way clears the other.
+  const patch = vote === 'up'
+    ? { upvoted: true,  downvoted: false, upvote_reason: reason, downvote_reason: null }
+    : { upvoted: false, downvoted: true,  upvote_reason: null,   downvote_reason: reason };
+
+  // Tenant-scoped update. Ownership is NOT required (see header
+  // comment above); only tenant scoping. If the row doesn't exist
+  // in the caller's tenant, the PATCH returns [] and we 404.
+  const url = `${SUPABASE_URL}/rest/v1/query_history`
+    + `?id=eq.${encodeURIComponent(triageId)}`
+    + `&company_id=eq.${encodeURIComponent(profile.company_id)}`;
+
+  let updated = [];
+  try {
+    const r = await fetch(url, {
+      method: 'PATCH',
+      headers: { ...h, Prefer: 'return=representation' },
+      body: JSON.stringify(patch),
+    });
+    if (r.ok) {
+      const rows = await r.json();
+      if (Array.isArray(rows)) updated = rows;
+    }
+  } catch (e) {
+    console.error('queue.vote:', e.message);
+    return json(500, { error: 'Internal error recording vote.' });
+  }
+
+  if (updated.length === 0) {
+    return json(404, { error: 'Task not found in your tenant.' });
+  }
+
+  auditLog(h, {
+    company_id: profile.company_id,
+    actor_id: profile.id,
+    event_type: 'queue.vote',
+    entity_type: 'query_history',
+    entity_id: triageId,
+    payload: { vote: vote, has_reason: !!reason },
+  });
+
+  return json(200, { ok: true, vote: vote });
+}
+
 module.exports = {
   // HTTP handlers
   handlePull,
@@ -859,6 +953,7 @@ module.exports = {
   handleRetask,
   handleReassign,
   handleSend,
+  handleVote,
   // Pure helpers (exported for unit tests; not used by the router)
   inFilter,
   makeTaskPriorityCmp,
@@ -867,6 +962,7 @@ module.exports = {
   parseRetaskBody,
   parseReassignBody,
   parseSendBody,
+  parseVoteBody,
   checkPullPrecondition,
   splitCategoriesByEligibility,
   partitionForClaim,
