@@ -390,14 +390,17 @@
   }
 
   function renderPatientCell(t) {
-    // For v0 we don't yet have a separate patient_name field — show
-    // a slug from external_id (last segment) so each row is visually
-    // distinct, and the external_id itself in a smaller line.
+    // Prefer the real patient name + email captured from the Intercom
+    // payload (migration 0029). Fall back to an external_id slug for
+    // rows that pre-date the capture or rows from channels that don't
+    // carry identity (manual paste).
     const ext = t.external_id || '';
     const slug = ext.split(':').slice(-1)[0] || ext.slice(0, 8) || 'patient';
+    const name = t.patient_name || ('Patient ' + slug.slice(0, 6));
+    const sub = t.patient_email || ext;
     return '<div class="patient-cell">'
-      + '<span class="patient-name">' + escapeHtml('Patient ' + slug.slice(0, 6)) + '</span>'
-      + (ext ? '<span class="patient-id">' + escapeHtml(ext) + '</span>' : '')
+      + '<span class="patient-name">' + escapeHtml(name) + '</span>'
+      + (sub ? '<span class="patient-id">' + escapeHtml(sub) + '</span>' : '')
       + '</div>';
   }
 
@@ -701,11 +704,15 @@
     const channel = (t.source_channel || 'manual');
 
     // ── Header (sticky strip) ────────────────────────────────────────
-    // Patient · Status · Time · [spacer] · channel chip. Category,
-    // pencil, and severity badge moved into the AI classification
-    // section in the left column. The flex spacer pushes the channel
-    // chip to the far right.
-    const patientLabel = 'Patient ' + (t.external_id || t.id).slice(-12);
+    // Patient name [+ email] · Status · Time · [spacer] · channel chip.
+    // Category, pencil, and severity badge moved into the AI
+    // classification section in the left column. The flex spacer
+    // pushes the channel chip to the far right. patient_name and
+    // patient_email come from migration 0029 (Intercom inserts +
+    // backfill); fall back to an external_id slug when null.
+    const patientLabel = t.patient_name
+      || ('Patient ' + (t.external_id || t.id).slice(-12));
+    const patientEmail = t.patient_email || '';
     const channelLabels = {
       intercom: 'Intercom', healthie: 'Healthie', bask: 'Bask',
       email: 'Email', manual: 'Manual', api: 'API',
@@ -716,6 +723,10 @@
     document.getElementById('detailHeaderInfo').innerHTML =
         '<div class="detail-header-row">'
       +   '<span class="detail-header-title">' + escapeHtml(patientLabel) + '</span>'
+      +   (patientEmail
+            ? '<span class="detail-header-chip detail-header-email" title="' + escapeHtml(patientEmail) + '">'
+              + escapeHtml(patientEmail) + '</span>'
+            : '')
       +   '<span class="detail-header-chip">' + renderStatusBadge(t) + '</span>'
       +   '<span class="detail-header-chip detail-header-time" title="' + escapeHtml(formatDateTime(t.created_at)) + '">' + escapeHtml(formatTime(t.created_at)) + '</span>'
       +   '<span class="detail-header-spacer"></span>'

@@ -64,20 +64,20 @@ const SAMPLE_CONV = {
   source: {
     id: 'src_001',
     body: '<p>Hi, I have a question about my medication.</p>',
-    author: { type: 'user', name: 'Jane Patient' },
+    author: { type: 'user', name: 'Jane Patient', email: 'jane@example.com' },
   },
   conversation_parts: {
     conversation_parts: [
       {
         id: 'part_a',
         body: '<p>Thanks for reaching out — checking on this now.</p>',
-        author: { type: 'admin', name: 'Brad (RN)' },
+        author: { type: 'admin', name: 'Brad (RN)', email: 'brad@clinic.com' },
         created_at: 1700000600,  // 10 min later
       },
       {
         id: 'part_b',
         body: '<p>One more thing — should I take it with food?</p>',
-        author: { type: 'user', name: 'Jane Patient' },
+        author: { type: 'user', name: 'Jane Patient', email: 'jane@example.com' },
         created_at: 1700001000,  // ~6 min after that
       },
       {
@@ -89,7 +89,7 @@ const SAMPLE_CONV = {
       {
         id: 'part_d',
         body: '<p>Yes, take it with food to reduce nausea.</p>',
-        author: { type: 'admin', name: 'Brad (RN)' },
+        author: { type: 'admin', name: 'Brad (RN)', email: 'brad@clinic.com' },
         created_at: 1700001200,
       },
     ],
@@ -124,6 +124,16 @@ describe('buildBackfillRecords', () => {
     assert.equal(userRec.actual_response_sent, undefined);
   });
 
+  it('captures patient_name + patient_email for user-authored parts', () => {
+    const recs = buildBackfillRecords(SAMPLE_CONV, 'company-uuid', 'never');
+    const userRec = recs.find(r => r.external_id === 'intercom:conv_001:src_001');
+    assert.equal(userRec.patient_name, 'Jane Patient');
+    assert.equal(userRec.patient_email, 'jane@example.com');
+    // nurse_name must NOT be set on patient-side rows (that column is
+    // for the staff member who handles the row).
+    assert.equal(userRec.nurse_name, undefined);
+  });
+
   it('routes admin-authored parts to actual_response_sent + NULL patient_message', () => {
     const recs = buildBackfillRecords(SAMPLE_CONV, 'company-uuid', 'never');
     const adminRec = recs.find(r => r.external_id === 'intercom:conv_001:part_a');
@@ -131,6 +141,9 @@ describe('buildBackfillRecords', () => {
     assert.equal(adminRec.patient_message, undefined);
     assert.ok(adminRec.actual_response_sent && adminRec.actual_response_sent.indexOf('Thanks for reaching out') !== -1);
     assert.equal(adminRec.nurse_name, 'Brad (RN)');
+    // patient_name + patient_email must NOT leak onto admin rows.
+    assert.equal(adminRec.patient_name, undefined);
+    assert.equal(adminRec.patient_email, undefined);
   });
 
   it('strips HTML from bodies before storing', () => {

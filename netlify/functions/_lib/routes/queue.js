@@ -80,7 +80,8 @@ const SEND_TEXT_MAX = 50000;
 const TASK_FIELDS = [
   'id', 'company_id', 'source_channel', 'external_id', 'status',
   'conversation_id',
-  'patient_message', 'draft_response',
+  'patient_message', 'patient_email', 'patient_name',
+  'draft_response',
   'clinical_category', 'urgency_score', 'urgency_original',
   'urgency_override',
   'clinical_routing_level', 'ai_confidence', 'internal_note',
@@ -1312,7 +1313,8 @@ async function handleSpawnFollowup(event) {
 const THREAD_FIELDS = [
   'id', 'conversation_id', 'parent_task_id', 'status',
   'source_channel', 'external_id',
-  'patient_message', 'actual_response_sent', 'internal_note',
+  'patient_message', 'patient_email', 'patient_name',
+  'actual_response_sent', 'internal_note',
   'clinical_category', 'urgency_original', 'urgency_score',
   'nurse_name', 'claimed_by',
   'created_at',

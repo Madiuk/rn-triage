@@ -328,6 +328,7 @@ function buildBackfillRecords(intercomConv, companyId, skipPartId) {
       body: intercomConv.source.body,
       authorType: intercomConv.source.author && intercomConv.source.author.type,
       authorName: intercomConv.source.author && intercomConv.source.author.name,
+      authorEmail: intercomConv.source.author && intercomConv.source.author.email,
       createdAt: intercomConv.created_at,
     });
   }
@@ -342,6 +343,7 @@ function buildBackfillRecords(intercomConv, companyId, skipPartId) {
         body: p.body,
         authorType: p.author && p.author.type,
         authorName: p.author && p.author.name,
+        authorEmail: p.author && p.author.email,
         createdAt: p.created_at,
       });
     }
@@ -379,10 +381,16 @@ function buildBackfillRecords(intercomConv, companyId, skipPartId) {
 
     if (isUser) {
       record.patient_message = clean;
+      // patient_name + patient_email (migration 0029) — surface the
+      // patient's identity for the SPA's detail-view top bar and any
+      // future EHR-matching surfaces.
+      if (part.authorName) record.patient_name = part.authorName;
+      if (part.authorEmail) record.patient_email = part.authorEmail;
     } else {
       // Admin (staff) authored. patient_message stays NULL; the staff
       // text is the actual_response_sent so the thread renders it as
-      // a staff bubble.
+      // a staff bubble. nurse_name correctly captures the staff
+      // member's identity here.
       record.actual_response_sent = clean;
       record.nurse_name = part.authorName || 'Intercom admin';
     }
@@ -655,27 +663,32 @@ exports.handler = async function (event) {
   // Insert pending row. Worker fills in classification + draft after
   // the AI call. We deliberately leave clinical_category /
   // urgency_score / etc. NULL — those are AI outputs the worker
-  // produces. nurse_name is set to the patient's name for now since
-  // we don't yet have a real "system actor" concept; it makes the
-  // origin obvious when looking at history.
+  // produces.
   //
   // conversation_id (migration 0028) groups every row in the same
   // Intercom conversation so the tasking SPA's detail view can render
-  // the full thread. Parsed from the event payload — msg.conversationId
-  // is the canonical Intercom conversation id, NOT a part id.
+  // the full thread.
+  //
+  // patient_email / patient_name (migration 0029) record who the
+  // patient is, surfaced in the SPA and used downstream for EHR
+  // matching. nurse_name is NOT set on patient-side inbound rows —
+  // that column is for the staff member who handles the row, not the
+  // patient. The legacy code that mis-used it is replaced by these
+  // dedicated columns.
   const record = {
     company_id: companyId,
     patient_message: text,
     source_channel: 'intercom',
     external_id: externalId,
     conversation_id: msg.conversationId,
+    patient_email: msg.authorEmail || null,
+    patient_name: msg.authorName || null,
     status: 'pending',
     urgency_original: 'routine',           // worker overrides post-triage
     non_clinical_flag: false,
     non_clinical_items: [],
     follow_up_questions: [],
     draft_response: '',
-    nurse_name: msg.authorName || 'Intercom',
     fin_participated: finFlag,
   };
 
