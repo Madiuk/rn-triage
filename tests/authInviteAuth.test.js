@@ -110,7 +110,11 @@ const r = {
     respond: () => ({ status: 200, body: prof ? [prof] : [] }),
   }),
   inviteOK: () => ({
-    match: (url, m) => m === 'POST' && url.endsWith('/auth/v1/invite'),
+    // Includes (not endsWith) — the production caller now appends
+    // ?redirect_to=<url> to the URL (belt-and-braces against the
+    // recovery-redirect bug). Matcher must allow the optional
+    // query string.
+    match: (url, m) => m === 'POST' && /\/auth\/v1\/invite(\?|$)/.test(url),
     respond: () => ({ status: 200, body: { id: NEW_USER_ID, email: 'invitee@test.local' } }),
   }),
   profileInsert: () => ({
@@ -126,7 +130,7 @@ const r = {
 // Helper — assert that the upstream invite-email endpoint was never
 // touched. Applied to every rejection test as a regression guard.
 function assertNoInviteCall() {
-  const inviteCalls = (captured || []).filter(c => /\/auth\/v1\/invite$/.test(c.url));
+  const inviteCalls = (captured || []).filter(c => /\/auth\/v1\/invite(\?|$)/.test(c.url));
   assert.equal(
     inviteCalls.length, 0,
     'auth.js called /auth/v1/invite BEFORE all validation passed. ' +
@@ -358,7 +362,7 @@ describe('/auth/invite — happy path', () => {
 
       // The invite call should hit /auth/v1/invite (which sends the
       // email), NOT /auth/v1/admin/users (which silently confirms).
-      const inviteCall = captured.find(c => /\/auth\/v1\/invite$/.test(c.url));
+      const inviteCall = captured.find(c => /\/auth\/v1\/invite(\?|$)/.test(c.url));
       assert.ok(inviteCall, '/auth/v1/invite was not called');
       const invitePayload = JSON.parse(inviteCall.opts.body);
       assert.equal(invitePayload.email, 'invitee@test.local');

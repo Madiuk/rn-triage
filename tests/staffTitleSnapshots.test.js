@@ -125,7 +125,9 @@ function baseRoutes(profile, { reviewRow = null, triageRow = null } = {}) {
       respond: () => ({ status: 200, body: [] }) },
     { match: (u) => u.includes('/rest/v1/company_members'),
       respond: () => ({ status: 201, body: null }) },
-    { match: (u) => u.endsWith('/auth/v1/invite'),
+    // /auth/v1/invite — matches with optional ?redirect_to=... query
+    // string (caller now appends it; see auth.js).
+    { match: (u) => /\/auth\/v1\/invite(\?|$)/.test(u),
       respond: () => ({ status: 200, body: { id: 'new-user-id', email: 'inv@test.local' } }) },
     // Post mig-0030: invite path INSERTs the profile row immediately
     // (was a PATCH against the auto-created row before). Provide the

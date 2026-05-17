@@ -444,12 +444,23 @@ exports.handler = async function(event) {
       if (prefix) userMeta.prefix = prefix;
       if (suffix) userMeta.suffix = suffix;
 
-      const invitePayload = { email, data: userMeta };
+      // redirect_to passed BOTH as a URL query string param AND in
+      // the body. Some gotrue versions ignore body-level redirect_to
+      // and fall back to the dashboard Site URL — the same class of
+      // bug that landed Brad's reset email at `/` instead of
+      // /reset-password.html on 2026-05-17. The URL itself must be
+      // on the Supabase Auth allow-list (Dashboard → URL
+      // Configuration → Redirect URLs), otherwise Supabase silently
+      // substitutes the Site URL even when redirect_to is passed
+      // correctly.
       const redirectUrl = process.env.INVITE_REDIRECT_URL
         || (process.env.URL ? process.env.URL.replace(/\/$/, '') + '/accept-invite.html' : null);
+      const invitePayload = { email, data: userMeta };
       if (redirectUrl) invitePayload.redirect_to = redirectUrl;
 
-      const inviteRes = await fetch(`${SUPABASE_URL}/auth/v1/invite`, {
+      const inviteUrl = `${SUPABASE_URL}/auth/v1/invite`
+        + (redirectUrl ? '?redirect_to=' + encodeURIComponent(redirectUrl) : '');
+      const inviteRes = await fetch(inviteUrl, {
         method: 'POST',
         headers: serviceH,
         body: JSON.stringify(invitePayload),
