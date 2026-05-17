@@ -8,6 +8,16 @@
 [functions]
   node_bundler = "esbuild"
 
+# Phase 3 pull-queue endpoints. The function lives at
+# /.netlify/functions/queue/<action>; this redirect exposes them at
+# the cleaner /queue/<action> path the SPA and external callers use.
+# status=200 is a rewrite (URL stays /queue/...), not a 301 redirect.
+[[redirects]]
+  from = "/queue/*"
+  to = "/.netlify/functions/queue/:splat"
+  status = 200
+  force = true
+
 # Background worker — processes pending query_history rows once per
 # minute. Comment out until Bask ingest goes live.
 # [[scheduled.functions]]

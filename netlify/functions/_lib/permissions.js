@@ -140,12 +140,88 @@ function canMarkEscalated(/* profile */) {
   return true;
 }
 
+// ─────────────────────────────────────────────────────────────────
+// Queue / pull eligibility (Phase 3)
+// ─────────────────────────────────────────────────────────────────
+//
+// Advanced-practice-provider tier. Identified by profile.title (MD,
+// NP, etc. — caller passes the list from defaults so this stays
+// pure and per-tenant configurable). APP attention is reserved for
+// clinical work; APP staff are excluded from the Routing Hub and
+// from non-clinical categories generally.
+function isAppTier(profile, appTitles) {
+  if (!profile || !profile.title) return false;
+  if (!Array.isArray(appTitles) || appTitles.length === 0) return false;
+  return appTitles.indexOf(profile.title) !== -1;
+}
+
+// Pull-eligibility for a given category, in tri-state form:
+//
+//   'always'    — the staffer can pull this category on any pull
+//   'idle_only' — eligible only when the staffer's "always" pool is
+//                 empty at pull time (the idle-unlock rule from
+//                 PLAN.md "Role and capability gating")
+//   'never'     — capability-excluded; never appears in this
+//                 staffer's pull dropdown
+//
+// Inputs:
+//   - profile: { role, title }
+//   - categoryName: the category being checked
+//   - categoryRequiresClinical: boolean (from category_metadata
+//     row's is_clinical, or defaults.categories[name].requires_
+//     clinical_authorization)
+//   - defaults: { routingHubCategory, appTitles } — injected so
+//     this function stays pure and per-tenant configurable
+//
+// Rules (in order):
+//   1. APP-tier → 'always' for clinical categories, 'never' for
+//      anything else. APP doesn't dabble in non-clinical work.
+//   2. Routing Hub → Non-Clinical 'always', Clinical (non-APP)
+//      'idle_only'. Non-Clinical is the routing layer; clinical
+//      RNs help during quiet clinical periods.
+//   3. Other clinical-required categories → Clinical 'always',
+//      everyone else 'never'.
+//   4. Other non-clinical categories → Non-Clinical 'always',
+//      Clinical (non-APP) 'idle_only', anyone else 'never'.
+//
+// The 'idle_only' state is the asymmetric idle-unlock: clinical
+// can spill into non-clinical when their own pool is dry, but
+// non-clinical never spills into clinical regardless of load.
+function categoryEligibility(profile, categoryName, categoryRequiresClinical, defaults) {
+  if (!profile) return 'never';
+  const opts = defaults || {};
+  const isApp = isAppTier(profile, opts.appTitles);
+
+  // Rule 1: APP tier — clinical work only.
+  if (isApp) {
+    return categoryRequiresClinical ? 'always' : 'never';
+  }
+
+  // Rule 2: Routing Hub.
+  if (categoryName === opts.routingHubCategory) {
+    if (isNonClinical(profile)) return 'always';
+    if (isClinical(profile))    return 'idle_only';
+    return 'never';
+  }
+
+  // Rule 3: clinical-required category.
+  if (categoryRequiresClinical) {
+    return isClinical(profile) ? 'always' : 'never';
+  }
+
+  // Rule 4: non-clinical, non-routing-hub category.
+  if (isNonClinical(profile)) return 'always';
+  if (isClinical(profile))    return 'idle_only';
+  return 'never';
+}
+
 module.exports = {
   // role classifiers
   isClinical,
   isNonClinical,
   isAdmin,
   isSuperUser,
+  isAppTier,
   // row classification
   rowIsClinical,
   // composite permission predicates
@@ -156,4 +232,6 @@ module.exports = {
   canVoteOnDraft,
   canSaveActualResponse,
   canMarkEscalated,
+  // queue eligibility
+  categoryEligibility,
 };

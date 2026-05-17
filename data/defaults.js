@@ -23,8 +23,35 @@ const RELAI_DEFAULTS = {
     cap: 10
   },
   // Visible to staff when the AI's confidence on a clinical decision
-  // dips below this threshold.
+  // dips below this threshold. The Phase-3 worker also uses this
+  // threshold to override clinical_category → 'Routing Hub' so that
+  // low-confidence tasks land in the non-clinical routing pool rather
+  // than the AI's best-guess category. See PLAN.md "Task ownership,
+  // assignment, and handoffs" rule 8.
   reviewConfidenceThreshold: 0.75,
+
+  // Tasks with urgency_score at or above this threshold are pulled
+  // FIRST in /queue/pull, across all ticked categories, regardless of
+  // category gating or Due state. The urgency_score column is 0–10
+  // (see RELAI_DEFAULTS.urgency above for how it's derived). 7 is
+  // chosen as a starting point — adjust based on real volume after
+  // go-live. See PLAN.md "Per-staff queue" priority ordering.
+  severityUrgencyThreshold: 7,
+
+  // Special category name used when the AI's confidence is below
+  // reviewConfidenceThreshold. The worker overrides clinical_category
+  // to this value so the task lands in the non-clinical Routing Hub
+  // pool. APP-tier staff are excluded from this pool; clinical RN
+  // staff can pull from it via the idle-unlock rule when their
+  // in-scope clinical pool is empty.
+  routingHubCategory: 'Routing Hub',
+
+  // Staff `title` values that classify as advanced-practice provider
+  // (APP) tier. APP attention is reserved for clinical work, so APP
+  // staff are excluded from the Routing Hub and from non-clinical
+  // categories. Big Easy default; per-tenant override expected in
+  // Phase 4 when title taxonomy becomes vertical-specific.
+  appTitles: ['MD', 'NP', 'DO', 'PA'],
 
   // KB section render order + labels. Single source of truth used by
   // both app.js's getFullKB() (browser, what the live triage call
@@ -74,7 +101,11 @@ const RELAI_DEFAULTS = {
     'Shipment/Tracking':     { requires_clinical_authorization: false, kind: 'non_clinical' },
     'Account/Subscription':  { requires_clinical_authorization: false, kind: 'non_clinical' },
     'Refund Request':        { requires_clinical_authorization: false, kind: 'non_clinical' },
-    'Complaint/Concern':     { requires_clinical_authorization: false, kind: 'non_clinical' }
+    'Complaint/Concern':     { requires_clinical_authorization: false, kind: 'non_clinical' },
+    // Routing Hub — the pool low-confidence AI classifications land
+    // in. Non-clinical by capability; APP exclusion is enforced at
+    // the pull endpoint, not here (see permissions.categoryEligibility).
+    'Routing Hub':           { requires_clinical_authorization: false, kind: 'non_clinical' }
   }
 };
 
