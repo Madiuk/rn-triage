@@ -1,5 +1,10 @@
 // Care Station — Auth & Profile Netlify Function
-// Endpoints: GET /auth/profile, POST /auth/invite, POST /auth/signout
+// Endpoints:
+//   GET  /auth/profile  — caller's profile (creates row on first hit)
+//   POST /auth/invite   — super-user invites a new staff member (sends email)
+//   POST /auth/accept   — invitee marks themselves accepted after setting password
+//   GET  /auth/staff    — super-user lists tenant staff
+//   POST /auth/signout  — touch last_seen on sign-out
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
@@ -173,29 +178,34 @@ exports.handler = async function(event) {
 
     // ── POST /auth/invite ─────────────────────────────────────────────────
     //
-    // Earlier this endpoint had NO caller auth at all — anyone with the
-    // URL could POST { email, company_id, role: 'Clinical', is_admin:
-    // true } and create a confirmed Supabase user attached to any
-    // tenant with any role. That's full tenant takeover with one curl.
-    // RELAI_VALIDATION_AUDIT.md flagged it as the highest-severity
-    // finding in the function set.
+    // History: this endpoint had NO caller auth originally — full
+    // tenant-takeover-with-one-curl (RELAI_VALIDATION_AUDIT.md). The
+    // is_admin gate added next closed that hole. With magic-link sign-up
+    // going away (real-patient-data threat model in mig 0030 comment),
+    // this endpoint becomes the ONLY path to account creation, so the
+    // gate tightens further to super-user.
     //
-    // The gates added below, in order:
+    // The gates below, in order — every side effect happens AFTER all
+    // of them pass:
     //   1. Bearer token required + verified against Supabase Auth.
-    //   2. Caller's profile lookup; is_admin = true required.
-    //   3. Caller must have a resolved company_id (no orphan admins
+    //   2. Caller's profile lookup; is_super_user = true required.
+    //   3. Caller must have a resolved company_id (no orphan supers
     //      inviting into nothing).
-    //   4. Body key allowlist — refuses unknown fields like
-    //      is_admin / is_super_user that a future caller might try
-    //      to slip through. Today's defense against tomorrow's
-    //      privilege-escalation refactor.
-    //   5. role allowlist — Clinical | Non-Clinical | staff.
-    //   6. company_id forced to caller's tenant. If body sends a
-    //      different company_id, refuse explicitly (cross-tenant
-    //      invite) rather than silently overriding.
+    //   4. Body key allowlist — refuses unknown fields like is_admin
+    //      or is_super_user that a future caller might try to slip
+    //      through. Today's defense against tomorrow's privilege-
+    //      escalation refactor. company_id is also NOT accepted —
+    //      tenant is server-derived from caller, never from body.
+    //   5. Per-field validation: email shape, names 1–80 chars,
+    //      role in {Clinical, Non-Clinical}, prefix ≤ 8 chars,
+    //      suffix ≤ 24 chars (mirrors the title precedent from
+    //      migration 0017 — no DB CHECK, app-layer bound).
     //
-    // Side effects (admin/users create, profile PATCH, company_members
-    // insert) do NOT run until every gate above has passed.
+    // Then: call Supabase POST /auth/v1/invite (the admin invite
+    // endpoint — generates an invite token + sends the email to the
+    // invitee). Followed by an INSERT into profiles so the pending
+    // invite is visible immediately in the Staff admin view, and a
+    // company_members insert for the join-table back-compat.
     if (path.includes('/invite') && method === 'POST') {
       if (!serviceH) return { statusCode: 500, headers: CORS, body: JSON.stringify({ error: 'SUPABASE_SERVICE_KEY not configured' }) };
 
@@ -209,28 +219,26 @@ exports.handler = async function(event) {
         return { statusCode: 401, headers: CORS, body: JSON.stringify({ error: 'Invalid token' }) };
       }
 
-      // 2. Profile lookup → admin gate. Service key + explicit id
+      // 2. Profile lookup → super-user gate. Service key + explicit id
       //    filter so we don't depend on RLS configuration. Missing
-      //    profile is treated as non-admin (fail closed).
+      //    profile is treated as non-super-user (fail closed).
       const callerProfRes = await fetch(
-        `${SUPABASE_URL}/rest/v1/profiles?id=eq.${caller.id}&select=is_admin,is_super_user,company_id`,
+        `${SUPABASE_URL}/rest/v1/profiles?id=eq.${caller.id}&select=is_super_user,company_id`,
         { headers: serviceH }
       );
       const callerProfiles = await callerProfRes.json();
       const callerProfile = Array.isArray(callerProfiles) && callerProfiles[0] ? callerProfiles[0] : null;
-      if (!callerProfile || !callerProfile.is_admin) {
+      if (!callerProfile || !callerProfile.is_super_user) {
         return {
           statusCode: 403,
           headers: CORS,
-          body: JSON.stringify({ error: 'Admin access required.', code: 'admin_only' }),
+          body: JSON.stringify({ error: 'Super-user access required.', code: 'super_user_only' }),
         };
       }
 
-      // 3. Caller must have a tenant. Without one we can't determine
-      //    where the invite lands, and forcing a fallback would let
-      //    an unattached admin invite into arbitrary tenants.
-      const callerCompanyId = callerProfile.company_id;
-      if (!callerCompanyId) {
+      // 3. Caller must have a tenant.
+      const company_id = callerProfile.company_id;
+      if (!company_id) {
         return {
           statusCode: 400,
           headers: CORS,
@@ -238,14 +246,13 @@ exports.handler = async function(event) {
         };
       }
 
-      // 4. Parse body with explicit error path (not the outer catch's
-      //    500). Enforce key allowlist defensively.
+      // 4. Body parse + key allowlist.
       let body;
       try { body = JSON.parse(event.body || '{}'); }
       catch (e) {
         return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'Invalid JSON body.' }) };
       }
-      const ALLOWED_BODY_KEYS = new Set(['email', 'role', 'company_id', 'title']);
+      const ALLOWED_BODY_KEYS = new Set(['email', 'first_name', 'last_name', 'role', 'prefix', 'suffix']);
       for (const k of Object.keys(body)) {
         if (!ALLOWED_BODY_KEYS.has(k)) {
           return {
@@ -255,86 +262,199 @@ exports.handler = async function(event) {
           };
         }
       }
-      const { email } = body;
-      if (!email) {
-        return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'email required' }) };
-      }
 
-      // 5. role allowlist. 'staff' is preserved as the legacy default
-      //    (profiles.role still accepts it per 0001_baseline) so this
-      //    gate is non-breaking for legitimate admin callers.
-      const role = body.role || 'staff';
-      const ALLOWED_ROLES = new Set(['Clinical', 'Non-Clinical', 'staff']);
+      // 5. Per-field validation.
+      const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
+      if (!email || !email.includes('@') || !email.includes('.')) {
+        return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'Valid email required.' }) };
+      }
+      const first_name = typeof body.first_name === 'string' ? body.first_name.trim() : '';
+      if (!first_name || first_name.length > 80) {
+        return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'first_name required (1–80 chars).' }) };
+      }
+      const last_name = typeof body.last_name === 'string' ? body.last_name.trim() : '';
+      if (!last_name || last_name.length > 80) {
+        return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'last_name required (1–80 chars).' }) };
+      }
+      const role = typeof body.role === 'string' ? body.role : '';
+      const ALLOWED_ROLES = new Set(['Clinical', 'Non-Clinical']);
       if (!ALLOWED_ROLES.has(role)) {
         return {
           statusCode: 400,
           headers: CORS,
-          body: JSON.stringify({ error: "role must be 'Clinical', 'Non-Clinical', or 'staff'." }),
+          body: JSON.stringify({ error: "role must be 'Clinical' or 'Non-Clinical'." }),
         };
       }
-
-      // 5b. title — optional free-text credential (migration 0017).
-      //     Length-bounded at the app layer (no DB CHECK; see
-      //     migration comment). Trim whitespace; reject if >24
-      //     chars after trim. Null/undefined are fine — the
-      //     migration backfills 'RN'/'CSR' on the profile PATCH
-      //     callsite below only if no title was provided.
-      let title = null;
-      if ('title' in body && body.title != null) {
-        if (typeof body.title !== 'string') {
-          return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'title must be a string.' }) };
+      let prefix = null;
+      if ('prefix' in body && body.prefix != null) {
+        if (typeof body.prefix !== 'string') {
+          return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'prefix must be a string.' }) };
         }
-        title = body.title.trim();
-        if (title.length > 24) {
-          return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'title must be 24 characters or fewer.' }) };
+        prefix = body.prefix.trim();
+        if (prefix.length > 8) {
+          return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'prefix must be 8 characters or fewer.' }) };
         }
-        if (title.length === 0) title = null;
+        if (prefix.length === 0) prefix = null;
+      }
+      let suffix = null;
+      if ('suffix' in body && body.suffix != null) {
+        if (typeof body.suffix !== 'string') {
+          return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'suffix must be a string.' }) };
+        }
+        suffix = body.suffix.trim();
+        if (suffix.length > 24) {
+          return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'suffix must be 24 characters or fewer.' }) };
+        }
+        if (suffix.length === 0) suffix = null;
       }
 
-      // 6. Tenant is the CALLER's. If body included a different
-      //    company_id, refuse explicitly — silent override would
-      //    mask the caller's intent to do something they aren't
-      //    allowed to do.
-      if ('company_id' in body && body.company_id && body.company_id !== callerCompanyId) {
-        return {
-          statusCode: 403,
-          headers: CORS,
-          body: JSON.stringify({ error: 'Cross-tenant invite refused. You may only invite into your own tenant.', code: 'cross_tenant' }),
-        };
-      }
-      const company_id = callerCompanyId;
+      // Side effects start here.
+      //
+      // Supabase admin /auth/v1/invite generates an invite token and
+      // emails it to the invitee. user_metadata carries display
+      // fields so Supabase's email template can address them by name
+      // and so the accept-invite page can render the name from the
+      // JWT before any RLS-permitted read happens.
+      //
+      // redirect_to overrides the dashboard's Site URL. Set
+      // INVITE_REDIRECT_URL in Netlify env to pin the destination
+      // explicitly; otherwise fall back to {URL}/accept-invite.html
+      // (URL is Netlify's auto-set site URL).
+      const full_name = [first_name, last_name].filter(Boolean).join(' ');
+      const userMeta = { first_name, last_name, full_name, role, company_id };
+      if (prefix) userMeta.prefix = prefix;
+      if (suffix) userMeta.suffix = suffix;
 
-      // Side effects start here. All three writes use the service
-      // key — admin/users requires it; profiles + company_members do
-      // too because RLS denies user-JWT writes.
-      const r = await fetch(`${SUPABASE_URL}/auth/v1/admin/users`, {
+      const invitePayload = { email, data: userMeta };
+      const redirectUrl = process.env.INVITE_REDIRECT_URL
+        || (process.env.URL ? process.env.URL.replace(/\/$/, '') + '/accept-invite.html' : null);
+      if (redirectUrl) invitePayload.redirect_to = redirectUrl;
+
+      const inviteRes = await fetch(`${SUPABASE_URL}/auth/v1/invite`, {
         method: 'POST',
         headers: serviceH,
-        body: JSON.stringify({ email, email_confirm: true, user_metadata: { role, company_id } })
+        body: JSON.stringify(invitePayload),
       });
-      const newUser = await r.json();
-      if (!newUser.id) {
-        return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: newUser.message || 'Failed to create user' }) };
+      const newUser = await inviteRes.json();
+      if (!inviteRes.ok || !newUser.id) {
+        // 422 / "User already registered" is the most common failure —
+        // surface verbatim so the admin UI can show a clean message.
+        const msg = newUser.msg || newUser.message || newUser.error_description
+                 || newUser.error || 'Invite failed';
+        return { statusCode: inviteRes.status || 400, headers: CORS, body: JSON.stringify({ error: msg }) };
       }
 
-      const profilePatch = { role, company_id };
-      if (title != null) profilePatch.title = title;
-      await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${newUser.id}`, {
-        method: 'PATCH',
+      // Insert the profile row immediately so the pending invite is
+      // visible in the Staff admin view. title gets the suffix value
+      // for back-compat with the snapshot-rail code in /history and
+      // /reviews (mig 0017) that still reads profile.title.
+      const profileRow = {
+        id: newUser.id,
+        company_id,
+        role,
+        first_name,
+        last_name,
+        full_name,
+        email,
+        invited_at: new Date().toISOString(),
+        accepted_at: null,
+      };
+      if (prefix) profileRow.prefix = prefix;
+      if (suffix) {
+        profileRow.suffix = suffix;
+        profileRow.title = suffix;
+      }
+      await fetch(`${SUPABASE_URL}/rest/v1/profiles`, {
+        method: 'POST',
         headers: { ...serviceH, 'Prefer': 'return=minimal' },
-        body: JSON.stringify(profilePatch)
+        body: JSON.stringify(profileRow),
       });
 
-      // company_id is guaranteed non-null by the earlier gate, so the
-      // original `if (company_id)` wrapper around this insert is no
-      // longer needed.
       await fetch(`${SUPABASE_URL}/rest/v1/company_members`, {
         method: 'POST',
         headers: { ...serviceH, 'Prefer': 'return=minimal' },
-        body: JSON.stringify({ company_id, user_id: newUser.id, role })
+        body: JSON.stringify({ company_id, user_id: newUser.id, role }),
       });
 
       return { statusCode: 200, headers: CORS, body: JSON.stringify({ success: true, user_id: newUser.id, email }) };
+    }
+
+    // ── POST /auth/accept ─────────────────────────────────────────────────
+    //
+    // Called by /accept-invite.html after the invitee has set their
+    // password via Supabase's PUT /auth/v1/user. Flips accepted_at
+    // from null → now() on the caller's own profile row.
+    //
+    // Safety:
+    //   * Only mutates the caller's row (id derived from server-
+    //     verified JWT, never from body — caller has no body to send).
+    //   * PATCH predicate includes `accepted_at=is.null` so any
+    //     replay or second call is a silent no-op rather than
+    //     overwriting the original timestamp.
+    if (path.includes('/accept') && method === 'POST') {
+      if (!token) return { statusCode: 401, headers: CORS, body: JSON.stringify({ error: 'No token' }) };
+      const userRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, { headers: userH });
+      const user = await userRes.json();
+      if (!user || !user.id) {
+        return { statusCode: 401, headers: CORS, body: JSON.stringify({ error: 'Invalid token' }) };
+      }
+      const hdr = serviceH || userH;
+      const res = await fetch(
+        `${SUPABASE_URL}/rest/v1/profiles?id=eq.${user.id}&accepted_at=is.null`,
+        {
+          method: 'PATCH',
+          headers: { ...hdr, 'Prefer': 'return=minimal' },
+          body: JSON.stringify({ accepted_at: new Date().toISOString() }),
+        }
+      );
+      if (!res.ok) {
+        console.error('auth.accept:', res.status);
+        return { statusCode: 500, headers: CORS, body: JSON.stringify({ error: 'accept failed' }) };
+      }
+      return { statusCode: 200, headers: CORS, body: JSON.stringify({ success: true }) };
+    }
+
+    // ── GET /auth/staff ───────────────────────────────────────────────────
+    //
+    // Super-user-only listing of every profile in the caller's tenant,
+    // used by the Staff admin tab. Same gate as /auth/invite. Tenant
+    // is server-derived; the query is hard-scoped to caller's company_id
+    // (never read from query string).
+    if (path.includes('/staff') && method === 'GET') {
+      if (!serviceH) return { statusCode: 500, headers: CORS, body: JSON.stringify({ error: 'SUPABASE_SERVICE_KEY not configured' }) };
+      if (!token) return { statusCode: 401, headers: CORS, body: JSON.stringify({ error: 'No token' }) };
+      const callerRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, { headers: userH });
+      const caller = await callerRes.json();
+      if (!caller || !caller.id) {
+        return { statusCode: 401, headers: CORS, body: JSON.stringify({ error: 'Invalid token' }) };
+      }
+      const callerProfRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/profiles?id=eq.${caller.id}&select=is_super_user,company_id`,
+        { headers: serviceH }
+      );
+      const callerProfiles = await callerProfRes.json();
+      const callerProfile = Array.isArray(callerProfiles) && callerProfiles[0] ? callerProfiles[0] : null;
+      if (!callerProfile || !callerProfile.is_super_user) {
+        return {
+          statusCode: 403,
+          headers: CORS,
+          body: JSON.stringify({ error: 'Super-user access required.', code: 'super_user_only' }),
+        };
+      }
+      if (!callerProfile.company_id) {
+        return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'Caller has no company_id.' }) };
+      }
+      const listRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/profiles?company_id=eq.${callerProfile.company_id}` +
+        `&select=id,email,first_name,last_name,full_name,prefix,suffix,role,title,is_admin,is_super_user,invited_at,accepted_at,created_at,last_seen,triages_completed` +
+        `&order=created_at.desc`,
+        { headers: serviceH }
+      );
+      const staff = await listRes.json();
+      if (!Array.isArray(staff)) {
+        return { statusCode: 500, headers: CORS, body: JSON.stringify({ error: 'staff list fetch failed' }) };
+      }
+      return { statusCode: 200, headers: CORS, body: JSON.stringify({ staff }) };
     }
 
     // ── POST /auth/signout ────────────────────────────────────────────────

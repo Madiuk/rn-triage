@@ -47,7 +47,8 @@
     queue: [],            // current pending queue (own tasks)
     selectedPullCategories: new Set(),
     openTaskId: null,
-    activeView: 'queue',  // 'queue' | 'detail'
+    activeView: 'queue',  // 'queue' | 'detail' | 'events' | 'staff'
+    staffList: [],        // /auth/staff response (super-user only)
     isSigningOut: false,
     refreshInFlight: null,
     // Local-session map of staged follow-ups per parent task id. The
@@ -283,11 +284,15 @@
     setText('profileAvatar', initials);
     setText('profileCompany', p.company_name || p.company_id || '—');
 
-    // Super-user-only tab visibility. Server-side gate (in admin-events.js)
-    // is the real boundary; this is just chrome.
+    // Super-user-only tab visibility. Server-side gate (in admin-events.js
+    // and auth.js) is the real boundary; this is just chrome.
     const eventsTab = document.getElementById('eventsTabBtn');
     if (eventsTab) {
       eventsTab.style.display = p.is_super_user ? '' : 'none';
+    }
+    const staffTab = document.getElementById('staffTabBtn');
+    if (staffTab) {
+      staffTab.style.display = p.is_super_user ? '' : 'none';
     }
 
     // Manual paste (legacy) is super-user-only. The legacy SPA at
@@ -640,6 +645,8 @@
     document.getElementById('detailView').style.display = 'none';
     const ev = document.getElementById('eventsView');
     if (ev) ev.style.display = 'none';
+    const sv = document.getElementById('staffView');
+    if (sv) sv.style.display = 'none';
     setActiveTab('queueTabBtn');
     // Refresh in case the queue mutated while we were in detail
     // (e.g., a retask/send + back).
@@ -662,6 +669,8 @@
     document.getElementById('detailView').style.display = '';
     const ev = document.getElementById('eventsView');
     if (ev) ev.style.display = 'none';
+    const sv = document.getElementById('staffView');
+    if (sv) sv.style.display = 'none';
     setActiveTab('queueTabBtn');
     renderDetailView(t);
     const body = document.getElementById('detailViewBody');
@@ -680,6 +689,8 @@
     document.getElementById('queueView').style.display = 'none';
     document.getElementById('detailView').style.display = 'none';
     document.getElementById('eventsView').style.display = '';
+    const sv = document.getElementById('staffView');
+    if (sv) sv.style.display = 'none';
     setActiveTab('eventsTabBtn');
     state.eventsSubtab = subtab && ['inbound', 'reviews', 'errors', 'learning'].indexOf(subtab) >= 0
       ? subtab : 'inbound';
@@ -690,17 +701,212 @@
     loadEvents(state.eventsSubtab);
   }
 
+  // ─────────────────────────────────────────────────────────────────
+  // Staff admin view (super-user only)
+  // ─────────────────────────────────────────────────────────────────
+
+  function showStaffView() {
+    // Server-side gate on /auth/staff and /auth/invite is the real
+    // boundary; this UI guard just keeps non-super-users out of an
+    // empty/broken view if they manually navigate to #staff.
+    if (!state.profile || !state.profile.is_super_user) {
+      toast('Staff admin is super-user only.', 'warn');
+      window.location.hash = '#queue';
+      return;
+    }
+    state.activeView = 'staff';
+    document.getElementById('queueView').style.display = 'none';
+    document.getElementById('detailView').style.display = 'none';
+    const ev = document.getElementById('eventsView');
+    if (ev) ev.style.display = 'none';
+    const sv = document.getElementById('staffView');
+    if (sv) sv.style.display = '';
+    setActiveTab('staffTabBtn');
+    loadStaffList();
+  }
+
+  async function loadStaffList() {
+    const tbody = document.getElementById('staffTableBody');
+    if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="loading-row">Loading…</td></tr>';
+    try {
+      const resp = await api('/auth/staff', { method: 'GET' });
+      state.staffList = (resp && Array.isArray(resp.staff)) ? resp.staff : [];
+      renderStaffList();
+    } catch (e) {
+      toast('Could not load staff: ' + e.message, 'error');
+      if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="loading-row">Could not load.</td></tr>';
+    }
+  }
+
+  function renderStaffList() {
+    const tbody   = document.getElementById('staffTableBody');
+    const emptyEl = document.getElementById('staffEmptyState');
+    const table   = document.getElementById('staffTable');
+    if (!tbody) return;
+
+    const list = state.staffList || [];
+    if (list.length === 0) {
+      tbody.innerHTML = '';
+      if (table)   table.style.display = 'none';
+      if (emptyEl) emptyEl.style.display = '';
+      return;
+    }
+    if (table)   table.style.display = '';
+    if (emptyEl) emptyEl.style.display = 'none';
+    tbody.innerHTML = '';
+    list.forEach(s => tbody.appendChild(renderStaffRow(s)));
+  }
+
+  function renderStaffRow(s) {
+    const tr = document.createElement('tr');
+    const isPending = !s.accepted_at;
+
+    const nameCell = document.createElement('td');
+    nameCell.className = 'staff-name-cell';
+    nameCell.textContent = formatStaffName(s);
+    tr.appendChild(nameCell);
+
+    const emailCell = document.createElement('td');
+    emailCell.className = 'staff-email-cell';
+    emailCell.textContent = s.email || '—';
+    tr.appendChild(emailCell);
+
+    const roleCell = document.createElement('td');
+    const roleBadge = document.createElement('span');
+    roleBadge.className = 'staff-role-badge' + (s.role === 'Non-Clinical' ? ' non-clinical' : '');
+    roleBadge.textContent = s.role || 'staff';
+    roleCell.appendChild(roleBadge);
+    tr.appendChild(roleCell);
+
+    const statusCell = document.createElement('td');
+    const statusBadge = document.createElement('span');
+    statusBadge.className = 'staff-status-badge ' + (isPending ? 'pending' : 'active');
+    statusBadge.textContent = isPending ? 'Pending invite' : 'Active';
+    statusCell.appendChild(statusBadge);
+    tr.appendChild(statusCell);
+
+    const invitedCell = document.createElement('td');
+    invitedCell.className = 'staff-meta-cell';
+    invitedCell.textContent = formatStaffDate(s.invited_at || s.created_at);
+    tr.appendChild(invitedCell);
+
+    const seenCell = document.createElement('td');
+    seenCell.className = 'staff-meta-cell';
+    seenCell.textContent = s.last_seen ? formatStaffDate(s.last_seen) : '—';
+    tr.appendChild(seenCell);
+
+    return tr;
+  }
+
+  function formatStaffName(s) {
+    const core = (s.first_name || s.last_name)
+      ? [s.first_name, s.last_name].filter(Boolean).join(' ')
+      : (s.full_name || '');
+    let name = s.prefix ? (s.prefix + ' ' + core).trim() : core;
+    if (!name) name = '—';
+    if (s.suffix) name += ', ' + s.suffix;
+    return name;
+  }
+
+  function formatStaffDate(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '—';
+    const diff = Date.now() - d.getTime();
+    const min = 60 * 1000, hr = 60 * min, day = 24 * hr;
+    if (diff < min)     return 'just now';
+    if (diff < hr)      return Math.floor(diff / min) + 'm ago';
+    if (diff < day)     return Math.floor(diff / hr)  + 'h ago';
+    if (diff < 7 * day) return Math.floor(diff / day) + 'd ago';
+    return d.toLocaleDateString();
+  }
+
+  async function submitInviteForm() {
+    const email      = (document.getElementById('inviteEmail')     || {}).value || '';
+    const first_name = (document.getElementById('inviteFirstName') || {}).value || '';
+    const last_name  = (document.getElementById('inviteLastName')  || {}).value || '';
+    const role       = (document.getElementById('inviteRole')      || {}).value || '';
+    const prefix     = (document.getElementById('invitePrefix')    || {}).value || '';
+    const suffix     = (document.getElementById('inviteSuffix')    || {}).value || '';
+
+    // Client-side validation mirrors the server gates in auth.js so
+    // the user gets immediate feedback instead of a round-trip 400.
+    if (!email.trim() || !email.includes('@') || !email.includes('.')) {
+      showInviteMsg('Enter a valid email.', 'err');
+      const el = document.getElementById('inviteEmail'); if (el) el.focus();
+      return;
+    }
+    if (!first_name.trim()) {
+      showInviteMsg('First name is required.', 'err');
+      const el = document.getElementById('inviteFirstName'); if (el) el.focus();
+      return;
+    }
+    if (!last_name.trim()) {
+      showInviteMsg('Last name is required.', 'err');
+      const el = document.getElementById('inviteLastName'); if (el) el.focus();
+      return;
+    }
+    if (!role) {
+      showInviteMsg('Pick a role.', 'err');
+      const el = document.getElementById('inviteRole'); if (el) el.focus();
+      return;
+    }
+
+    const body = {
+      email: email.trim(),
+      first_name: first_name.trim(),
+      last_name: last_name.trim(),
+      role,
+    };
+    if (prefix.trim()) body.prefix = prefix.trim();
+    if (suffix.trim()) body.suffix = suffix.trim();
+
+    const btn    = document.getElementById('inviteSubmitBtn');
+    const btnTxt = document.getElementById('inviteSubmitTxt');
+    if (btn)    btn.disabled = true;
+    if (btnTxt) btnTxt.textContent = 'Sending…';
+    showInviteMsg('', '');
+
+    try {
+      await api('/auth/invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      showInviteMsg('Invite sent to ' + body.email + '. They\'ll get an email with a link to finish setup.', 'ok');
+      ['inviteEmail','inviteFirstName','inviteLastName','inviteRole','invitePrefix','inviteSuffix']
+        .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+      await loadStaffList();
+    } catch (e) {
+      const errMsg = (e.body && e.body.error) || e.message || 'Could not send invite.';
+      showInviteMsg(errMsg, 'err');
+    } finally {
+      if (btn)    btn.disabled = false;
+      if (btnTxt) btnTxt.textContent = 'Send invite';
+    }
+  }
+
+  function showInviteMsg(text, type) {
+    const m = document.getElementById('inviteFormMsg');
+    if (!m) return;
+    m.textContent = text;
+    m.className = 'staff-form-msg' + (type ? ' ' + type : '');
+  }
+
   window.backToQueue = function () {
     window.location.hash = '#queue';
   };
   window.navigateToQueue = function () { window.location.hash = '#queue'; };
   window.navigateToEvents = function () { window.location.hash = '#events'; };
+  window.navigateToStaff  = function () { window.location.hash = '#staff'; };
   window.switchEventsSubtab = function (subtab) {
     window.location.hash = '#events/' + subtab;
   };
+  window.loadStaffList    = loadStaffList;
+  window.submitInviteForm = submitInviteForm;
 
   function setActiveTab(activeId) {
-    ['queueTabBtn', 'eventsTabBtn'].forEach(id => {
+    ['queueTabBtn', 'eventsTabBtn', 'staffTabBtn'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.classList.toggle('active', id === activeId);
     });
@@ -717,6 +923,8 @@
       // '#events' or '#events/<subtab>'
       const sub = h === 'events' ? 'inbound' : h.replace(/^events\/?/, '');
       showEventsView(sub || 'inbound');
+    } else if (h === 'staff') {
+      showStaffView();
     } else {
       showQueueView();
     }

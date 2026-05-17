@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Care Station — Accept Invite</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{
+  font-family:'DM Sans',sans-serif;
+  background:linear-gradient(135deg,#eff6ff 0%,#f1f3f5 100%);
+  min-height:100vh;
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  padding:24px;
+}
+.card{
+  background:#fff;border-radius:20px;
+  box-shadow:0 4px 6px rgba(0,0,0,.04),0 12px 40px rgba(0,0,0,.08);
+  padding:48px 44px;width:100%;max-width:460px;
+}
+.brand{display:flex;align-items:center;gap:12px;margin-bottom:32px;}
+.brand-icon{
+  width:46px;height:46px;border-radius:12px;
+  background:#2563eb;color:white;
+  display:flex;align-items:center;justify-content:center;
+  font-size:22px;font-weight:800;font-family:'DM Sans',sans-serif;
+  letter-spacing:-1px;flex-shrink:0;
+}
+.brand-name{font-size:26px;font-weight:700;color:#212529;letter-spacing:-.5px;line-height:1;}
+.brand-tag{font-size:12px;color:#adb5bd;margin-top:3px;font-weight:500;}
+h1{font-size:19px;font-weight:700;color:#212529;margin-bottom:6px;}
+.sub{font-size:14px;color:#6c757d;margin-bottom:24px;line-height:1.55;}
+.identity-card{
+  background:#f8f9fa;border:1.5px solid #e9ecef;
+  border-radius:12px;padding:16px 18px;margin-bottom:24px;
+}
+.identity-row{display:flex;align-items:baseline;gap:10px;margin-bottom:6px;}
+.identity-row:last-child{margin-bottom:0;}
+.identity-label{
+  font-size:11px;color:#adb5bd;font-weight:600;
+  text-transform:uppercase;letter-spacing:.5px;
+  min-width:60px;
+}
+.identity-value{font-size:14px;color:#212529;font-weight:500;}
+.field{margin-bottom:14px;}
+label{display:block;font-size:13px;font-weight:600;color:#495057;margin-bottom:7px;}
+input[type=password]{
+  width:100%;padding:12px 14px;
+  border:1.5px solid #dee2e6;border-radius:10px;
+  font-family:'DM Sans',sans-serif;font-size:15px;
+  color:#212529;outline:none;background:#fff;
+  transition:border-color .15s,box-shadow .15s;
+  appearance:none;-webkit-appearance:none;
+}
+input[type=password]:focus{
+  border-color:#2563eb;
+  box-shadow:0 0 0 3px rgba(37,99,235,.1);
+}
+.hint{font-size:12px;color:#adb5bd;margin-top:6px;}
+.btn{
+  width:100%;padding:13px;margin-top:8px;
+  background:#2563eb;border:none;border-radius:10px;
+  color:white;font-family:'DM Sans',sans-serif;
+  font-size:15px;font-weight:600;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  transition:background .15s,transform .1s;
+}
+.btn:hover{background:#1d4ed8;}
+.btn:active{transform:scale(.99);}
+.btn:disabled{background:#adb5bd;cursor:not-allowed;transform:none;}
+.spinner{
+  width:16px;height:16px;
+  border:2.5px solid rgba(255,255,255,.4);
+  border-top-color:white;border-radius:50%;
+  animation:spin .7s linear infinite;display:none;
+}
+.spinner.on{display:block;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.msg{
+  margin-top:18px;padding:14px 16px;
+  border-radius:10px;font-size:14px;line-height:1.6;
+  display:none;
+}
+.msg.ok{background:#f0fdf4;border:1.5px solid #86efac;color:#15803d;}
+.msg.err{background:#fef2f2;border:1.5px solid #fca5a5;color:#dc2626;}
+.msg.show{display:block;}
+.check-icon{font-size:40px;display:block;text-align:center;margin-bottom:12px;}
+.footer{font-size:12px;color:#adb5bd;text-align:center;margin-top:28px;line-height:1.6;}
+.loading-block{text-align:center;padding:24px 0;color:#6c757d;font-size:14px;}
+</style>
+</head>
+<body>
+
+<div class="card">
+  <div class="brand">
+    <div class="brand-icon">CS</div>
+    <div>
+      <div class="brand-name">Care Station</div>
+      <div class="brand-tag">Intelligent task routing</div>
+    </div>
+  </div>
+
+  <!-- View 1: Loading while we verify the invite token -->
+  <div id="loadingView">
+    <div class="loading-block">
+      <div class="spinner on" style="margin:0 auto 12px;border-top-color:#2563eb;border-color:rgba(37,99,235,.15)"></div>
+      Verifying your invite…
+    </div>
+  </div>
+
+  <!-- View 2: Set password form (shown after token verifies) -->
+  <div id="formView" style="display:none;">
+    <h1>Welcome to Care Station</h1>
+    <p class="sub">Confirm your details and set a password to finish setting up your account.</p>
+
+    <div class="identity-card">
+      <div class="identity-row">
+        <span class="identity-label">Name</span>
+        <span class="identity-value" id="idName">—</span>
+      </div>
+      <div class="identity-row">
+        <span class="identity-label">Email</span>
+        <span class="identity-value" id="idEmail">—</span>
+      </div>
+      <div class="identity-row">
+        <span class="identity-label">Role</span>
+        <span class="identity-value" id="idRole">—</span>
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="pw">New password</label>
+      <input type="password" id="pw" autocomplete="new-password">
+      <div class="hint">Minimum 12 characters.</div>
+    </div>
+
+    <div class="field">
+      <label for="pw2">Confirm password</label>
+      <input type="password" id="pw2" autocomplete="new-password">
+    </div>
+
+    <button class="btn" id="submitBtn" onclick="acceptInvite()">
+      <span id="btnTxt">Set password &amp; sign in</span>
+      <div class="spinner" id="spin"></div>
+    </button>
+
+    <div class="msg" id="msg"></div>
+  </div>
+
+  <!-- View 3: Signed in confirmation -->
+  <div id="doneView" style="display:none;">
+    <span class="check-icon">&#10003;</span>
+    <h1 style="text-align:center;margin-bottom:10px;color:#15803d;">Welcome aboard</h1>
+    <p class="sub" style="text-align:center;">Your password is set and you're signed in. From now on, sign in with your email and password.</p>
+    <button class="btn" onclick="window.location.href='/'">
+      Enter Workspace &rarr;
+    </button>
+  </div>
+
+  <!-- View 4: Error state (expired invite, missing token, network failure, …) -->
+  <div id="errorView" style="display:none;">
+    <span class="check-icon" style="color:#dc2626;">&#9888;</span>
+    <h1 style="text-align:center;margin-bottom:10px;color:#dc2626;" id="errorTitle">Invite link not valid</h1>
+    <p class="sub" style="text-align:center;" id="errorBody">This link may have expired, or you may have followed it after already setting your password. Ask your administrator to send a new invite.</p>
+    <button class="btn" onclick="window.location.href='/login.html'">
+      Go to sign-in
+    </button>
+  </div>
+
+  <div class="footer">Protected by Care Station</div>
+</div>
+
+<script>
+// ── CONFIG ────────────────────────────────────────────────────────────────────
+// Anon key is publicly safe (it's the same one shipped in login.html).
+// Service-key operations live in netlify/functions/auth.js, not here.
+var SUPA_URL = 'https://aturbsnqpdtvhrnujrqb.supabase.co';
+var SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF0dXJic25xcGR0dmhybnVqcnFiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc4NDc5MTgsImV4cCI6MjA5MzQyMzkxOH0.l7LdmI8PfFiIXa1nIwwauiWh6KnzpwhlpK5uieATsic';
+// ─────────────────────────────────────────────────────────────────────────────
+
+// State carried from the URL hash until we hand off to the tasking SPA.
+var inviteTokens = null;     // { access_token, refresh_token }
+var inviteUser   = null;     // { id, email, user_metadata }
+
+// ── UI helpers ───────────────────────────────────────────────────────────────
+function showOnly(viewId) {
+  ['loadingView','formView','doneView','errorView'].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) el.style.display = (id === viewId) ? 'block' : 'none';
+  });
+}
+function showError(title, body) {
+  if (title) document.getElementById('errorTitle').textContent = title;
+  if (body)  document.getElementById('errorBody').textContent  = body;
+  showOnly('errorView');
+}
+function showMsg(html, type) {
+  var el = document.getElementById('msg');
+  el.innerHTML = html;
+  el.className = 'msg show ' + (type || 'ok');
+}
+function setLoading(on) {
+  var btn = document.getElementById('submitBtn');
+  var txt = document.getElementById('btnTxt');
+  var sp  = document.getElementById('spin');
+  btn.disabled = on;
+  txt.style.opacity = on ? '0' : '1';
+  sp.className = on ? 'spinner on' : 'spinner';
+}
+
+// ── Token extraction ─────────────────────────────────────────────────────────
+//
+// Supabase invite email URL shape:
+//   <site>/accept-invite.html#access_token=<jwt>&refresh_token=<rt>
+//                            &type=invite&expires_in=3600&token_type=bearer
+function readTokensFromHash() {
+  var h = window.location.hash || '';
+  if (!h.includes('access_token')) return null;
+  var p = new URLSearchParams(h.replace(/^#/, ''));
+  var at = p.get('access_token');
+  var rt = p.get('refresh_token');
+  if (!at) return null;
+  return { access_token: at, refresh_token: rt || '' };
+}
+
+// ── Token verification + identity display ────────────────────────────────────
+async function init() {
+  inviteTokens = readTokensFromHash();
+  if (!inviteTokens) {
+    showError(
+      'No invite token',
+      'This page expects to be opened from the link in your invite email. ' +
+      'If you already signed in once, go to the sign-in page.'
+    );
+    return;
+  }
+  // Strip the hash so the token doesn't sit in browser history / referer.
+  try { history.replaceState(null, '', window.location.pathname); } catch (e) {}
+
+  // Verify the token by reading the user. Supabase rejects expired
+  // invite tokens here (401) — that's our "expired" path.
+  try {
+    var userRes = await fetch(SUPA_URL + '/auth/v1/user', {
+      headers: {
+        'apikey': SUPA_KEY,
+        'Authorization': 'Bearer ' + inviteTokens.access_token,
+      },
+    });
+    if (!userRes.ok) {
+      showError(
+        'Invite link expired',
+        'This invite link has expired or was already used. Ask your administrator to send a new one.'
+      );
+      return;
+    }
+    inviteUser = await userRes.json();
+    if (!inviteUser || !inviteUser.id) {
+      showError(null, null);
+      return;
+    }
+  } catch (e) {
+    console.error('accept-invite.verify:', e.message);
+    showError(
+      'Network error',
+      'Could not reach the server. Check your connection and try again.'
+    );
+    return;
+  }
+
+  // Populate the identity card from user_metadata (server set it at
+  // invite time in /auth/invite). Fall back to email if metadata is
+  // missing — shouldn't happen on the supported invite path.
+  var meta = inviteUser.user_metadata || {};
+  var displayName = meta.full_name
+    || [meta.first_name, meta.last_name].filter(Boolean).join(' ')
+    || inviteUser.email
+    || '—';
+  document.getElementById('idName').textContent  = displayName;
+  document.getElementById('idEmail').textContent = inviteUser.email || '—';
+  document.getElementById('idRole').textContent  = meta.role || '—';
+
+  showOnly('formView');
+  document.getElementById('pw').focus();
+}
+
+// ── Submit: set password, mark accepted, hand off to tasking SPA ─────────────
+async function acceptInvite() {
+  var pw  = document.getElementById('pw').value;
+  var pw2 = document.getElementById('pw2').value;
+
+  if (!pw || pw.length < 12) {
+    showMsg('Password must be at least 12 characters.', 'err');
+    document.getElementById('pw').focus();
+    return;
+  }
+  if (pw !== pw2) {
+    showMsg('Passwords don\'t match.', 'err');
+    document.getElementById('pw2').focus();
+    return;
+  }
+
+  setLoading(true);
+
+  // Step 1 — set the password against Supabase Auth using the invite
+  // bearer. Supabase responds 200 with the updated user on success.
+  try {
+    var pwRes = await fetch(SUPA_URL + '/auth/v1/user', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPA_KEY,
+        'Authorization': 'Bearer ' + inviteTokens.access_token,
+      },
+      body: JSON.stringify({ password: pw }),
+    });
+    if (!pwRes.ok) {
+      var resp = {};
+      try { resp = await pwRes.json(); } catch (e) {}
+      var m = resp.msg || resp.message || resp.error_description || resp.error || 'Could not set password.';
+      setLoading(false);
+      showMsg(m, 'err');
+      return;
+    }
+  } catch (e) {
+    console.error('accept-invite.setPassword:', e.message);
+    setLoading(false);
+    showMsg('Network error while setting your password. Try again.', 'err');
+    return;
+  }
+
+  // Step 2 — flip accepted_at on the profile row via our gated endpoint.
+  // Not fatal if it fails — the password is already set and the user
+  // can sign in. We surface a warning but proceed.
+  try {
+    await fetch('/.netlify/functions/auth/accept', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + inviteTokens.access_token },
+    });
+  } catch (e) {
+    console.error('accept-invite.markAccepted:', e.message);
+  }
+
+  // Step 3 — persist the session so the tasking SPA picks up the
+  // already-authenticated state. Key name + shape match login.html.
+  try {
+    localStorage.setItem('relai_session', JSON.stringify({
+      access_token:  inviteTokens.access_token,
+      refresh_token: inviteTokens.refresh_token,
+      timestamp:     Date.now(),
+    }));
+  } catch (e) {
+    console.error('accept-invite.persistSession:', e.message);
+  }
+
+  setLoading(false);
+  showOnly('doneView');
+}
+
+// Enter key in password fields submits.
+document.addEventListener('keydown', function (e) {
+  if (e.key !== 'Enter') return;
+  var fv = document.getElementById('formView');
+  if (fv && fv.style.display !== 'none') acceptInvite();
+});
+
+// Kick things off.
+init();
+</script>
+</body>
+</html>

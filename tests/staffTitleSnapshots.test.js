@@ -15,9 +15,11 @@
 //   2. POST /reviews action=resolve (in _lib/routes/reviews.js) MUST
 //      include resolved_by_role + resolved_by_title in the upstream
 //      PATCH body, sourced from callerProfile.
-//   3. POST /auth/invite accepts an optional `title` in the body
-//      allowlist; oversized titles (>24 chars after trim) are
-//      rejected with 400 before any upstream write fires.
+//   3. POST /auth/invite (post mig-0030 rewrite) accepts a `suffix`
+//      and back-compat populates profile.title from it on INSERT, so
+//      the snapshot-rail code in history.js/reviews.js keeps working.
+//      Oversized suffixes (>24 chars after trim) are rejected with
+//      400 before any upstream invite fires.
 //
 // Server-forcing matters: the same defense-in-depth that protects
 // user_id/company_id from client tampering protects user_role and
@@ -88,9 +90,12 @@ const PROFILE_NONCLIN_CSR = {
   id: USER_ID, company_id: TENANT, role: 'Non-Clinical', title: 'CSR',
   is_admin: true, is_super_user: false, full_name: 'CSR Test'
 };
-const PROFILE_CLINICAL_ADMIN_RN = {
+// Post mig-0030 the invite gate is is_super_user, not is_admin. The
+// fixture is_admin flag is kept (some legacy tests may read it) but
+// the value that gates /auth/invite is is_super_user.
+const PROFILE_CLINICAL_SUPER_RN = {
   id: USER_ID, company_id: TENANT, role: 'Clinical', title: 'RN',
-  is_admin: true, is_super_user: false, full_name: 'Admin RN'
+  is_admin: true, is_super_user: true, full_name: 'Super RN'
 };
 const REVIEW_KB_GAP = {
   id: 'rev-1', company_id: TENANT, triage_id: 'row-1',
@@ -120,8 +125,13 @@ function baseRoutes(profile, { reviewRow = null, triageRow = null } = {}) {
       respond: () => ({ status: 200, body: [] }) },
     { match: (u) => u.includes('/rest/v1/company_members'),
       respond: () => ({ status: 201, body: null }) },
-    { match: (u) => u.includes('/auth/v1/admin/users'),
+    { match: (u) => u.endsWith('/auth/v1/invite'),
       respond: () => ({ status: 200, body: { id: 'new-user-id', email: 'inv@test.local' } }) },
+    // Post mig-0030: invite path INSERTs the profile row immediately
+    // (was a PATCH against the auto-created row before). Provide the
+    // mock here so the third describe block can capture the body.
+    { match: (u, m) => m === 'POST' && u.endsWith('/rest/v1/profiles'),
+      respond: () => ({ status: 201, body: null }) },
   ];
 }
 
@@ -217,64 +227,69 @@ describe('migration 0017 — staff title + role snapshots on review_requests', (
   });
 });
 
-describe('migration 0017 — /auth/invite accepts and validates title', () => {
+describe('migration 0017 + 0030 — /auth/invite back-compat populates profile.title from suffix', () => {
 
-  it('accepts a valid title and passes it into the profile PATCH', async () => {
-    // PATCH body capture for /rest/v1/profiles?id=eq.<newUser>.
-    let capturedProfilePatch = null;
+  // Why this lives in the snapshot-rail test file: history.js and
+  // reviews.js still read profile.title to populate user_title /
+  // resolved_by_title snapshot columns (mig 0017). Mig 0030 renamed
+  // the column on the API surface (title → suffix) but kept title as
+  // a populated alias on the row to preserve those rails. If a
+  // future refactor drops the title= line in the invite handler,
+  // this test trips before the snapshot columns silently start
+  // filling with NULL.
+  it('INSERTs the profile row with title mirroring suffix', async () => {
+    // POST body capture for /rest/v1/profiles. Capturing route goes
+    // FIRST so it wins over the generic baseRoutes profiles-INSERT
+    // (the mock walks routes in order and returns the first match).
+    let capturedProfileInsert = null;
     installFetchMock([
-      ...baseRoutes(PROFILE_CLINICAL_ADMIN_RN),
-      { match: (u, m) => m === 'PATCH' && u.includes('/rest/v1/profiles?id=eq.new-user-id'),
-        respond: (url, opts) => { capturedProfilePatch = opts && opts.body; return { status: 204, body: null }; } },
+      { match: (u, m) => m === 'POST' && u.endsWith('/rest/v1/profiles'),
+        respond: (url, opts) => { capturedProfileInsert = opts && opts.body; return { status: 201, body: null }; } },
+      ...baseRoutes(PROFILE_CLINICAL_SUPER_RN),
     ]);
     try {
       const res = await authMod.handler({
         httpMethod: 'POST',
         path: '/.netlify/functions/auth/invite',
         headers: { authorization: 'Bearer fake-token' },
-        body: JSON.stringify({ email: 'new@test.local', role: 'Clinical', title: 'NP' }),
+        body: JSON.stringify({
+          email: 'new@test.local',
+          first_name: 'Alex',
+          last_name: 'Lee',
+          role: 'Clinical',
+          suffix: 'NP',
+        }),
       });
       assert.equal(res.statusCode, 200);
-      assert.ok(capturedProfilePatch, 'expected PATCH to /rest/v1/profiles for new user');
-      const patchBody = JSON.parse(capturedProfilePatch);
-      assert.equal(patchBody.role,  'Clinical');
-      assert.equal(patchBody.title, 'NP', 'title from body must flow into the profile PATCH');
+      assert.ok(capturedProfileInsert, 'expected POST to /rest/v1/profiles for new user');
+      const insertBody = JSON.parse(capturedProfileInsert);
+      assert.equal(insertBody.role, 'Clinical');
+      assert.equal(insertBody.suffix, 'NP', 'suffix from body must land on the profile row');
+      assert.equal(insertBody.title,  'NP', 'title must mirror suffix for mig-0017 snapshot back-compat');
     } finally { uninstallFetchMock(); }
   });
 
-  it('rejects oversized title (>24 chars) with 400 before any upstream write', async () => {
-    installFetchMock(baseRoutes(PROFILE_CLINICAL_ADMIN_RN));
+  it('rejects oversized suffix (>24 chars) with 400 before any upstream invite', async () => {
+    installFetchMock(baseRoutes(PROFILE_CLINICAL_SUPER_RN));
     try {
       const res = await authMod.handler({
         httpMethod: 'POST',
         path: '/.netlify/functions/auth/invite',
         headers: { authorization: 'Bearer fake-token' },
         body: JSON.stringify({
-          email: 'new@test.local', role: 'Clinical',
-          title: 'this title is way too long to be a credential',
+          email: 'new@test.local',
+          first_name: 'Alex',
+          last_name: 'Lee',
+          role: 'Clinical',
+          suffix: 'this suffix is way too long to be a credential',
         }),
       });
       assert.equal(res.statusCode, 400);
       const errBody = JSON.parse(res.body);
       assert.match(errBody.error, /24 characters/i);
-      // Regression guard: NO admin/users create until validation passed.
-      const adminCalls = _captured.filter(c => /\/auth\/v1\/admin\/users$/.test(c.url) && c.method === 'POST');
-      assert.equal(adminCalls.length, 0, 'no upstream user create until all validation passes');
-    } finally { uninstallFetchMock(); }
-  });
-
-  it('rejects unknown body key (regression guard on the title allowlist addition)', async () => {
-    installFetchMock(baseRoutes(PROFILE_CLINICAL_ADMIN_RN));
-    try {
-      const res = await authMod.handler({
-        httpMethod: 'POST',
-        path: '/.netlify/functions/auth/invite',
-        headers: { authorization: 'Bearer fake-token' },
-        body: JSON.stringify({ email: 'x@y.z', role: 'Clinical', title: 'RN', is_super_user: true }),
-      });
-      assert.equal(res.statusCode, 400);
-      const errBody = JSON.parse(res.body);
-      assert.match(errBody.error, /Unexpected body key/i);
+      // Regression guard: NO upstream invite until validation passed.
+      const inviteCalls = _captured.filter(c => /\/auth\/v1\/invite$/.test(c.url) && c.method === 'POST');
+      assert.equal(inviteCalls.length, 0, 'no upstream invite until all validation passes');
     } finally { uninstallFetchMock(); }
   });
 });

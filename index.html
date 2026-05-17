@@ -34,6 +34,10 @@
          Pulls from inbound_raw_event + reviewed-status query_history +
          error audit_log entries. -->
     <button class="tab-btn" id="eventsTabBtn" onclick="navigateToEvents()" style="display:none">Event Log</button>
+    <!-- Staff admin tab — super-user only (gated by JS at init). Form
+         posts to /auth/invite which sends an invite email to the new
+         staff member; they finish onboarding at /accept-invite.html. -->
+    <button class="tab-btn" id="staffTabBtn" onclick="navigateToStaff()" style="display:none">Staff</button>
     <!-- Preferences + Training views land in v1.1 — placeholder shape
          here for visual continuity with the demo. -->
     <button class="tab-btn disabled" disabled title="Coming in v1.1">Preferences</button>
@@ -156,6 +160,85 @@
       <div class="detail-header-info" id="detailHeaderInfo"></div>
     </div>
     <div class="detail-body" id="detailViewBody"></div>
+  </section>
+
+  <!-- Staff admin view (super-user only). Invite form + roster.
+       Invite POSTs to /auth/invite (sends email); roster reads
+       /auth/staff and shows pending invites separately from active. -->
+  <section class="view view-staff" id="staffView" style="display:none">
+    <div class="staff-header">
+      <h1 class="staff-title">Staff</h1>
+      <p class="staff-subtitle">Invite teammates and review who has access to this workspace.</p>
+    </div>
+
+    <div class="staff-invite-card">
+      <div class="staff-card-head">
+        <h2 class="staff-card-title">Invite staff member</h2>
+        <p class="staff-card-sub">They'll receive an email with a link to set their password.</p>
+      </div>
+      <div class="staff-form-grid">
+        <div class="staff-form-field staff-form-field-full">
+          <label for="inviteEmail">Work email</label>
+          <input type="email" id="inviteEmail" placeholder="name@company.com" autocomplete="off">
+        </div>
+        <div class="staff-form-field">
+          <label for="inviteFirstName">First name</label>
+          <input type="text" id="inviteFirstName" placeholder="Alex" autocomplete="off">
+        </div>
+        <div class="staff-form-field">
+          <label for="inviteLastName">Last name</label>
+          <input type="text" id="inviteLastName" placeholder="Lee" autocomplete="off">
+        </div>
+        <div class="staff-form-field">
+          <label for="inviteRole">Role</label>
+          <select id="inviteRole">
+            <option value="">Select…</option>
+            <option value="Clinical">Clinical (RN / Provider)</option>
+            <option value="Non-Clinical">Non-Clinical (Customer Service)</option>
+          </select>
+        </div>
+        <div class="staff-form-field">
+          <label for="invitePrefix">Prefix <span class="staff-form-optional">(optional, ≤8)</span></label>
+          <input type="text" id="invitePrefix" placeholder="Dr." maxlength="8" autocomplete="off">
+        </div>
+        <div class="staff-form-field">
+          <label for="inviteSuffix">Credential / suffix <span class="staff-form-optional">(optional, ≤24)</span></label>
+          <input type="text" id="inviteSuffix" placeholder="RN" maxlength="24" autocomplete="off">
+        </div>
+      </div>
+      <div class="staff-form-actions">
+        <button class="staff-form-submit" id="inviteSubmitBtn" onclick="submitInviteForm()">
+          <span id="inviteSubmitTxt">Send invite</span>
+        </button>
+        <div class="staff-form-msg" id="inviteFormMsg"></div>
+      </div>
+    </div>
+
+    <div class="staff-list-head">
+      <h2 class="staff-card-title">Workspace members</h2>
+      <button class="staff-refresh-btn" onclick="loadStaffList()" title="Reload the roster">
+        &#8634; Refresh
+      </button>
+    </div>
+    <div class="staff-list-wrap">
+      <table class="task-table staff-table" id="staffTable">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Role</th>
+            <th>Status</th>
+            <th>Invited</th>
+            <th>Last seen</th>
+          </tr>
+        </thead>
+        <tbody id="staffTableBody"></tbody>
+      </table>
+      <div class="empty-state" id="staffEmptyState" style="display:none">
+        <div class="empty-title">No staff yet</div>
+        <div class="empty-body">Invite your first teammate using the form above.</div>
+      </div>
+    </div>
   </section>
 
   <!-- Event Log view (super-user only). Three sub-tabs: inbound webhook
