@@ -108,11 +108,20 @@ function normalizeTriageOutput(parsed) {
   if (!Array.isArray(out.follow_up_questions))    out.follow_up_questions = [];
 
   // ai_confidence clamped to [0, 1] if present.
+  // The AI emits confidence at review_request.confidence per BASE_PROMPT
+  // ("review_request":{"question":"...","context":"...","confidence":0.0}).
+  // The DB column is named `ai_confidence` (top-level), and downstream
+  // consumers (worker.buildTriagePatch, validateTriageOutput, the
+  // Phase 3 routing-hub override) read top-level `ai_confidence`.
+  // Lift the value here so the rest of the pipeline can stay flat —
+  // without this lift, ai_confidence was always NULL in production
+  // (smoke test 2026-05-17 confirmed the bug across all rows).
   if (out.review_request && typeof out.review_request.confidence === 'number') {
     var c = out.review_request.confidence;
     if (c < 0) c = 0;
     if (c > 1) c = 1;
     out.review_request.confidence = c;
+    out.ai_confidence = c;
   }
 
   return out;
@@ -156,6 +165,19 @@ function diffNormalization(rawParsed, normalized) {
     if (typeof rrBefore.confidence === 'number' && rrBefore.confidence !== rrAfter.confidence) {
       drifts.push({ field: 'review_request.confidence', received: rrBefore.confidence, coerced_to: rrAfter.confidence });
     }
+  }
+  // Track when the AI emitted confidence in a non-number shape (e.g.
+  // "0.85" as a string, or 'high'). The lift in normalizeTriageOutput
+  // only fires for typeof number, so a string confidence reaches the
+  // DB as NULL silently. Surfacing it here lets ai-drift telemetry
+  // catch it.
+  if (rrBefore && rrBefore.confidence != null && typeof rrBefore.confidence !== 'number') {
+    drifts.push({
+      field: 'review_request.confidence',
+      received: rrBefore.confidence,
+      coerced_to: null,
+      reason: 'non_number',
+    });
   }
   return drifts.length > 0 ? { drifts: drifts } : null;
 }

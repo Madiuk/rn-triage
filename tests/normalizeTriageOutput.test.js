@@ -1,5 +1,70 @@
 const { normalizeTriageOutput, diffNormalization } = require('../data/triage-lib.js');
 
+// ─────────────────────────────────────────────────────────────────
+// review_request.confidence → ai_confidence lift
+// ─────────────────────────────────────────────────────────────────
+//
+// The AI emits confidence at `review_request.confidence` per
+// BASE_PROMPT, but the DB column is `ai_confidence` (top-level) and
+// downstream code (worker.buildTriagePatch, validateTriageOutput,
+// Routing-Hub override) reads top-level `ai_confidence`. The bug
+// fixed here: normalize must lift the value so the rest of the
+// pipeline sees it. Without the lift, ai_confidence was always NULL
+// in production (smoke test 2026-05-17 confirmed across all rows).
+
+describe('normalizeTriageOutput — ai_confidence lift', () => {
+  it('lifts a valid in-range review_request.confidence to top-level', () => {
+    const out = normalizeTriageOutput({ review_request: { confidence: 0.85 } });
+    assert.equal(out.ai_confidence, 0.85);
+    // Original value is also preserved at the nested path.
+    assert.equal(out.review_request.confidence, 0.85);
+  });
+
+  it('lifts the clamped value when AI emits confidence > 1', () => {
+    const out = normalizeTriageOutput({ review_request: { confidence: 1.5 } });
+    assert.equal(out.ai_confidence, 1);
+    assert.equal(out.review_request.confidence, 1);
+  });
+
+  it('lifts the clamped value when AI emits confidence < 0', () => {
+    const out = normalizeTriageOutput({ review_request: { confidence: -0.2 } });
+    assert.equal(out.ai_confidence, 0);
+    assert.equal(out.review_request.confidence, 0);
+  });
+
+  it('lifts boundary values 0 and 1 unchanged', () => {
+    assert.equal(normalizeTriageOutput({ review_request: { confidence: 0 } }).ai_confidence, 0);
+    assert.equal(normalizeTriageOutput({ review_request: { confidence: 1 } }).ai_confidence, 1);
+  });
+
+  it('does not lift when review_request is missing entirely', () => {
+    const out = normalizeTriageOutput({ urgency: 'routine' });
+    assert.equal(out.ai_confidence, undefined);
+  });
+
+  it('does not lift when review_request.confidence is missing', () => {
+    const out = normalizeTriageOutput({ review_request: { context: null } });
+    assert.equal(out.ai_confidence, undefined);
+  });
+
+  it('does not lift when review_request.confidence is non-number (string, null, etc.)', () => {
+    // String confidence is AI drift — lift skips it; diffNormalization
+    // surfaces it separately for telemetry.
+    assert.equal(normalizeTriageOutput({ review_request: { confidence: '0.85' } }).ai_confidence, undefined);
+    assert.equal(normalizeTriageOutput({ review_request: { confidence: null } }).ai_confidence, undefined);
+    assert.equal(normalizeTriageOutput({ review_request: { confidence: 'high' } }).ai_confidence, undefined);
+  });
+
+  it('preserves an existing top-level ai_confidence when present (defensive)', () => {
+    // Hypothetical: AI happens to emit BOTH top-level and nested.
+    // The lift only overwrites with the (clamped) review_request value
+    // if review_request.confidence is a valid number. Top-level
+    // stays as-is when not overwritten.
+    const out = normalizeTriageOutput({ ai_confidence: 0.5, review_request: { context: null } });
+    assert.equal(out.ai_confidence, 0.5);
+  });
+});
+
 // Snapshot helper — normalizeTriageOutput is shallow-copy and
 // mutates nested objects (review_request.confidence). Tests that
 // want to diff against the AI's raw input must capture it before

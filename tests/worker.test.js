@@ -218,3 +218,166 @@ describe('buildTriagePatch — null safety', () => {
     assert.equal(patch.status, 'triaged');
   });
 });
+
+// ─────────────────────────────────────────────────────────────────
+// Routing Hub override (Phase 3 protocol)
+// ─────────────────────────────────────────────────────────────────
+//
+// When triage succeeded with valid output BUT the AI flagged its
+// own confidence as below the review threshold, the task should
+// land in the Routing Hub pool for non-clinical staff to
+// recategorize. Status stays 'triaged' (the row is valid output);
+// the AI's guessed category is preserved as a breadcrumb in
+// internal_note.
+
+const { RELAI_DEFAULTS } = require('../data/defaults.js');
+const THRESHOLD = RELAI_DEFAULTS.reviewConfidenceThreshold;
+const ROUTING_HUB = RELAI_DEFAULTS.routingHubCategory;
+
+describe('buildTriagePatch — Routing Hub override', () => {
+  it('overrides clinical_category when ai_confidence is below threshold', () => {
+    const patch = buildTriagePatch(
+      { urgency: 'routine', clinical_category: 'Side Effects', ai_confidence: 0.4 },
+      {}
+    );
+    assert.equal(patch.clinical_category, ROUTING_HUB);
+    assert.equal(patch.status, 'triaged');  // not reviewed
+    assert.equal(patch.ai_confidence, 0.4);
+  });
+
+  it('preserves the AI\'s original category in internal_note (breadcrumb)', () => {
+    const patch = buildTriagePatch(
+      { urgency: 'routine', clinical_category: 'Side Effects', ai_confidence: 0.4 },
+      {}
+    );
+    assert.ok(/Side Effects/.test(patch.internal_note), 'note should mention original category');
+    assert.ok(/Routing Hub/i.test(patch.internal_note), 'note should reference the routing-hub destination');
+    assert.ok(/0\.40/.test(patch.internal_note), 'note should include the confidence value');
+  });
+
+  it('does NOT override when ai_confidence is at exactly the threshold', () => {
+    const patch = buildTriagePatch(
+      { urgency: 'routine', clinical_category: 'Side Effects', ai_confidence: THRESHOLD },
+      {}
+    );
+    assert.equal(patch.clinical_category, 'Side Effects');
+  });
+
+  it('does NOT override when ai_confidence is above the threshold', () => {
+    const patch = buildTriagePatch(
+      { urgency: 'routine', clinical_category: 'Side Effects', ai_confidence: 0.95 },
+      {}
+    );
+    assert.equal(patch.clinical_category, 'Side Effects');
+  });
+
+  it('does NOT override when ai_confidence is null/missing', () => {
+    // No confidence value means we have no basis to override — leave
+    // the AI's category in place.
+    const patch = buildTriagePatch(
+      { urgency: 'routine', clinical_category: 'Side Effects' },
+      {}
+    );
+    assert.equal(patch.clinical_category, 'Side Effects');
+  });
+
+  it('does NOT override when status is reviewed (safety pipeline already escalated)', () => {
+    // 'reviewed' rows are in the safety-pipeline path; they take
+    // precedence over confidence routing.
+    const patch = buildTriagePatch(
+      { urgency: 'routine', clinical_category: 'Side Effects', ai_confidence: 0.4 },
+      { route_to_human_review: true, route_reason: 'tripwire' }
+    );
+    assert.equal(patch.status, 'reviewed');
+    assert.equal(patch.clinical_category, 'Side Effects');  // not Routing Hub
+  });
+
+  it('appends to an existing internal_note rather than overwriting', () => {
+    const patch = buildTriagePatch(
+      {
+        urgency: 'routine',
+        clinical_category: 'Side Effects',
+        ai_confidence: 0.4,
+        internal_note: 'Original AI note for support team.',
+      },
+      {}
+    );
+    assert.ok(/Original AI note/.test(patch.internal_note), 'preserves original note');
+    assert.ok(/Routing Hub/.test(patch.internal_note), 'appends routing-hub explanation');
+  });
+
+  it('handles missing original category gracefully', () => {
+    const patch = buildTriagePatch(
+      { urgency: 'routine', ai_confidence: 0.3 },  // no clinical_category
+      {}
+    );
+    assert.equal(patch.clinical_category, ROUTING_HUB);
+    assert.ok(/uncategorized/i.test(patch.internal_note));
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────
+// Reviewed-row breadcrumb
+// ─────────────────────────────────────────────────────────────────
+//
+// When the safety pipeline forces 'reviewed' status (parse_failed,
+// validation_failed, tripwire, haiku_disagree), the AI's output is
+// often empty. Without a breadcrumb, a staffer opening the row sees
+// blank fields and has to grep audit_log to learn what happened.
+
+describe('buildTriagePatch — reviewed-row breadcrumb', () => {
+  it('populates internal_note with route_reason on parse_failed', () => {
+    const patch = buildTriagePatch(
+      {},  // no AI output
+      { route_to_human_review: true, route_reason: 'parse_failed' }
+    );
+    assert.equal(patch.status, 'reviewed');
+    assert.ok(patch.internal_note, 'internal_note should not be empty');
+    assert.ok(/parse_failed/.test(patch.internal_note));
+    assert.ok(/audit_log/i.test(patch.internal_note));
+  });
+
+  it('populates internal_note with route_reason on validation_failed', () => {
+    const patch = buildTriagePatch(
+      {},
+      { route_to_human_review: true, route_reason: 'validation_failed' }
+    );
+    assert.ok(/validation_failed/.test(patch.internal_note));
+  });
+
+  it('populates internal_note with route_reason on tripwire', () => {
+    const patch = buildTriagePatch(
+      { urgency: 'urgent', clinical_routing_level: 'severe', draft_response: '[CLINICAL TRIPWIRE]' },
+      { route_to_human_review: true, route_reason: 'tripwire' }
+    );
+    assert.ok(/tripwire/.test(patch.internal_note));
+  });
+
+  it('does NOT overwrite an existing AI-generated internal_note', () => {
+    const patch = buildTriagePatch(
+      { internal_note: 'AI-generated handoff note for support team.' },
+      { route_to_human_review: true, route_reason: 'parse_failed' }
+    );
+    assert.equal(patch.internal_note, 'AI-generated handoff note for support team.');
+  });
+
+  it('does NOT add a breadcrumb when status is triaged (only fires on reviewed)', () => {
+    const patch = buildTriagePatch(
+      { urgency: 'routine' },
+      {}  // no route_to_human_review
+    );
+    assert.equal(patch.status, 'triaged');
+    // internal_note may be null when the AI didn't generate one; the
+    // breadcrumb only fires on the reviewed path.
+    assert.equal(patch.internal_note, null);
+  });
+
+  it('does NOT add a breadcrumb when route_reason is missing (defensive)', () => {
+    const patch = buildTriagePatch(
+      {},
+      { route_to_human_review: true }  // route_reason omitted
+    );
+    assert.equal(patch.status, 'reviewed');
+    assert.equal(patch.internal_note, null);
+  });
+});

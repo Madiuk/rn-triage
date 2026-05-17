@@ -47,13 +47,19 @@
 
 const { runTriage } = require("./_lib/triage-core");
 const { computeUrgencyScore } = require("../../data/triage-lib");
+const { RELAI_DEFAULTS } = require("../../data/defaults");
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
 
 const WORKER_BATCH_SIZE = 5;
-const WORKER_MODEL = 'claude-haiku-4-5';
+// Sonnet 4.6 per PLAN.md decision log (2026-05-08): safety-critical
+// classification needs Sonnet; Haiku is reserved for correction-
+// analysis and the optional second-pass safety check. The prior
+// 'claude-haiku-4-5' value here was a regression caught in the
+// 2026-05-17 smoke test.
+const WORKER_MODEL = 'claude-sonnet-4-6';
 const WORKER_MAX_TOKENS = 1024;
 
 // Note written onto a row when Fin participated in the upstream
@@ -108,14 +114,62 @@ function buildTriagePatch(normalized, relai) {
 
   // ai_confidence: only persist real numbers in [0, 1]; anything
   // else → null (the DB CHECK rejects out-of-range values).
+  // normalizeTriageOutput lifts review_request.confidence here.
   let conf = null;
   if (typeof n.ai_confidence === 'number' && n.ai_confidence >= 0 && n.ai_confidence <= 1) {
     conf = n.ai_confidence;
   }
 
+  // ── Routing Hub override (Phase 3 protocol) ──────────────────────
+  // When triage succeeded with a valid output but the AI flagged
+  // its own confidence as low (< reviewConfidenceThreshold from
+  // RELAI_DEFAULTS), the task lands in the Routing Hub pool for
+  // non-clinical staff to recategorize. Status stays 'triaged' —
+  // the row is valid output, just uncertain about category. The
+  // AI's guessed category is preserved in internal_note as a
+  // breadcrumb for the routing-hub worker.
+  //
+  // Does NOT fire on 'reviewed' rows — those are already escalated
+  // by the safety pipeline (parse failed, validation failed,
+  // tripwire, Haiku disagreement) and the safety state takes
+  // precedence over confidence routing.
+  let clinical_category = n.clinical_category || null;
+  let internal_note = n.internal_note || null;
+
+  const threshold = RELAI_DEFAULTS.reviewConfidenceThreshold;
+  const routingHubCategory = RELAI_DEFAULTS.routingHubCategory;
+  const isRoutingHubCase =
+    status === 'triaged'
+    && conf !== null
+    && typeof threshold === 'number'
+    && conf < threshold
+    && !!routingHubCategory;
+
+  if (isRoutingHubCase) {
+    const original = clinical_category || '(uncategorized)';
+    clinical_category = routingHubCategory;
+    const note = '[Auto-routed to Routing Hub: AI confidence '
+      + conf.toFixed(2) + ' below threshold ' + threshold
+      + '. AI guessed category: "' + original + '". '
+      + 'Please review and reassign to the correct category.]';
+    internal_note = internal_note ? internal_note + '\n\n' + note : note;
+  }
+
+  // ── Reviewed-row breadcrumb ─────────────────────────────────────
+  // When the safety pipeline forced 'reviewed' status, the AI's
+  // output is often empty (parse_failed) or escalated (tripwire,
+  // validation_failed). A staffer opening the row has no immediate
+  // breadcrumb of why. Populate internal_note with the route_reason
+  // so the reviewer has a starting point. The full detail still
+  // lives in audit_log.
+  if (status === 'reviewed' && r.route_reason && !internal_note) {
+    internal_note = '[Auto-routed to human review: ' + r.route_reason
+      + '. See audit_log triage.complete event for details.]';
+  }
+
   return {
     status: status,
-    clinical_category: n.clinical_category || null,
+    clinical_category: clinical_category,
     urgency_original: n.urgency || null,
     urgency_score: computeUrgencyScore(n),
     clinical_routing_level: n.clinical_routing_level || 'none',
@@ -124,7 +178,7 @@ function buildTriagePatch(normalized, relai) {
     non_clinical_items: Array.isArray(n.non_clinical_items) ? n.non_clinical_items : [],
     follow_up_questions: Array.isArray(n.follow_up_questions) ? n.follow_up_questions : [],
     draft_response: n.draft_response || '',
-    internal_note: n.internal_note || null,
+    internal_note: internal_note,
     ai_confidence: conf,
     // Telemetry envelope. Anthropic field names differ from our column
     // names — cache_{creation,read}_input_tokens → cache_*_tokens.
