@@ -145,8 +145,21 @@
     // 2. Load profile. /auth/profile auto-promotes the first user in
     // a tenant to super-user (idempotent), so this is also the path
     // that bootstraps Brad on a fresh deploy.
+    //
+    // The endpoint returns { user, profile } as a wrapper — unwrap
+    // here so the rest of the SPA can read state.profile directly.
+    // Without this unwrap, every downstream reader (chip painting,
+    // pull-dropdown eligibility, etc.) got `undefined` for role and
+    // title, and every category dropped to the 'never' eligibility
+    // tier — observed by Brad 2026-05-17.
     try {
-      state.profile = await api('/.netlify/functions/auth/profile', { method: 'GET' });
+      const resp = await api('/.netlify/functions/auth/profile', { method: 'GET' });
+      state.user = (resp && resp.user) || null;
+      state.profile = (resp && resp.profile) || null;
+      if (!state.profile) {
+        toast('Profile not returned by /auth/profile.', 'error');
+        return;
+      }
     } catch (e) {
       if (e.status === 401) {
         localStorage.removeItem('relai_session');
