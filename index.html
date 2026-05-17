@@ -116,10 +116,6 @@
           <button class="pull-dropdown-confirm" id="pullDropdownConfirm" onclick="confirmPull()">Pull</button>
         </div>
       </div>
-      <button class="fetch-btn" id="fetchBtn" onclick="fetchAndTriage()" title="Fire the background worker to triage any pending inbound rows, then refresh">
-        <span class="fetch-btn-icon">&#9889;</span>
-        <span class="fetch-btn-label">Fetch &amp; triage</span>
-      </button>
       <button class="refresh-btn" onclick="refreshQueue()" title="Reload your queue from server (no triage)">
         &#8634; Refresh
       </button>
@@ -422,8 +418,6 @@
 
 <!-- Data dependencies — RELAI_DEFAULTS for category metadata + thresholds -->
 <script src="data/defaults.js"></script>
-<!-- Pure helpers (Node-testable in isolation) — must load before tasking.js -->
-<script src="tasking-helpers.js"></script>
 <script src="tasking.js"></script>
 </body>
 </html>

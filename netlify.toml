@@ -6,7 +6,7 @@
   #
   # index.html is now the tasking SPA (was tasking.html before the rename);
   # manual.html is the legacy SPA (was index.html). Both still ship.
-  ignore = "git diff --quiet HEAD^ HEAD -- index.html manual.html login.html app.js styles.css data/ netlify/ demo.html demo.js demo-styles.css demo-data.json tasking.js tasking-helpers.js tasking-styles.css"
+  ignore = "git diff --quiet HEAD^ HEAD -- index.html manual.html login.html accept-invite.html reset-password.html app.js styles.css data/ netlify/ demo.html demo.js demo-styles.css demo-data.json tasking.js tasking-styles.css"
 
 [functions]
   node_bundler = "esbuild"

@@ -2246,71 +2246,11 @@
     document.getElementById('eventDetailOverlay').classList.remove('active');
   };
 
-  // ─────────────────────────────────────────────────────────────────
-  // Manual "Fetch & triage" — fires the background worker, then
-  // refreshes the queue. The scheduler in netlify.toml runs every 4h
-  // automatically; this button is the on-demand counterpart for
-  // moments when staff sits down and wants today's batch processed
-  // immediately.
-  //
-  // The worker call can take 25-30s for a full batch of 5 (Sonnet
-  // latency ~5-7s per row). The button is disabled with a "Triaging…"
-  // label during the call so users don't double-fire.
-  //
-  // The buildWorkerToast helper is defined in tasking-helpers.js
-  // (loaded before this file) so it's Node-testable in isolation.
-  // ─────────────────────────────────────────────────────────────────
-
-  window.fetchAndTriage = async function () {
-    const btn = document.getElementById('fetchBtn');
-    if (!btn || btn.disabled) return;
-    const labelEl = btn.querySelector('.fetch-btn-label');
-    const iconEl = btn.querySelector('.fetch-btn-icon');
-    const originalLabel = labelEl ? labelEl.textContent : '';
-    const originalIcon = iconEl ? iconEl.textContent : '';
-
-    btn.disabled = true;
-    if (labelEl) labelEl.textContent = 'Triaging…';
-    if (iconEl) iconEl.textContent = '⏳';
-
-    // Background functions on Netlify return 202 Accepted immediately
-    // with no body and keep running for up to 15 minutes. Before this
-    // migration, the sync function timed out at 10s and surfaced as a
-    // 502 + "unknown" toast whenever a full batch ran (Brad 2026-05-17).
-    //
-    // Trade-off: we no longer get the processed-count toast when the
-    // worker finishes. The queue auto-refreshes after WORKER_BG_POLL
-    // seconds as a convenience; the user can also click Refresh
-    // manually to see the rows land.
-    const WORKER_BG_POLL = 45000;
-    let pollTimer = null;
-    try {
-      const r = await fetch('/.netlify/functions/worker-background', { method: 'POST' });
-      if (r.status !== 202 && !r.ok) {
-        // 202 is the documented background-function success status;
-        // tolerate 2xx too. Anything else is an actual error — try
-        // to surface its body (worker-background.js returns plain
-        // text for errors, so the JSON parse may fail).
-        const text = await r.text().catch(() => '');
-        let detail = '';
-        try { const j = JSON.parse(text); detail = j.error || ''; } catch (_) { detail = text.slice(0, 200); }
-        toast('Worker error (' + r.status + '): ' + (detail || 'unknown'), 'error');
-        return;
-      }
-      toast('Worker started — queue will refresh in ~45s. Click Refresh anytime to see new rows.', 'warn');
-      pollTimer = setTimeout(function () {
-        // refreshQueue is the same handler the Refresh button uses;
-        // safe to call repeatedly.
-        refreshQueue();
-      }, WORKER_BG_POLL);
-    } catch (e) {
-      toast('Worker call failed: ' + e.message, 'error');
-    } finally {
-      btn.disabled = false;
-      if (labelEl) labelEl.textContent = originalLabel;
-      if (iconEl) iconEl.textContent = originalIcon;
-    }
-  };
+  // Manual "Fetch & triage" UI was removed 2026-05-17. The background
+  // worker still runs on the netlify.toml cron (every 4h; tightened
+  // to 15–30 min for production per the comment in netlify.toml).
+  // Operators who need to nudge it can POST to
+  // /.netlify/functions/worker-background via curl — no UI surface.
 
   // ─────────────────────────────────────────────────────────────────
   // Toast + small helpers

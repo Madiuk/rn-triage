@@ -351,30 +351,6 @@ body {
 }
 .refresh-btn:hover { background: var(--bg-page); color: var(--text-primary); }
 
-.fetch-btn {
-  display: inline-flex; align-items: center; gap: 6px;
-  background: white;
-  border: 1px solid #c7d2fe;
-  color: var(--brand);
-  padding: 9px 14px;
-  font-size: 13px;
-  font-weight: 500;
-  border-radius: var(--radius);
-  cursor: pointer;
-  transition: all 120ms ease;
-}
-.fetch-btn:hover:not(:disabled) {
-  background: #eef2ff;
-  border-color: #818cf8;
-}
-.fetch-btn:disabled {
-  background: var(--bg-page);
-  color: var(--text-faint);
-  cursor: progress;
-  border-color: var(--border);
-}
-.fetch-btn-icon { font-size: 14px; line-height: 1; }
-
 .pull-dropdown {
   position: absolute;
   top: 100%; left: 0;
