@@ -92,18 +92,58 @@ describe('taskPriorityCmp — Due tasks rank ahead of normal', () => {
   });
 });
 
-describe('taskPriorityCmp — urgency third, age last', () => {
+describe('taskPriorityCmp — urgency_original rank (added 2026-05-17)', () => {
   const cmp = makeTaskPriorityCmp(7);
 
-  it('within same severity/due tier, higher urgency wins', () => {
-    const high = { urgency_score: 6, due_state: false, created_at: '2026-05-16T00:00:00Z' };
-    const low  = { urgency_score: 3, due_state: false, created_at: '2026-05-15T00:00:00Z' };
+  // Regression test for the bug Brad reported: a routine task with a
+  // slightly higher urgency_score was outranking a same-day task with
+  // a lower score. Categorical urgency now takes precedence over the
+  // numeric score (which lives below it as a tie-break).
+  it('same-day ranks before routine even when routine has higher urgency_score', () => {
+    const sameDay = { urgency_score: 3, urgency_original: 'same-day', due_state: false, created_at: '2026-05-16T00:00:00Z' };
+    const routine = { urgency_score: 6, urgency_original: 'routine',  due_state: false, created_at: '2026-05-15T00:00:00Z' };
+    assert.equal(cmp(sameDay, routine) < 0, true);
+  });
+
+  it('urgent ranks before same-day', () => {
+    const urgent  = { urgency_score: 4, urgency_original: 'urgent',   due_state: false, created_at: '2026-05-16T00:00:00Z' };
+    const sameDay = { urgency_score: 4, urgency_original: 'same-day', due_state: false, created_at: '2026-05-15T00:00:00Z' };
+    assert.equal(cmp(urgent, sameDay) < 0, true);
+  });
+
+  it('urgency_override wins over urgency_original (matches detail-view edit semantics)', () => {
+    // staffer marked a same-day row as urgent — it should sort with
+    // the other urgents, not with same-days.
+    const promoted = { urgency_score: 4, urgency_original: 'same-day', urgency_override: 'urgent',  due_state: false, created_at: '2026-05-16T00:00:00Z' };
+    const sameDay  = { urgency_score: 4, urgency_original: 'same-day',                              due_state: false, created_at: '2026-05-15T00:00:00Z' };
+    assert.equal(cmp(promoted, sameDay) < 0, true);
+  });
+
+  it('rows with no urgency_original sort below routine', () => {
+    const routine = { urgency_score: 3, urgency_original: 'routine', due_state: false, created_at: '2026-05-16T00:00:00Z' };
+    const none    = { urgency_score: 3,                              due_state: false, created_at: '2026-05-15T00:00:00Z' };
+    assert.equal(cmp(routine, none) < 0, true);
+  });
+
+  it('Severe still wins regardless of urgency_original (high SE escape hatch)', () => {
+    const severeRoutine = { urgency_score: 8, urgency_original: 'routine',  due_state: false, created_at: '2026-05-15T00:00:00Z' };
+    const nonSevereUrg  = { urgency_score: 6, urgency_original: 'urgent',   due_state: false, created_at: '2026-05-15T00:00:00Z' };
+    assert.equal(cmp(severeRoutine, nonSevereUrg) < 0, true);
+  });
+});
+
+describe('taskPriorityCmp — urgency_score is fourth, age last', () => {
+  const cmp = makeTaskPriorityCmp(7);
+
+  it('within same urgency_original tier, higher urgency_score wins', () => {
+    const high = { urgency_score: 6, urgency_original: 'routine', due_state: false, created_at: '2026-05-16T00:00:00Z' };
+    const low  = { urgency_score: 3, urgency_original: 'routine', due_state: false, created_at: '2026-05-15T00:00:00Z' };
     assert.equal(cmp(high, low) < 0, true);
   });
 
-  it('within same urgency, older wins (FIFO tie-break)', () => {
-    const newer = { urgency_score: 5, due_state: false, created_at: '2026-05-16T12:00:00Z' };
-    const older = { urgency_score: 5, due_state: false, created_at: '2026-05-15T12:00:00Z' };
+  it('within same urgency_score, older wins (FIFO tie-break)', () => {
+    const newer = { urgency_score: 5, urgency_original: 'routine', due_state: false, created_at: '2026-05-16T12:00:00Z' };
+    const older = { urgency_score: 5, urgency_original: 'routine', due_state: false, created_at: '2026-05-15T12:00:00Z' };
     assert.equal(cmp(older, newer) < 0, true);
   });
 });

@@ -333,7 +333,6 @@
   // ─────────────────────────────────────────────────────────────────
 
   async function refreshQueue() {
-    setQueueSubtitle('Loading...');
     try {
       const resp = await api('/queue/mine', { method: 'GET' });
       state.queue = (resp && Array.isArray(resp.tasks)) ? resp.tasks : [];
@@ -353,15 +352,10 @@
     if (tasks.length === 0) {
       tbody.innerHTML = '';
       emptyEl.classList.remove('hidden');
-      setQueueSubtitle('Your queue is empty — pull tasks to begin.');
     } else {
       emptyEl.classList.add('hidden');
       tbody.innerHTML = '';
       tasks.forEach(t => tbody.appendChild(renderTaskRow(t)));
-      const dueCount = tasks.filter(t => t.due_state).length;
-      const sub = tasks.length + ' of 5 tasks'
-        + (dueCount > 0 ? ' · ' + dueCount + ' Due' : '');
-      setQueueSubtitle(sub);
     }
 
     renderQueueStats(tasks);
@@ -406,8 +400,7 @@
       + '<td class="time-cell">' + formatTime(t.created_at) + '</td>'
       + '<td>' + renderPatientCell(t) + '</td>'
       + '<td>' + renderCategoryTag(t.clinical_category) + '</td>'
-      + '<td class="summary-cell">' + escapeHtml(summarize(t)) + '</td>'
-      + '<td>' + renderStatusBadge(t) + '</td>';
+      + '<td class="summary-cell">' + escapeHtml(summarize(t)) + '</td>';
     tr.addEventListener('click', () => {
       // Navigate via hash so back/forward + reload preserve the
       // current task view. The hash listener handles the actual
@@ -439,17 +432,38 @@
 
   function renderPatientCell(t) {
     // Prefer the real patient name + email captured from the Intercom
-    // payload (migration 0029). Fall back to an external_id slug for
-    // rows that pre-date the capture or rows from channels that don't
-    // carry identity (manual paste).
-    const ext = t.external_id || '';
-    const slug = ext.split(':').slice(-1)[0] || ext.slice(0, 8) || 'patient';
-    const name = t.patient_name || ('Patient ' + slug.slice(0, 6));
-    const sub = t.patient_email || ext;
+    // payload (migration 0029). For rows that pre-date the capture or
+    // come from channels without identity (manual paste), show the
+    // name fallback only — the upstream external_id (e.g. the
+    // Intercom conversation id) is intentionally NOT surfaced to
+    // staff; it's an internal channel reference, not a patient
+    // identifier.
+    const name = t.patient_name || 'Unknown patient';
+    const sub  = t.patient_email || '';
+    const icon = renderStatusIcon(t);
     return '<div class="patient-cell">'
-      + '<span class="patient-name">' + escapeHtml(name) + '</span>'
+      + '<span class="patient-name">' + escapeHtml(name) + icon + '</span>'
       + (sub ? '<span class="patient-id">' + escapeHtml(sub) + '</span>' : '')
       + '</div>';
+  }
+
+  // Small status icon shown inline next to the patient name when the
+  // row is in a non-default status. The dedicated Status column was
+  // removed 2026-05-17 (most rows were 'triaged' → "Awaiting reply",
+  // which made the column noisy) but the operationally meaningful
+  // states still need queue-glance visibility:
+  //   reviewed         → AI escalated, treat as urgent triage
+  //   patient_replied  → patient sent more, scroll to bottom of thread
+  //   pending          → AI hasn't classified yet (rare / transient)
+  function renderStatusIcon(t) {
+    const s = t.status || '';
+    if (s === '' || s === 'triaged') return '';
+    let glyph = '', cls = '', title = '';
+    if (s === 'reviewed')        { glyph = '&#9888;';  cls = 'reviewed';        title = 'Needs human review'; }
+    else if (s === 'patient_replied') { glyph = '&#9166;'; cls = 'patient-replied'; title = 'Patient followed up'; }
+    else if (s === 'pending')    { glyph = '&#8987;';  cls = 'pending';         title = 'Pending triage'; }
+    else                          { glyph = '&#8226;';  cls = '';                title = displayStatus(s); }
+    return ' <span class="patient-status-icon ' + cls + '" title="' + escapeHtml(title) + '">' + glyph + '</span>';
   }
 
   function renderCategoryTag(category) {
@@ -2269,8 +2283,6 @@
     const el = document.getElementById(id);
     if (el) el.textContent = value == null ? '' : String(value);
   }
-
-  function setQueueSubtitle(s) { setText('queueSubtitle', s); }
 
   function escapeHtml(s) {
     if (s == null) return '';

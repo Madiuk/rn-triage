@@ -211,14 +211,28 @@ async function fetchTask(triageId, companyId, h) {
 // ─────────────────────────────────────────────────────────────────
 
 // Priority order for a staffer's queue display:
-//   1. Severe (urgency_score >= threshold) first
-//   2. Due tasks next
-//   3. Then by urgency_score (high → low)
-//   4. Tie-break by created_at (oldest first)
+//   1. Severe (urgency_score >= threshold) first — high SE always
+//      wins regardless of categorical urgency.
+//   2. Due tasks next.
+//   3. Categorical urgency: urgent > same-day > routine > none.
+//      Added 2026-05-17 — without this rank a non-severe Routine with
+//      a slightly higher SE score could outrank a Same-day with a
+//      lower score (Brad observed routine sorting above same-day).
+//   4. urgency_score (tie-break within same urgency category).
+//   5. created_at (oldest first, final tie-break).
 //
 // Factory form: the threshold is injected so the comparator is
 // pure and unit-testable without depending on the RELAI_DEFAULTS
 // global. `taskPriorityCmp` below binds the tenant default.
+function urgencyOriginalRank(u) {
+  switch ((u || '').toLowerCase()) {
+    case 'urgent':   return 3;
+    case 'same-day': return 2;
+    case 'routine':  return 1;
+    default:         return 0;
+  }
+}
+
 function makeTaskPriorityCmp(severityThreshold) {
   return function (a, b) {
     const aSevere = (a.urgency_score || 0) >= severityThreshold ? 1 : 0;
@@ -227,6 +241,12 @@ function makeTaskPriorityCmp(severityThreshold) {
     const aDue = a.due_state ? 1 : 0;
     const bDue = b.due_state ? 1 : 0;
     if (aDue !== bDue) return bDue - aDue;
+    // Categorical urgency. urgency_override wins when set (matches
+    // the detail-view "curUrgency" semantics) so that staff
+    // re-classifications take effect in the queue order.
+    const aU = urgencyOriginalRank(a.urgency_override || a.urgency_original);
+    const bU = urgencyOriginalRank(b.urgency_override || b.urgency_original);
+    if (aU !== bU) return bU - aU;
     const aUrg = a.urgency_score || 0;
     const bUrg = b.urgency_score || 0;
     if (aUrg !== bUrg) return bUrg - aUrg;

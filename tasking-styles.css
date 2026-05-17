@@ -297,7 +297,6 @@ body {
 }
 .queue-header-left { flex: 1; min-width: 280px; }
 .queue-title { font-size: 24px; font-weight: 700; margin: 0; }
-.queue-subtitle { font-size: 14px; color: var(--text-muted); margin: 4px 0 0; }
 
 .queue-stats { display: flex; gap: 12px; }
 .queue-stat {
@@ -546,6 +545,21 @@ body {
 .patient-cell { display: flex; flex-direction: column; line-height: 1.3; }
 .patient-name { font-weight: 500; }
 .patient-id { font-size: 11px; color: var(--text-faint); font-family: 'SF Mono', Monaco, monospace; }
+
+/* Inline status indicator — replaces the dedicated Status column on
+ * the queue table (removed 2026-05-17 because most rows showed the
+ * default 'Awaiting reply' and made the column noisy). Only renders
+ * for non-triaged rows; tooltip carries the full status label. */
+.patient-status-icon {
+  display: inline-block;
+  margin-left: 4px;
+  font-size: 12px;
+  line-height: 1;
+  cursor: help;
+}
+.patient-status-icon.reviewed         { color: var(--urgent); }
+.patient-status-icon.patient-replied  { color: #be185d; }
+.patient-status-icon.pending          { color: var(--text-muted); }
 
 .category-tag {
   display: inline-block;
