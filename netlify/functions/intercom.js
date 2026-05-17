@@ -238,6 +238,36 @@ function isSystemPlaceholder(text) {
   return INTERCOM_SYSTEM_PLACEHOLDERS.has(trimmed);
 }
 
+// Fire-and-forget audit writer for inbound_raw_event (mig 0024).
+// Every event that makes it past signature verification gets a row,
+// regardless of whether it produces a query_history insert. Lets us
+// answer "what is Intercom sending us" + "why did we ignore this"
+// retroactively without needing to deploy diagnostic logging.
+//
+// Best-effort: if the audit insert fails, the handler continues so
+// real inbound processing isn't blocked by an audit-table outage.
+// The error is logged via the structured logger for ops visibility.
+async function auditInbound(h, fields) {
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/inbound_raw_event`, {
+      method: 'POST',
+      headers: { ...h, Prefer: 'return=minimal' },
+      body: JSON.stringify({
+        company_id: fields.company_id || null,
+        source_channel: fields.source_channel || 'intercom',
+        topic: fields.topic || null,
+        external_id: fields.external_id || null,
+        raw_payload: fields.raw_payload || null,
+        processed: !!fields.processed,
+        processed_reason: fields.processed_reason || null,
+        triage_id: fields.triage_id || null,
+      }),
+    });
+  } catch (e) {
+    logError('intercom.audit_inbound_failed', e);
+  }
+}
+
 // Pull the Fin (Intercom AI Agent) participation flag from a webhook
 // payload. Strict-equals on `true` so missing field, undefined, null,
 // 0, '' all return false safely. When true, the handler logs a
@@ -265,14 +295,12 @@ exports.handler = async function (event) {
     return { statusCode: 500, body: JSON.stringify({ error: 'INTERCOM_TENANT_COMPANY_ID not configured' }) };
   }
 
-  // TODO (audit log): Before Intercom webhooks process real production
-  // traffic, capture the raw payload to inbound_raw_event BEFORE
-  // parsing — for replay/debug/audit. Deferred while vendor traffic
-  // isn't live yet (designing the table now would be blind to actual
-  // payload shapes). See memory: project_audit_log_deferred.
-  //
   // Verify signature against the raw body. Netlify passes
-  // event.body as a string; pass it directly to the HMAC.
+  // event.body as a string; pass it directly to the HMAC. Signature
+  // failures are NOT captured to inbound_raw_event — that table is
+  // for events that crossed the trusted boundary, and storing
+  // arbitrary attacker payloads has no upside. The structured
+  // logger surfaces signature failures for ops monitoring.
   const rawBody = event.body || '';
   const headers = event.headers || {};
   const signature = headers['x-hub-signature-256']
@@ -288,13 +316,35 @@ exports.handler = async function (event) {
   try { payload = JSON.parse(rawBody); }
   catch (e) { return { statusCode: 400, body: JSON.stringify({ error: 'Invalid JSON body' }) }; }
 
+  // Construct service-key headers now so every audit path can use them.
+  // 'return=representation' is the default; auditInbound overrides to
+  // 'return=minimal' for its own writes.
+  const writeKey = SUPABASE_SERVICE_KEY || SUPABASE_ANON_KEY;
+  const h = {
+    'Content-Type': 'application/json',
+    'apikey': writeKey,
+    'Authorization': 'Bearer ' + writeKey,
+    'Prefer': 'return=representation',
+  };
+
+  // Common context for every audit row written from this request.
+  // The handler appends `external_id` / `processed` / `processed_reason`
+  // / `triage_id` per branch.
+  const topic = payload.topic;
+  const auditBase = {
+    company_id: INTERCOM_TENANT_COMPANY_ID,
+    source_channel: 'intercom',
+    topic: topic,
+    raw_payload: payload,
+  };
+
   // Ack-with-200 for topics we don't act on. Intercom only retries
   // 5xx and connection errors; returning 200 with `ignored: true`
   // lets them tick the webhook off as delivered while we deliberately
   // skip non-user-message events.
-  const topic = payload.topic;
   const SUPPORTED = ['conversation.user.created', 'conversation.user.replied'];
   if (!SUPPORTED.includes(topic)) {
+    await auditInbound(h, { ...auditBase, processed: false, processed_reason: 'unsupported_topic' });
     return {
       statusCode: 200,
       headers: { 'Content-Type': 'application/json' },
@@ -304,6 +354,7 @@ exports.handler = async function (event) {
 
   const msg = extractMessage(payload);
   if (!msg) {
+    await auditInbound(h, { ...auditBase, processed: false, processed_reason: 'no_user_message' });
     return {
       statusCode: 200,
       headers: { 'Content-Type': 'application/json' },
@@ -311,8 +362,11 @@ exports.handler = async function (event) {
     };
   }
 
+  const externalId = `intercom:${msg.conversationId}:${msg.partId}`;
+
   const text = stripHtml(msg.messageHtml);
   if (!text) {
+    await auditInbound(h, { ...auditBase, external_id: externalId, processed: false, processed_reason: 'empty_after_strip' });
     return {
       statusCode: 200,
       headers: { 'Content-Type': 'application/json' },
@@ -325,6 +379,7 @@ exports.handler = async function (event) {
       intercom_conversation_id: msg.conversationId,
       body_preview: text.slice(0, 80),
     });
+    await auditInbound(h, { ...auditBase, external_id: externalId, processed: false, processed_reason: 'system_placeholder' });
     return {
       statusCode: 200,
       headers: { 'Content-Type': 'application/json' },
@@ -346,15 +401,6 @@ exports.handler = async function (event) {
     });
   }
 
-  const writeKey = SUPABASE_SERVICE_KEY || SUPABASE_ANON_KEY;
-  const h = {
-    'Content-Type': 'application/json',
-    'apikey': writeKey,
-    'Authorization': 'Bearer ' + writeKey,
-    'Prefer': 'return=representation',
-  };
-
-  const externalId = `intercom:${msg.conversationId}:${msg.partId}`;
   const companyId = INTERCOM_TENANT_COMPANY_ID;
 
   // Idempotency. The unique (company_id, external_id) index on
@@ -367,6 +413,13 @@ exports.handler = async function (event) {
     );
     const dupes = await dupRes.json();
     if (Array.isArray(dupes) && dupes[0]) {
+      await auditInbound(h, {
+        ...auditBase,
+        external_id: externalId,
+        processed: false,
+        processed_reason: 'duplicate',
+        triage_id: dupes[0].id,
+      });
       return {
         statusCode: 200,
         headers: { 'Content-Type': 'application/json' },
@@ -416,6 +469,12 @@ exports.handler = async function (event) {
         status: insertRes.status,
         body: JSON.stringify(result).slice(0, 300),
       });
+      await auditInbound(h, {
+        ...auditBase,
+        external_id: externalId,
+        processed: false,
+        processed_reason: 'insert_failed',
+      });
       return {
         statusCode: insertRes.ok ? 502 : insertRes.status,
         headers: { 'Content-Type': 'application/json' },
@@ -425,6 +484,14 @@ exports.handler = async function (event) {
         }),
       };
     }
+
+    await auditInbound(h, {
+      ...auditBase,
+      external_id: externalId,
+      processed: true,
+      processed_reason: finFlag ? 'inserted_fin_participated' : 'inserted',
+      triage_id: result[0].id,
+    });
 
     return {
       statusCode: 201,
@@ -438,6 +505,12 @@ exports.handler = async function (event) {
     };
   } catch (e) {
     logError('intercom.insert', e);
+    await auditInbound(h, {
+      ...auditBase,
+      external_id: externalId,
+      processed: false,
+      processed_reason: 'insert_exception',
+    });
     return {
       statusCode: 500,
       headers: { 'Content-Type': 'application/json' },
