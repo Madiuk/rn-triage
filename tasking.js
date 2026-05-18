@@ -253,31 +253,43 @@
     }
     applyProfileUI();
 
-    // 3. Load categories for the pull dropdown.
-    try {
-      state.categories = await api('/.netlify/functions/kb/categories', { method: 'GET' });
-      if (!Array.isArray(state.categories)) state.categories = [];
-    } catch (e) {
-      console.warn('categories load failed:', e.message);
-      state.categories = [];
-    }
+    // 3 + 4. Categories and queue have no inter-dependency, so fire
+    // them in parallel. Shaves one round-trip off cold-start latency,
+    // which matters most when the user has just logged in and is
+    // staring at "Checking for tasks..." Each call renders its own UI
+    // as soon as its data arrives (the pull dropdown when categories
+    // land; the queue table when /queue/mine lands), so neither
+    // blocks the other.
+    //
+    // Profile still loads serially above because its 401 path is the
+    // single auth gate; we want to bounce to /login before firing
+    // two more requests that would also 401.
+    const categoriesP = (async () => {
+      try {
+        state.categories = await api('/.netlify/functions/kb/categories', { method: 'GET' });
+        if (!Array.isArray(state.categories)) state.categories = [];
+      } catch (e) {
+        console.warn('categories load failed:', e.message);
+        state.categories = [];
+      }
+      // Augment with Routing Hub if not already seeded in
+      // category_metadata. The endpoint /queue/pull accepts it either
+      // way (the route module always seeds the routing hub from
+      // defaults); the UI just needs an entry so the user can tick it.
+      if (!state.categories.some(c => c.category_name === ROUTING_HUB_NAME)) {
+        state.categories.push({
+          category_name: ROUTING_HUB_NAME,
+          is_clinical: false,
+          is_active: true,
+          display_order: 999,
+        });
+      }
+      renderPullDropdown();
+    })();
 
-    // Augment with Routing Hub if not already seeded in
-    // category_metadata. The endpoint /queue/pull accepts it either
-    // way (the route module always seeds the routing hub from
-    // defaults); the UI just needs an entry so the user can tick it.
-    if (!state.categories.some(c => c.category_name === ROUTING_HUB_NAME)) {
-      state.categories.push({
-        category_name: ROUTING_HUB_NAME,
-        is_clinical: false,
-        is_active: true,
-        display_order: 999,
-      });
-    }
-    renderPullDropdown();
+    const queueP = refreshQueue();
 
-    // 4. Load own queue.
-    await refreshQueue();
+    await Promise.all([categoriesP, queueP]);
 
     // 5. Wire hash routing AFTER the initial queue load so a deep
     // link (#task/<id>) finds the task in state.queue.
@@ -343,6 +355,18 @@
   // ─────────────────────────────────────────────────────────────────
 
   async function refreshQueue() {
+    // Show "Checking for tasks..." and hide the checkmark empty state
+    // before each fetch. Without this, a populated queue briefly shows
+    // the empty-checkmark on cold load, and refreshes (manual button,
+    // post-complete) flash the previous rows. The empty state only
+    // appears after the fetch resolves with zero tasks.
+    const loadingEl = document.getElementById('queueLoadingState');
+    const emptyEl   = document.getElementById('emptyState');
+    const tbody     = document.getElementById('taskTableBody');
+    if (loadingEl) loadingEl.classList.remove('hidden');
+    if (emptyEl)   emptyEl.classList.add('hidden');
+    if (tbody)     tbody.innerHTML = '';
+
     try {
       const resp = await api('/queue/mine', { method: 'GET' });
       state.queue = (resp && Array.isArray(resp.tasks)) ? resp.tasks : [];
@@ -355,9 +379,12 @@
   }
 
   function renderQueue() {
-    const tbody = document.getElementById('taskTableBody');
-    const emptyEl = document.getElementById('emptyState');
-    const tasks = state.queue;
+    const tbody     = document.getElementById('taskTableBody');
+    const emptyEl   = document.getElementById('emptyState');
+    const loadingEl = document.getElementById('queueLoadingState');
+    const tasks     = state.queue;
+
+    if (loadingEl) loadingEl.classList.add('hidden');
 
     if (tasks.length === 0) {
       tbody.innerHTML = '';

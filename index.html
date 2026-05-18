@@ -135,7 +135,10 @@
         </thead>
         <tbody id="taskTableBody"></tbody>
       </table>
-      <div class="empty-state" id="emptyState">
+      <div class="empty-state" id="queueLoadingState">
+        <div class="empty-title">Checking for tasks...</div>
+      </div>
+      <div class="empty-state hidden" id="emptyState">
         <div class="empty-icon">✓</div>
         <div class="empty-title">Your queue is empty</div>
         <div class="empty-body">Click <strong>Pull tasks</strong> above to grab up to 5 tasks from the pool.</div>
