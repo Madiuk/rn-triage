@@ -1,7 +1,7 @@
 # Care Station — Validation Audit
 
 A per-entry-point validation audit, following the surface inventory in
-[RELAI_INPUT_SURFACES.md](RELAI_INPUT_SURFACES.md). For each entry: what the
+[INPUT_SURFACES.md](INPUT_SURFACES.md). For each entry: what the
 code validates today, what library/pattern (if any) drives it, what slips
 through, and the worst plausible consequence.
 

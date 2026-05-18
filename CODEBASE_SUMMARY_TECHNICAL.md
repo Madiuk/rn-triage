@@ -148,9 +148,9 @@ server-side tests, and introduced a triage-path contract test.
 v0.4.1 fixed a sign-out race and removed the Activity section.
 
 Subsequent v0.4.x hardening pass: three audits compiled
-([RELAI_INPUT_SURFACES.md](RELAI_INPUT_SURFACES.md),
-[RELAI_VALIDATION_AUDIT.md](RELAI_VALIDATION_AUDIT.md),
-[RELAI_DB_INTEGRITY_AUDIT.md](RELAI_DB_INTEGRITY_AUDIT.md));
+([INPUT_SURFACES.md](INPUT_SURFACES.md),
+[VALIDATION_AUDIT.md](VALIDATION_AUDIT.md),
+[DB_INTEGRITY_AUDIT (archived snapshot)](docs/archive/DB_INTEGRITY_AUDIT_2026-05-15.md));
 `/auth/invite` closed against unauthenticated tenant takeover; first-
 admin bootstrap wired so fresh tenants don't need a manual
 post-migration SQL UPDATE; `query_history` enum CHECK constraints +

@@ -5,7 +5,7 @@
 // invite that lands the new account on /accept-invite.html.
 //
 // History — earlier this endpoint had NO caller auth (highest-severity
-// finding in RELAI_VALIDATION_AUDIT.md). Then is_admin gate, no email
+// finding in VALIDATION_AUDIT.md). Then is_admin gate, no email
 // sent (admin had to manually share the sign-in URL). Now: is_super_user
 // gate AND the upstream call is /auth/v1/invite (which triggers the
 // Supabase invite email) instead of /auth/v1/admin/users (silent

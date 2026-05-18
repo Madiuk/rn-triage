@@ -523,7 +523,7 @@ assumptions at onboarding time:
 ## Security backlog (deferred from v0.4.x audit)
 
 Three HIGH-rank findings from
-[RELAI_VALIDATION_AUDIT.md](RELAI_VALIDATION_AUDIT.md) that are safe to
+[VALIDATION_AUDIT.md](VALIDATION_AUDIT.md) that are safe to
 defer for the single-tenant trial. Each has a specific trigger — when
 that trigger fires, the corresponding item moves out of this backlog
 and into active work. Closed items from the same audit pass:

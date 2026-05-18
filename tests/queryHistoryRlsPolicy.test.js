@@ -2,8 +2,8 @@
 //
 // CONTRACT TEST — migration 0011_query_history_explicit_deny_rls.sql
 // must declare an explicit deny RLS policy on public.query_history for
-// the authenticated and anon roles. See RELAI_DB_INTEGRITY_AUDIT.md
-// finding 1 for the rationale.
+// the authenticated and anon roles. See
+// docs/archive/DB_INTEGRITY_AUDIT_2026-05-15.md finding 1 for the rationale.
 //
 // We don't run migrations against a live DB in CI, so this is a
 // source-text contract test (same style as triagePathContract.test.js).

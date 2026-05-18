@@ -298,7 +298,7 @@ exports.handler = async function(event) {
     // ── POST /auth/invite ─────────────────────────────────────────────────
     //
     // History: this endpoint had NO caller auth originally — full
-    // tenant-takeover-with-one-curl (RELAI_VALIDATION_AUDIT.md). The
+    // tenant-takeover-with-one-curl (VALIDATION_AUDIT.md). The
     // is_admin gate added next closed that hole. With magic-link sign-up
     // going away (real-patient-data threat model in mig 0030 comment),
     // this endpoint becomes the ONLY path to account creation, so the

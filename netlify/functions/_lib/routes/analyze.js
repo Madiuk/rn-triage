@@ -25,7 +25,7 @@
 // cap). Defer until /triage rate limiting lands; this endpoint
 // should get the same treatment in the same pass. See PLAN.md
 // "Security backlog (deferred from v0.4.x audit)" and
-// RELAI_VALIDATION_AUDIT.md §1.9.
+// VALIDATION_AUDIT.md §1.9.
 
 const { json } = require("../supabase");
 const { verifyUser, extractToken } = require("../auth");

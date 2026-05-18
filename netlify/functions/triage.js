@@ -40,7 +40,7 @@
 // Brad's call on the trigger — v0.4.1 era he noted the AI is "so
 // young it's making the same mistakes I am not using for patient
 // replies." See PLAN.md "Security backlog" and
-// RELAI_VALIDATION_AUDIT.md §4.1.
+// VALIDATION_AUDIT.md §4.1.
 
 const { resolveCompanyId } = require("./_lib/auth");
 const { runTriage, ALLOWED_MODELS, MAX_TOKENS_CAP } = require("./_lib/triage-core");

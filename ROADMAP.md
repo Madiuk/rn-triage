@@ -463,7 +463,7 @@ Before Week-4 cutover, all must be true:
 - [PLAN.md](PLAN.md) — strategy, principles, decisions log, the
   full ownership model + capability framework
 - [CLAUDE.md](CLAUDE.md) — working agreement, non-negotiables
-- [RELAI_INPUT_SURFACES.md](RELAI_INPUT_SURFACES.md) — current
+- [INPUT_SURFACES.md](INPUT_SURFACES.md) — current
   endpoint inventory; new `/queue/*` endpoints to be added here as
   they ship
 - [CHANGELOG.md](CHANGELOG.md) — running log; cutover gets its own

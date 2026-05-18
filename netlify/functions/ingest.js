@@ -30,7 +30,7 @@
 // trustworthiness. Becomes urgent before Phase 3 ships production
 // channel adapters (Bask, Intercom inbound at volume, email/SMS).
 // See PLAN.md "Security backlog (deferred from v0.4.x audit)" and
-// RELAI_VALIDATION_AUDIT.md §1.1.
+// VALIDATION_AUDIT.md §1.1.
 
 const { logError } = require('./_lib/log');
 

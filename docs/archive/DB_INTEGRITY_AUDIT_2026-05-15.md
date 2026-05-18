@@ -1,6 +1,16 @@
-# Care Station — DB Integrity Audit
+# Care Station — DB Integrity Audit (archived snapshot, 2026-05-15)
 
-Schema audit assembled from [migrations/](migrations/) 0001 → 0010, read-only.
+> **Archived 2026-05-18.** Frozen snapshot of `migrations/` 0001 → 0010 as of
+> 2026-05-15. Schema has shipped through at least migration 0024 since
+> (audit log table, RLS-policy work, NOT NULL adjustments); the gaps and
+> recommendations below describe state at the time of writing and are NOT
+> maintained against current schema. Preserved here for historical reference.
+> For current schema posture, read the live migration files and
+> [ARCHITECTURE.md](../../ARCHITECTURE.md).
+>
+> ---
+
+Schema audit assembled from [migrations/](../../migrations/) 0001 → 0010, read-only.
 For each table: existing NOT NULL / CHECK / UNIQUE / FK constraints, the RLS
 posture, the gaps, and the worst plausible consequence.
 
@@ -85,7 +95,7 @@ in the first place is still reachable.
     `companies` row with profiles attached would fail rather than
     detach.
   - `full_name` has no length cap. Stamped from `user_metadata` typed at
-    signup; see [RELAI_VALIDATION_AUDIT §1.5](RELAI_VALIDATION_AUDIT.md).
+    signup; see [VALIDATION_AUDIT §1.5](../../VALIDATION_AUDIT.md).
 - **Worst consequence:** a user with `role` set to an unrecognized value
   (`'Clinical '`, with trailing space; `'clinical'` lowercase; etc.) is
   silently treated as non-clinical, which under-gates rather than
@@ -133,7 +143,7 @@ in the first place is still reachable.
     non-deterministic, splitting between renders.
   - `user_id` not a FK: a deleted user leaves authorship dangling.
   - `name`, `content` have no length caps. The KB CRUD handler doesn't
-    cap either (see RELAI_VALIDATION_AUDIT §1.10).
+    cap either (see VALIDATION_AUDIT §1.10).
 - **Worst consequence:** drifted `section` values silently disappear
   from the prompt (data loss with no error signal). Duplicate `position`
   values cause inconsistent rendering between two staff members' UIs.
