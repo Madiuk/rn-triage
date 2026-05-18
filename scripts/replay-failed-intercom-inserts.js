@@ -130,7 +130,15 @@ async function findOpenPrimaryId(conversationId) {
 
 async function insertWithIgnoreDuplicates(record) {
   if (DRY_RUN) return { ok: true, dryRun: true, row: null };
-  const r = await fetch(SUPABASE_URL + '/rest/v1/query_history', {
+  // on_conflict names the columns of the partial unique index from
+  // mig 0001 (query_history_company_external_unique). Without this
+  // PostgREST can't honor Prefer: resolution=ignore-duplicates and
+  // the insert fails with 23505 on conflict instead of skipping
+  // silently. We hit exactly this during the 2026-05-17/18 outage
+  // recovery — by the time the script ran, the live handler had
+  // already ingested the same rows via Intercom retries, and the
+  // 23505s required a manual SQL cleanup pass on the audit rows.
+  const r = await fetch(SUPABASE_URL + '/rest/v1/query_history?on_conflict=company_id,external_id', {
     method: 'POST',
     headers: {
       ...dbHeaders,
