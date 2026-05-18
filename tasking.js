@@ -1501,10 +1501,13 @@
       box.innerHTML = renderThreadBubbles(rows, currentTaskId);
       box.classList.remove('is-loading');
       // Scroll to the highlighted current bubble if present, else to
-      // the bottom (most recent message).
+      // the bottom (most recent message). Set scrollTop on the chat-box
+      // directly — scrollIntoView would also scroll the document, which
+      // pushes the sticky .detail-header up behind the global .topbar
+      // on direct #task/<id> navigation.
       const cur = box.querySelector('.chat-message.is-current');
       if (cur) {
-        cur.scrollIntoView({ block: 'center', behavior: 'auto' });
+        box.scrollTop = cur.offsetTop - (box.clientHeight / 2) + (cur.clientHeight / 2);
       } else {
         box.scrollTop = box.scrollHeight;
       }
