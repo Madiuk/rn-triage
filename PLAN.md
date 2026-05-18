@@ -460,7 +460,7 @@ veterinary clinic, professional services).
 **Already vertical-agnostic** (will not need work for tenant #2):
 - DB schema: `kb_entries`, `companies`, `company_members`, `tenants`,
   `audit_log`, `query_history` (data model — column names aside).
-- Auth, profile, magic-link login.
+- Auth, profile, email + password login (magic-link retired in Phase 4).
 - Channel framework (Phase 3).
 - Telemetry / cost / quality endpoints.
 - Eval harness mechanics.

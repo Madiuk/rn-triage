@@ -52,7 +52,7 @@ knowledge base.
 - **Review queue** — when the AI is uncertain, a clinician resolves it,
   and the answer becomes part of the knowledge base automatically.
 - **Roles and permissions** — admins manage who can do what.
-- **Secure sign-in** by emailed magic link.
+- **Secure sign-in** with email + password (admins invite new staff; password reset by email).
 
 ## How it's built (in plain terms)
 

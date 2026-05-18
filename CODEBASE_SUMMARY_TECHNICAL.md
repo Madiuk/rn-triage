@@ -54,7 +54,7 @@ KB, queue, and learning loop are tenant-scoped. Roadmap in
 | AI — corrections | Claude Haiku 4.5                           |
 | Backend          | Netlify Serverless Functions (Node ≥ 18)   |
 | Database         | Supabase (Postgres + RLS)                  |
-| Auth             | Supabase magic-link                        |
+| Auth             | Supabase email + password                  |
 | Hosting          | Netlify (auto-deploys `main`)              |
 
 No build step. `npm test` runs plain-Node unit + contract tests;
@@ -75,7 +75,7 @@ No build step. `npm test` runs plain-Node unit + contract tests;
 - [styles.css](styles.css) — Legacy SPA styles.
 
 **Shared**
-- [login.html](login.html) — magic-link landing.
+- [login.html](login.html) — email + password sign-in; password-reset and accept-invite flows redirect to dedicated pages.
 
 **Shared data / pure helpers**
 - [data/defaults.js](data/defaults.js) — fallback constants (brand, model IDs, confidence threshold).

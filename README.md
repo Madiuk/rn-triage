@@ -98,7 +98,7 @@ other staff and is not part of the production flow.
 | AI — corrections | Claude Haiku 4.5                      |
 | Backend          | Netlify Serverless Functions (Node)   |
 | Database         | Supabase (Postgres + RLS)             |
-| Auth             | Supabase magic-link                   |
+| Auth             | Supabase email + password             |
 | Hosting          | Netlify                               |
 
 ---
@@ -218,14 +218,13 @@ the threshold (0.75 by default; see `data/defaults.js`).
 
 ## Auth flow
 
-1. Staff visit `/login.html` and enter email, first name, department
-2. Supabase sends a magic link
-3. Clicking the link returns the user with a session token
-4. `initAuth()` validates the token, loads profile + tenant config
-5. Name and department badge appear in the staff chip (top right)
+1. Staff visit `/login.html` and enter email + password
+2. Supabase validates via `/auth/v1/token?grant_type=password` and returns a session JWT
+3. The SPA stores the session in `localStorage` (`relai_session`) and loads profile + tenant config via `initAuth()`
+4. Name and department badge appear in the staff chip (top right)
+5. **Forgot password?** sends a recovery link (handled at `/reset-password.html`)
 
-New users must be created in Supabase Auth by an administrator first.
-Public signups are disabled.
+New users must be invited by an admin; the invite email lands at `/accept-invite.html` where the user sets an initial password. Public signups are disabled. Magic-link sign-in was retired in Phase 4.
 
 ---
 
