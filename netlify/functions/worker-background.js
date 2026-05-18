@@ -202,6 +202,75 @@ function buildFinSkipPatch() {
   };
 }
 
+// ── Hold-window helpers (migration 0033) ──────────────────────────
+//
+// A primary task may carry `surface_at` set to "now + 5 minutes" at
+// insert time. The queue read-time filter hides the row until
+// surface_at passes. If the row's own classification (or the
+// classification of a follow-on attached to it) clears the severity
+// threshold, the hold is bypassed by clearing surface_at.
+
+// Whether a classification patch represents a severity that should
+// bypass the hold window. Today's rule: urgency_score at or above
+// RELAI_DEFAULTS.severityUrgencyThreshold (matches the queue priority
+// sort's definition of "severe" — see queue.js makeTaskPriorityCmp).
+function clearsSeverityThreshold(patch, severityThreshold) {
+  if (!patch) return false;
+  const score = typeof patch.urgency_score === 'number' ? patch.urgency_score : 0;
+  return score >= severityThreshold;
+}
+
+// Compute what (if anything) to PATCH onto a primary task when one of
+// its follow-on rows finishes classification.
+//
+// Highest-severity-wins: a later mild follow-on never downgrades a
+// primary's existing severity. We only write fields that strictly
+// improve the primary's queue treatment:
+//
+//   * urgency_score:           write only if new > current
+//   * urgency_original:        write alongside score climb
+//   * clinical_routing_level:  write alongside score climb
+//   * status:                  triaged → reviewed only (never reverse)
+//   * surface_at:              cleared if the new row crosses the
+//                              severity threshold AND the primary is
+//                              still in its hold window
+//
+// Returns null when no upgrade applies. Race note: this is a
+// read-modify-write so concurrent escalations from sibling follow-ons
+// can interleave. The window is tiny in practice and the worst case
+// is a single missed propagation — acceptable for v1. If we see it,
+// upgrade to guarded PATCHes (urgency_score=lt.<new_score>) or move
+// to an RPC.
+function buildPrimaryEscalationPatch(currentPrimary, newClassification, severityThreshold) {
+  if (!currentPrimary || !newClassification) return null;
+  const patch = {};
+
+  const newScore = typeof newClassification.urgency_score === 'number'
+    ? newClassification.urgency_score : 0;
+  const curScore = typeof currentPrimary.urgency_score === 'number'
+    ? currentPrimary.urgency_score : 0;
+
+  if (newScore > curScore) {
+    patch.urgency_score = newScore;
+    if (newClassification.urgency_original) {
+      patch.urgency_original = newClassification.urgency_original;
+    }
+    if (newClassification.clinical_routing_level) {
+      patch.clinical_routing_level = newClassification.clinical_routing_level;
+    }
+  }
+
+  if (newClassification.status === 'reviewed' && currentPrimary.status !== 'reviewed') {
+    patch.status = 'reviewed';
+  }
+
+  if (currentPrimary.surface_at && newScore >= severityThreshold) {
+    patch.surface_at = null;
+  }
+
+  return Object.keys(patch).length > 0 ? patch : null;
+}
+
 // ── Per-row processing ─────────────────────────────────────────────
 
 async function patchRow(rowId, patch, h) {
@@ -222,6 +291,42 @@ async function patchRow(rowId, patch, h) {
   }
   const rows = await r.json();
   return Array.isArray(rows) ? rows : [];
+}
+
+// Propagate severity from a freshly-classified follow-on row to its
+// primary task. Read the primary's current queue-relevant fields,
+// compute the patch via buildPrimaryEscalationPatch (highest-wins,
+// never downgrades), and PATCH if any field would change. A null
+// patch (or a missing primary) is a no-op.
+async function propagateToPrimary(primaryId, followOnPatch, h) {
+  const readUrl = `${SUPABASE_URL}/rest/v1/query_history`
+    + `?id=eq.${encodeURIComponent(primaryId)}`
+    + `&select=urgency_score,urgency_original,clinical_routing_level,status,surface_at`
+    + `&limit=1`;
+  const readRes = await fetch(readUrl, { headers: h });
+  if (!readRes.ok) {
+    throw new Error('primary read failed (' + readRes.status + ')');
+  }
+  const rows = await readRes.json();
+  const primary = Array.isArray(rows) && rows[0] ? rows[0] : null;
+  if (!primary) return;  // primary was deleted; nothing to do.
+
+  const escalation = buildPrimaryEscalationPatch(
+    primary, followOnPatch, RELAI_DEFAULTS.severityUrgencyThreshold
+  );
+  if (!escalation) return;
+
+  const patchUrl = `${SUPABASE_URL}/rest/v1/query_history`
+    + `?id=eq.${encodeURIComponent(primaryId)}`;
+  const patchRes = await fetch(patchUrl, {
+    method: 'PATCH',
+    headers: { ...h, Prefer: 'return=minimal' },
+    body: JSON.stringify(escalation),
+  });
+  if (!patchRes.ok) {
+    const body = await patchRes.text().catch(() => '');
+    throw new Error('primary PATCH failed (' + patchRes.status + '): ' + body.slice(0, 200));
+  }
 }
 
 async function processRow(row, h, apiKey) {
@@ -288,6 +393,19 @@ async function processRow(row, h, apiKey) {
   const relai = (result.parsed && result.parsed._relai) || {};
   const patch = buildTriagePatch(result.normalized || {}, relai);
 
+  // Hold-window bypass (migration 0033). If this row is a primary that
+  // was inserted with a surface_at hold and its own classification
+  // clears the severity threshold, drop the hold so the queue surfaces
+  // it immediately. Follow-on rows (primary_task_id IS NOT NULL)
+  // shouldn't have surface_at set, but the guard is defensive.
+  if (
+    row.surface_at
+    && !row.primary_task_id
+    && clearsSeverityThreshold(patch, RELAI_DEFAULTS.severityUrgencyThreshold)
+  ) {
+    patch.surface_at = null;
+  }
+
   try {
     const updated = await patchRow(row.id, patch, h);
     if (updated.length === 0) {
@@ -314,6 +432,30 @@ async function processRow(row, h, apiKey) {
       },
     }, h);
     return { id: row.id, action: 'patch_error', error: e.message };
+  }
+
+  // Propagate severity to the primary (migration 0033). When this row
+  // is a follow-on, read the primary's current state and decide whether
+  // its classification should be raised based on this row's result.
+  // Highest-severity-wins; failures here are logged but never block the
+  // worker — the follow-on's own classification is already persisted.
+  if (row.primary_task_id) {
+    try {
+      await propagateToPrimary(row.primary_task_id, patch, h);
+    } catch (e) {
+      console.error('worker.propagate_to_primary:', e.message);
+      await audit({
+        company_id: row.company_id,
+        actor_name: 'worker',
+        event_type: 'triage.propagate_failed',
+        entity_type: 'query_history',
+        entity_id: row.primary_task_id,
+        payload: {
+          follow_on_id: row.id,
+          error: e.message.slice(0, 200),
+        },
+      }, h);
+    }
   }
 
   await audit({
@@ -355,7 +497,7 @@ exports.handler = async function () {
       `${SUPABASE_URL}/rest/v1/query_history`
         + `?status=eq.pending`
         + `&order=created_at.asc&limit=${WORKER_BATCH_SIZE}`
-        + `&select=id,company_id,external_id,patient_message,fin_participated`,
+        + `&select=id,company_id,external_id,patient_message,fin_participated,primary_task_id,surface_at`,
       { headers: h }
     );
     if (!r.ok) {
@@ -402,4 +544,6 @@ exports.handler = async function () {
 // Re-export pure helpers for tests.
 exports.buildTriagePatch = buildTriagePatch;
 exports.buildFinSkipPatch = buildFinSkipPatch;
+exports.clearsSeverityThreshold = clearsSeverityThreshold;
+exports.buildPrimaryEscalationPatch = buildPrimaryEscalationPatch;
 exports.FIN_SKIP_NOTE = FIN_SKIP_NOTE;

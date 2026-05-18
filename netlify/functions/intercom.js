@@ -220,6 +220,37 @@ function extractMessage(payload) {
   return null;
 }
 
+// Coalescing window — how long a freshly-created primary task waits
+// before becoming visible in the queue. Additional messages on the
+// same conversation that arrive during this window attach as follow-on
+// rows to the primary instead of spawning their own queue task. See
+// migration 0033 for the schema; queue.js for the read-time filter
+// that enforces visibility; worker-background.js for the
+// severity-bypass that can clear surface_at early.
+const HOLD_WINDOW_MS = 5 * 60 * 1000;
+
+// Decide the coalescing fields for a new inbound row.
+//
+//   existingOpenPrimaryId: id of an open primary task on this
+//     conversation, or null/undefined if there is none.
+//   nowMs: Date.now() at the insert site. Passed explicitly so this
+//     helper stays pure and the timer is testable.
+//
+// Returns one of two shapes, in both cases set both keys so the
+// caller can spread the result onto the record without worrying
+// about which case it's in:
+//   * { primary_task_id: <id>,  surface_at: null }          — follow-on
+//   * { primary_task_id: null,  surface_at: <ISO string> }  — primary
+function buildCoalescingFields(existingOpenPrimaryId, nowMs) {
+  if (existingOpenPrimaryId) {
+    return { primary_task_id: existingOpenPrimaryId, surface_at: null };
+  }
+  return {
+    primary_task_id: null,
+    surface_at: new Date(nowMs + HOLD_WINDOW_MS).toISOString(),
+  };
+}
+
 // Intercom-emitted system placeholder bodies. These are NOT real
 // patient text — Intercom inserts them when a conversation.user.created
 // event fires without an actual typed message (button-initiated
@@ -660,6 +691,40 @@ exports.handler = async function (event) {
     // Fall through; unique index serves as the backstop.
   }
 
+  // Coalescing lookup (migration 0033). If an open primary already
+  // exists on this conversation, this row attaches as a follow-on
+  // (primary_task_id set, no surface_at). Otherwise this row IS the
+  // primary and gets a 5-minute hold window (surface_at set). Lookup
+  // failure falls back to "treat as primary" — silent data drop is
+  // worse than an extra task row.
+  let existingOpenPrimaryId = null;
+  try {
+    const lookupUrl = `${SUPABASE_URL}/rest/v1/query_history`
+      + `?company_id=eq.${encodeURIComponent(companyId)}`
+      + `&conversation_id=eq.${encodeURIComponent(msg.conversationId)}`
+      + `&primary_task_id=is.null`
+      + `&status=in.("pending","triaged","reviewed","patient_replied")`
+      + `&select=id`
+      + `&order=created_at.asc&limit=1`;
+    const lookupRes = await fetch(lookupUrl, { headers: h });
+    if (lookupRes.ok) {
+      const rows = await lookupRes.json();
+      if (Array.isArray(rows) && rows[0] && rows[0].id) {
+        existingOpenPrimaryId = rows[0].id;
+      }
+    } else {
+      logError('intercom.coalesce_lookup_failed', null, {
+        status: lookupRes.status,
+        conversation_id: msg.conversationId,
+      });
+    }
+  } catch (e) {
+    logError('intercom.coalesce_lookup_exception', e, {
+      conversation_id: msg.conversationId,
+    });
+  }
+  const coalescing = buildCoalescingFields(existingOpenPrimaryId, Date.now());
+
   // Insert pending row. Worker fills in classification + draft after
   // the AI call. We deliberately leave clinical_category /
   // urgency_score / etc. NULL — those are AI outputs the worker
@@ -675,6 +740,10 @@ exports.handler = async function (event) {
   // that column is for the staff member who handles the row, not the
   // patient. The legacy code that mis-used it is replaced by these
   // dedicated columns.
+  //
+  // primary_task_id / surface_at (migration 0033) implement the
+  // 5-minute hold + conversation coalescing rule. See
+  // buildCoalescingFields above.
   const record = {
     company_id: companyId,
     patient_message: text,
@@ -690,6 +759,8 @@ exports.handler = async function (event) {
     follow_up_questions: [],
     draft_response: '',
     fin_participated: finFlag,
+    primary_task_id: coalescing.primary_task_id,
+    surface_at: coalescing.surface_at,
   };
 
   try {
@@ -777,4 +848,6 @@ exports.isAiAgentParticipated = isAiAgentParticipated;
 exports.isSystemPlaceholder = isSystemPlaceholder;
 exports.extractConversationIdFromExternalId = extractConversationIdFromExternalId;
 exports.buildBackfillRecords = buildBackfillRecords;
+exports.buildCoalescingFields = buildCoalescingFields;
 exports.INTERCOM_SYSTEM_PLACEHOLDERS = INTERCOM_SYSTEM_PLACEHOLDERS;
+exports.HOLD_WINDOW_MS = HOLD_WINDOW_MS;

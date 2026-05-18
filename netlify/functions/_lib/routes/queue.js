@@ -116,10 +116,15 @@ function inFilter(values) {
 
 // Caller's currently-claimed open tasks. Used for the strict-batch
 // refill check and as the GET /queue/mine payload.
+//
+// Follow-on rows (primary_task_id IS NOT NULL) are excluded — a
+// multi-message conversation surfaces as one task (its primary), so
+// the staff's queue cap counts the primary only.
 async function fetchOwnOpenTasks(userId, companyId, h) {
   const url = `${SUPABASE_URL}/rest/v1/query_history`
     + `?company_id=eq.${encodeURIComponent(companyId)}`
     + `&claimed_by=eq.${encodeURIComponent(userId)}`
+    + `&primary_task_id=is.null`
     + `&status=in.(${inFilter(OPEN_STATUSES)})`
     + `&select=${TASK_FIELDS}`
     + `&order=urgency_score.desc.nullslast,created_at.asc`;
@@ -170,14 +175,29 @@ async function fetchCategoriesMeta(companyId, h) {
 // priority. The 'severity-first' sort happens client-side here on
 // the returned slice — Supabase REST doesn't easily express the
 // `(urgency_score >= threshold) DESC` ordering.
+//
+// Two read-time filters from migration 0033:
+//   * primary_task_id IS NULL — follow-on rows attach to a primary;
+//     only the primary is pullable. The chat-box still renders every
+//     row via /queue/thread.
+//   * surface_at IS NULL OR surface_at <= NOW() — primary tasks in
+//     their 5-minute hold window are invisible until the window
+//     passes (or the worker clears surface_at on severity bypass).
 async function fetchUnclaimedTasks(companyId, categoryNames, limit, h) {
   if (!Array.isArray(categoryNames) || categoryNames.length === 0) return [];
   try {
+    // PostgREST `or` filter: surface_at IS NULL OR surface_at <= now.
+    // The inner items are comma-joined and the whole clause is wrapped
+    // in `or=(...)`.
+    const nowIso = new Date().toISOString();
+    const surfaceOr = `or=(surface_at.is.null,surface_at.lte.${encodeURIComponent(nowIso)})`;
     const url = `${SUPABASE_URL}/rest/v1/query_history`
       + `?company_id=eq.${encodeURIComponent(companyId)}`
       + `&claimed_by=is.null`
+      + `&primary_task_id=is.null`
       + `&status=in.(${inFilter(OPEN_STATUSES)})`
       + `&clinical_category=in.(${inFilter(categoryNames)})`
+      + `&${surfaceOr}`
       + `&select=${TASK_FIELDS}`
       + `&order=urgency_score.desc.nullslast,due_state.desc,created_at.asc`
       + `&limit=${limit}`;
