@@ -63,6 +63,10 @@ const RELAI_DEFAULTS = {
   externalSystems: {
     bask: {
       adminPatientUrlTemplate: 'https://big-easy-weight-loss.mybaskhealth.com/admin/patients/{patient_id}',
+      // Driven by query_history.bask_master_id (Bask's Master ID, mig
+      // 0035). Captured by enriching each new Intercom conversation
+      // via the contact's custom_attributes["order id"] field.
+      adminOrderUrlTemplate: 'https://big-easy-weight-loss.mybaskhealth.com/admin/orders/{master_id}',
     },
   },
 

@@ -193,6 +193,37 @@ function extractBaskPatientId(payload) {
   return (typeof ext === 'string' && ext.trim()) ? ext.trim() : null;
 }
 
+// Extract the Intercom contact id from a webhook payload. Distinct
+// from extractBaskPatientId: that returns the contact's external_id
+// (Bask's identifier); this returns Intercom's own id for the
+// contact, which is the key needed to call GET /contacts/{id}. We
+// persist it as query_history.intercom_contact_id (mig 0035) so the
+// per-conversation enrichment + the one-off backfill don't have to
+// search by external_id.
+function extractIntercomContactId(payload) {
+  if (!payload) return null;
+  const item = payload.data && payload.data.item;
+  if (!item) return null;
+  const contacts = item.contacts && item.contacts.contacts;
+  if (!Array.isArray(contacts) || !contacts[0]) return null;
+  const id = contacts[0].id;
+  return (typeof id === 'string' && id.trim()) ? id.trim() : null;
+}
+
+// Extract Bask's Master ID from an Intercom contact API response (the
+// JSON returned by GET /contacts/{id}). Bask writes it into
+// custom_attributes under the key "order id" — lowercase, with a
+// space (Intercom's naming quirk; not a typo on our side). The value
+// is a UUID; Bask uses it for the admin/orders/<id> URL pattern. See
+// migration 0035 for the schema and project memory
+// "Bask data available via Intercom contact" for the discovery
+// notes.
+function extractBaskOrderMasterId(intercomContact) {
+  if (!intercomContact || !intercomContact.custom_attributes) return null;
+  const v = intercomContact.custom_attributes['order id'];
+  return (typeof v === 'string' && v.trim()) ? v.trim() : null;
+}
+
 // Pull the new user message + ids out of an Intercom webhook payload.
 // Returns null for unsupported topics or payloads that don't carry a
 // new user message. The handler treats null as "ignore quietly with
@@ -204,6 +235,7 @@ function extractMessage(payload) {
   if (!item) return null;
   const conversationId = item.id;
   const baskPatientId = extractBaskPatientId(payload);
+  const intercomContactId = extractIntercomContactId(payload);
 
   if (topic === 'conversation.user.created') {
     const source = item.source || {};
@@ -214,6 +246,7 @@ function extractMessage(payload) {
       authorEmail: (source.author && source.author.email) || null,
       authorName: (source.author && source.author.name) || null,
       baskPatientId,
+      intercomContactId,
     };
   }
 
@@ -238,6 +271,7 @@ function extractMessage(payload) {
       authorEmail: (lastUserPart.author && lastUserPart.author.email) || null,
       authorName: (lastUserPart.author && lastUserPart.author.name) || null,
       baskPatientId,
+      intercomContactId,
     };
   }
 
@@ -558,6 +592,69 @@ async function backfillIntercomThread(h, ctx) {
   }
 }
 
+// Fire-and-forget enrichment: fetch the Intercom contact for a freshly
+// inserted query_history row and persist Bask's Master ID
+// (custom_attributes["order id"]) on the row. Skipped silently when
+// INTERCOM_ACCESS_TOKEN is unset or the contact id is missing — the
+// row's own classification path doesn't depend on this; the master
+// id only drives a UI deep-link.
+//
+// Per-conversation scope: only enrich primary rows (follow-on rows
+// already share the conversation's master id via the primary record).
+// Called from the handler after a successful insert.
+async function enrichBaskMasterId(h, ctx) {
+  const { contactId, triageId, conversationId } = ctx;
+  if (!INTERCOM_ACCESS_TOKEN) {
+    logError('intercom.enrich.skipped', null, {
+      reason: 'INTERCOM_ACCESS_TOKEN not set',
+      conversation_id: conversationId,
+    });
+    return;
+  }
+  if (!contactId || !triageId) return;
+
+  let contact;
+  try {
+    const r = await fetch(
+      'https://api.intercom.io/contacts/' + encodeURIComponent(contactId),
+      {
+        headers: {
+          'Authorization': 'Bearer ' + INTERCOM_ACCESS_TOKEN,
+          'Accept': 'application/json',
+          'Intercom-Version': INTERCOM_API_VERSION,
+        },
+      }
+    );
+    if (!r.ok) {
+      logError('intercom.enrich.fetch_failed', null, {
+        status: r.status,
+        contact_id: contactId,
+      });
+      return;
+    }
+    contact = await r.json();
+  } catch (e) {
+    logError('intercom.enrich.fetch_exception', e, { contact_id: contactId });
+    return;
+  }
+
+  const masterId = extractBaskOrderMasterId(contact);
+  if (!masterId) return;
+
+  try {
+    await fetch(
+      `${SUPABASE_URL}/rest/v1/query_history?id=eq.${encodeURIComponent(triageId)}`,
+      {
+        method: 'PATCH',
+        headers: { ...h, Prefer: 'return=minimal' },
+        body: JSON.stringify({ bask_master_id: masterId }),
+      }
+    );
+  } catch (e) {
+    logError('intercom.enrich.patch_failed', e, { triage_id: triageId });
+  }
+}
+
 // ── Handler ────────────────────────────────────────────────────────
 
 exports.handler = async function (event) {
@@ -786,6 +883,7 @@ exports.handler = async function (event) {
     primary_task_id: coalescing.primary_task_id,
     surface_at: coalescing.surface_at,
     bask_patient_id: msg.baskPatientId || null,
+    intercom_contact_id: msg.intercomContactId || null,
   };
 
   try {
@@ -837,6 +935,20 @@ exports.handler = async function (event) {
       currentTriageId: result[0].id,
     }).catch(e => logError('intercom.backfill.unhandled', e));
 
+    // Fire-and-forget enrichment of Bask Master ID. Only fire for
+    // primary rows — follow-ons share the conversation's master id
+    // via the primary they attach to (queue + detail view read the
+    // primary's columns, not the follow-on's). Failures are logged
+    // but don't propagate; the row's classification and the
+    // patient-link UI both work without this enrichment.
+    if (!coalescing.primary_task_id) {
+      enrichBaskMasterId(h, {
+        contactId: msg.intercomContactId,
+        triageId: result[0].id,
+        conversationId: msg.conversationId,
+      }).catch(e => logError('intercom.enrich.unhandled', e));
+    }
+
     return {
       statusCode: 201,
       headers: { 'Content-Type': 'application/json' },
@@ -873,6 +985,8 @@ exports.isAiAgentParticipated = isAiAgentParticipated;
 exports.isSystemPlaceholder = isSystemPlaceholder;
 exports.extractConversationIdFromExternalId = extractConversationIdFromExternalId;
 exports.extractBaskPatientId = extractBaskPatientId;
+exports.extractIntercomContactId = extractIntercomContactId;
+exports.extractBaskOrderMasterId = extractBaskOrderMasterId;
 exports.buildBackfillRecords = buildBackfillRecords;
 exports.buildCoalescingFields = buildCoalescingFields;
 exports.INTERCOM_SYSTEM_PLACEHOLDERS = INTERCOM_SYSTEM_PLACEHOLDERS;

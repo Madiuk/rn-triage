@@ -35,6 +35,9 @@
   const BASK_ADMIN_URL_TEMPLATE =
     (DEFAULTS.externalSystems && DEFAULTS.externalSystems.bask
       && DEFAULTS.externalSystems.bask.adminPatientUrlTemplate) || '';
+  const BASK_ORDER_URL_TEMPLATE =
+    (DEFAULTS.externalSystems && DEFAULTS.externalSystems.bask
+      && DEFAULTS.externalSystems.bask.adminOrderUrlTemplate) || '';
 
   // ── Supabase config (same project as app.js / login.html) ───────────
   // The anon key is public by design — Supabase RLS is the real
@@ -1216,20 +1219,32 @@
     const channelKey = channel.toLowerCase();
     const channelDisplay = channelLabels[channelKey]
       || (channel.charAt(0).toUpperCase() + channel.slice(1));
-    // Bask deep-link chip. Rendered only when both the row has a
-    // bask_patient_id (migration 0034) AND the tenant has a URL
-    // template configured (RELAI_DEFAULTS.externalSystems.bask).
-    // encodeURIComponent on the id defends against URL-breaking
-    // characters if Bask ever changes the format.
-    const baskHref = (t.bask_patient_id && BASK_ADMIN_URL_TEMPLATE)
+    // Bask deep-link chips. The patient link rides on bask_patient_id
+    // (mig 0034); the order link rides on bask_master_id (mig 0035).
+    // Each chip renders only when both the row has the relevant id
+    // AND the tenant has its URL template configured. encodeURIComponent
+    // on the ids defends against URL-breaking characters if Bask
+    // ever changes the format.
+    const baskPatientHref = (t.bask_patient_id && BASK_ADMIN_URL_TEMPLATE)
       ? BASK_ADMIN_URL_TEMPLATE.replace('{patient_id}', encodeURIComponent(t.bask_patient_id))
       : '';
-    const baskChip = baskHref
+    const baskPatientChip = baskPatientHref
       ? '<a class="detail-header-chip detail-header-bask" '
-        + 'href="' + escapeHtml(baskHref) + '" '
+        + 'href="' + escapeHtml(baskPatientHref) + '" '
         + 'target="_blank" rel="noopener noreferrer" '
         + 'title="Open this patient in Bask admin">'
         + 'Bask record &rarr;'
+        + '</a>'
+      : '';
+    const baskOrderHref = (t.bask_master_id && BASK_ORDER_URL_TEMPLATE)
+      ? BASK_ORDER_URL_TEMPLATE.replace('{master_id}', encodeURIComponent(t.bask_master_id))
+      : '';
+    const baskOrderChip = baskOrderHref
+      ? '<a class="detail-header-chip detail-header-bask" '
+        + 'href="' + escapeHtml(baskOrderHref) + '" '
+        + 'target="_blank" rel="noopener noreferrer" '
+        + 'title="Open the order/master record in Bask admin">'
+        + 'Order page &rarr;'
         + '</a>'
       : '';
     document.getElementById('detailHeaderInfo').innerHTML =
@@ -1239,7 +1254,8 @@
             ? '<span class="detail-header-chip detail-header-email" title="' + escapeHtml(patientEmail) + '">'
               + escapeHtml(patientEmail) + '</span>'
             : '')
-      +   baskChip
+      +   baskPatientChip
+      +   baskOrderChip
       +   '<span class="detail-header-chip">' + renderStatusBadge(t) + '</span>'
       +   '<span class="detail-header-chip detail-header-time" title="' + escapeHtml(formatDateTime(t.created_at)) + '">' + escapeHtml(formatTime(t.created_at)) + '</span>'
       +   '<span class="detail-header-spacer"></span>'
