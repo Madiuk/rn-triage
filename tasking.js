@@ -1495,6 +1495,19 @@
     );
   }
 
+  // Intercom system-placeholder bodies that aren't real patient text.
+  // Mirrors INTERCOM_SYSTEM_PLACEHOLDERS in netlify/functions/intercom.js
+  // (which prevents new inserts). Older rows from before that filter
+  // landed need to be hidden at render time so the chat-box doesn't
+  // surface noise to staff.
+  const SPA_SYSTEM_PLACEHOLDER_MESSAGES = new Set([
+    'SYSTEM MESSAGE: CONVERSATION STARTED',
+  ]);
+
+  function isSystemPlaceholderText(s) {
+    return typeof s === 'string' && SPA_SYSTEM_PLACEHOLDER_MESSAGES.has(s.trim());
+  }
+
   // Render the thread rows as a chronological stream of bubbles +
   // system notes. The current task's row is highlighted; follow-ups
   // (parent_task_id set) render as system notes; closed_no_reply
@@ -1505,6 +1518,12 @@
     }
     const parts = [];
     for (const r of rows) {
+      // Drop noise rows (e.g., Intercom's "CONVERSATION STARTED"
+      // placeholder, which predates the insert-time filter). Skip only
+      // when there's no real staff reply on the same row.
+      if (isSystemPlaceholderText(r.patient_message) && !r.actual_response_sent) {
+        continue;
+      }
       const isCurrent = r.id === currentTaskId;
       // Follow-up spawn — render as a system note positioned at its
       // creation time. The internal_note breadcrumb is self-describing.
