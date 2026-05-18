@@ -719,6 +719,21 @@ body {
   text-transform: none;
 }
 
+/* Audit-view chip. Shown when a super-user is reading a task they
+   don't own. Color codes as "warning" so it's visually distinct from
+   the normal status chips. */
+.detail-header-audit {
+  font-weight: 600;
+  color: var(--amber, #b45309);
+  background: var(--amber-l, rgba(245, 158, 11, 0.12));
+  border: 1px solid var(--amber, #b45309);
+  border-radius: var(--radius-sm);
+  padding: 3px 8px;
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+
 /* Bask deep-link chip. Rendered when the row carries a bask_patient_id
    and the tenant has a URL template configured. Visually distinct from
    the read-only chips around it — it's interactive. */

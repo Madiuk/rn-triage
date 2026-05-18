@@ -43,7 +43,10 @@ exports.handler = async function (event) {
     // future routes might).
     if (path.includes("/queue/close-no-reply")) return queueRoute.handleCloseNoReply(event);
     if (path.includes("/queue/spawn-followup")) return queueRoute.handleSpawnFollowup(event);
+    // More-specific path before /queue/conversations broader match (none yet).
+    if (path.includes("/queue/conversations/recent")) return queueRoute.handleConversationsRecent(event);
     if (path.includes("/queue/thread"))   return queueRoute.handleThread(event);
+    if (path.includes("/queue/peek"))     return queueRoute.handlePeek(event);
     if (path.includes("/queue/pull"))     return queueRoute.handlePull(event);
     if (path.includes("/queue/retask"))   return queueRoute.handleRetask(event);
     if (path.includes("/queue/reassign")) return queueRoute.handleReassign(event);

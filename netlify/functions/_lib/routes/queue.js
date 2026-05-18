@@ -1453,6 +1453,130 @@ async function handleThread(event) {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────
+// GET /queue/peek?id=<id>
+// ─────────────────────────────────────────────────────────────────
+//
+// Read-one access for a task by id, tenant-scoped. The SPA uses this
+// to follow deep-link URLs (#task/<id>) when the task isn't in the
+// caller's local queue cache — typical when a super-user opens a link
+// to a task owned by someone else, for audit purposes.
+//
+// Authorization:
+//   * Super-user → always allowed (audit access).
+//   * Other staff → allowed only if they own the task (claimed_by ===
+//     them). Anyone else gets 403 so an enumeration of task ids by a
+//     non-privileged staff doesn't return tasks they have no business
+//     seeing.
+//
+// Response shape adds `viewer_owns_task` so the SPA can show a clear
+// "audit view" badge when a super-user is reading someone else's
+// task.
+
+// Pure: decide whether a caller may view a given task. Super-users
+// can always view (audit access); other staff can view only the
+// tasks they own. Centralized + exported so the rule has one
+// definition that's unit-testable independently from the HTTP layer.
+function canViewTask(profile, task) {
+  if (!profile || !task) return false;
+  if (profile.is_super_user === true) return true;
+  return !!(task.claimed_by && task.claimed_by === profile.id);
+}
+
+async function handlePeek(event) {
+  if (event.httpMethod !== 'GET') return json(405, { error: 'Method not allowed.' });
+
+  const caller = await authedCaller(event);
+  if (caller.error) return caller.error;
+  const { profile } = caller;
+
+  const qs = event.queryStringParameters || {};
+  const taskId = typeof qs.id === 'string' ? qs.id.trim() : '';
+  if (!taskId) {
+    return json(400, { error: 'Missing or invalid `id` query parameter.' });
+  }
+
+  const h = writeHeaders();
+  const task = await fetchTask(taskId, profile.company_id, h);
+  if (!task) return json(404, { error: 'Task not found.' });
+
+  if (!canViewTask(profile, task)) {
+    return json(403, { error: 'Not authorized to view this task.' });
+  }
+
+  const owns = !!(task.claimed_by && task.claimed_by === profile.id);
+  return json(200, { task, viewer_owns_task: owns });
+}
+
+// ─────────────────────────────────────────────────────────────────
+// GET /queue/conversations/recent?limit=N
+// ─────────────────────────────────────────────────────────────────
+//
+// Super-user only. Returns the N most-recent primary conversations
+// (one row per conversation_id), regardless of who owns or has
+// pulled them. Powers the "Conversations" subtab in the Event Log
+// where super-users can audit live traffic without depending on
+// task-pull state.
+
+const CONVERSATIONS_RECENT_DEFAULT_LIMIT = 10;
+const CONVERSATIONS_RECENT_MAX_LIMIT = 50;
+
+const CONVERSATIONS_RECENT_FIELDS = [
+  'id', 'conversation_id', 'source_channel', 'status',
+  'patient_name', 'patient_email',
+  'clinical_category', 'urgency_score', 'urgency_original',
+  'claimed_by',
+  'created_at',
+].join(',');
+
+// Pure: clamp the ?limit= query param into the [1, MAX] range,
+// defaulting to DEFAULT. Exported for tests.
+function clampConversationsLimit(rawLimit) {
+  const n = parseInt(rawLimit, 10);
+  if (!Number.isFinite(n) || n <= 0) return CONVERSATIONS_RECENT_DEFAULT_LIMIT;
+  if (n > CONVERSATIONS_RECENT_MAX_LIMIT) return CONVERSATIONS_RECENT_MAX_LIMIT;
+  return n;
+}
+
+async function handleConversationsRecent(event) {
+  if (event.httpMethod !== 'GET') return json(405, { error: 'Method not allowed.' });
+
+  const caller = await authedCaller(event);
+  if (caller.error) return caller.error;
+  const { profile } = caller;
+
+  if (!profile.is_super_user) {
+    return json(403, { error: 'Super-user only.' });
+  }
+
+  const qs = event.queryStringParameters || {};
+  const limit = clampConversationsLimit(qs.limit);
+
+  const h = writeHeaders();
+  // Primary rows only (`primary_task_id=is.null`) so we get one row
+  // per conversation. With surface_at NOT filtered, held primaries
+  // still appear here — appropriate for an audit surface.
+  const url = `${SUPABASE_URL}/rest/v1/query_history`
+    + `?company_id=eq.${encodeURIComponent(profile.company_id)}`
+    + `&conversation_id=not.is.null`
+    + `&primary_task_id=is.null`
+    + `&select=${CONVERSATIONS_RECENT_FIELDS}`
+    + `&order=created_at.desc`
+    + `&limit=${limit}`;
+  try {
+    const r = await fetch(url, { headers: h });
+    if (!r.ok) {
+      console.error('queue.conversations_recent:', r.status);
+      return json(500, { error: 'Lookup failed.' });
+    }
+    const rows = await r.json();
+    return json(200, { rows: Array.isArray(rows) ? rows : [] });
+  } catch (e) {
+    console.error('queue.conversations_recent:', e.message);
+    return json(500, { error: 'Internal error.' });
+  }
+}
+
 module.exports = {
   // HTTP handlers
   handlePull,
@@ -1464,6 +1588,8 @@ module.exports = {
   handleCloseNoReply,
   handleSpawnFollowup,
   handleThread,
+  handlePeek,
+  handleConversationsRecent,
   // Pure helpers (exported for unit tests; not used by the router)
   inFilter,
   makeTaskPriorityCmp,
@@ -1481,8 +1607,12 @@ module.exports = {
   dispatchOutbound,
   fireChildren,
   deleteChildren,
+  canViewTask,
+  clampConversationsLimit,
   // Constants (exported for tests that reference them)
   OPEN_STATUSES,
   QUEUE_CAP,
   SEND_TEXT_MAX,
+  CONVERSATIONS_RECENT_DEFAULT_LIMIT,
+  CONVERSATIONS_RECENT_MAX_LIMIT,
 };

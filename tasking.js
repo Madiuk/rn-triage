@@ -744,18 +744,38 @@
     refreshQueue();
   }
 
-  function showDetailView(taskId) {
-    const t = state.queue.find(x => x.id === taskId);
+  async function showDetailView(taskId) {
+    let t = state.queue.find(x => x.id === taskId);
+    let viewerOwnsTask = true;  // local queue means the row was pulled by us
+
+    // Fallback for deep-link navigation when the task isn't in our
+    // local queue cache. Hits /queue/peek which is gated server-side
+    // to "super-user OR task owner" — non-owners who aren't super-users
+    // get 403 here and we fall back to the existing toast.
     if (!t) {
-      // Task isn't in the cached queue (could be a stale URL hash,
-      // or someone pulled before clicking a row). Fall back to
-      // queue view; toast for diagnostics.
+      try {
+        const resp = await api(
+          '/queue/peek?id=' + encodeURIComponent(taskId),
+          { method: 'GET' }
+        );
+        if (resp && resp.task && resp.task.id) {
+          t = resp.task;
+          viewerOwnsTask = !!resp.viewer_owns_task;
+        }
+      } catch (e) {
+        // 403 / 404 / network — handled by the catch-all below.
+      }
+    }
+
+    if (!t) {
       toast('That task is no longer in your queue.', 'warn');
       window.location.hash = '#queue';
       return;
     }
+
     state.activeView = 'detail';
     state.openTaskId = taskId;
+    state.viewerOwnsOpenTask = viewerOwnsTask;
     document.getElementById('queueView').style.display = 'none';
     document.getElementById('detailView').style.display = '';
     const ev = document.getElementById('eventsView');
@@ -783,7 +803,7 @@
     const sv = document.getElementById('staffView');
     if (sv) sv.style.display = 'none';
     setActiveTab('eventsTabBtn');
-    state.eventsSubtab = subtab && ['inbound', 'reviews', 'errors', 'learning'].indexOf(subtab) >= 0
+    state.eventsSubtab = subtab && ['inbound', 'reviews', 'errors', 'learning', 'conversations'].indexOf(subtab) >= 0
       ? subtab : 'inbound';
     // Visually mark the active sub-tab
     document.querySelectorAll('.events-subtab').forEach(b => {
@@ -1219,6 +1239,17 @@
     const channelKey = channel.toLowerCase();
     const channelDisplay = channelLabels[channelKey]
       || (channel.charAt(0).toUpperCase() + channel.slice(1));
+
+    // Audit-view badge: shown when the viewer is a super-user reading
+    // a task they don't own (e.g., reached the page via a deep link
+    // from the Conversations subtab, not via /queue/pull). The badge
+    // is purely informational — action buttons are not currently
+    // gated by ownership, but the back-end /queue/send and friends
+    // will reject mutations from a non-owner regardless.
+    const auditChip = (state.viewerOwnsOpenTask === false)
+      ? '<span class="detail-header-chip detail-header-audit" title="You are viewing a task you have not pulled. Actions may be rejected.">Audit view</span>'
+      : '';
+
     // Bask deep-link chips. The patient link rides on bask_patient_id
     // (mig 0034); the order link rides on bask_master_id (mig 0035).
     // Each chip renders only when both the row has the relevant id
@@ -1254,6 +1285,7 @@
             ? '<span class="detail-header-chip detail-header-email" title="' + escapeHtml(patientEmail) + '">'
               + escapeHtml(patientEmail) + '</span>'
             : '')
+      +   auditChip
       +   baskPatientChip
       +   baskOrderChip
       +   '<span class="detail-header-chip">' + renderStatusBadge(t) + '</span>'
@@ -2090,6 +2122,7 @@
     // (single aggregate payload, no pagination, no per-row filter).
     // Branch early before the list-shaped fetch path.
     if (subtab === 'learning') return loadLearning();
+    if (subtab === 'conversations') return loadConversations();
 
     options = options || {};
     const append = !!options.append;
@@ -2128,6 +2161,65 @@
       if (loadMoreBtn) loadMoreBtn.disabled = false;
       updateLoadMoreVisibility();
     }
+  }
+
+  // Conversations subtab — lists the N most-recent primary conversations
+  // (one row per conversation_id) regardless of who owns or has pulled
+  // them. Super-user-only on the server. Powers the audit-view workflow:
+  // click a row to deep-link into the task via the /queue/peek fallback
+  // in showDetailView.
+  async function loadConversations() {
+    const body = document.getElementById('eventsBody');
+    if (!body) return;
+    body.innerHTML = '<div class="loading-row">Loading…</div>';
+    state.eventsRows = [];
+    state.eventsHasMore = false;
+    updateLoadMoreVisibility();
+    try {
+      const resp = await api('/queue/conversations/recent?limit=10', { method: 'GET' });
+      const rows = (resp && resp.rows) || [];
+      state.eventsRows = rows;
+      renderConversationsList(rows);
+      setText('eventsCountConversations', '(' + rows.length + ')');
+    } catch (e) {
+      body.innerHTML = '<div class="loading-row" style="color:var(--severe)">Failed to load: ' + escapeHtml(e.message) + '</div>';
+    }
+  }
+
+  function renderConversationsList(rows) {
+    const body = document.getElementById('eventsBody');
+    if (!body) return;
+    if (!rows.length) {
+      body.innerHTML = '<div class="loading-row">No conversations yet.</div>';
+      return;
+    }
+    const html = '<table class="events-table"><thead><tr>'
+      + '<th>Received</th>'
+      + '<th>Patient</th>'
+      + '<th>Channel</th>'
+      + '<th>Status</th>'
+      + '<th>Category</th>'
+      + '<th>Action</th>'
+      + '</tr></thead><tbody>'
+      + rows.map(r => {
+        const name = r.patient_name || 'Unknown';
+        const email = r.patient_email || '';
+        const channel = r.source_channel || '—';
+        const status = displayStatus(r.status || '');
+        const category = r.clinical_category || '—';
+        return '<tr>'
+          + '<td>' + escapeHtml(formatDateTime(r.created_at)) + '</td>'
+          + '<td>' + escapeHtml(name)
+            + (email ? '<br><span class="events-sub">' + escapeHtml(email) + '</span>' : '')
+          + '</td>'
+          + '<td>' + escapeHtml(channel) + '</td>'
+          + '<td>' + escapeHtml(status) + '</td>'
+          + '<td>' + escapeHtml(category) + '</td>'
+          + '<td><a href="#task/' + escapeHtml(r.id) + '">Open &rarr;</a></td>'
+          + '</tr>';
+      }).join('')
+      + '</tbody></table>';
+    body.innerHTML = html;
   }
 
   // Learning subtab — fetches the aggregate payload, renders three
