@@ -66,8 +66,9 @@ If a rule prevents an action, ask the user before bypassing it.
 │   │   ├── triage.js      Anthropic /v1/messages proxy with model allowlist
 │   │   ├── ingest.js      generic inbound webhook (any channel —
 │   │   │                  EHR, email, Healthie, etc.); idempotent by external_id
-│   │   ├── worker.js      background processor for pending ingests
-│   │   │                  (scheduled every 4h + manual "Fetch & triage")
+│   │   ├── worker-background.js  background processor for pending ingests
+│   │   │                  (Netlify background fn; scheduled every 4h via cron,
+│   │   │                  or operator-triggered via direct function URL)
 │   │   ├── intercom.js    Intercom inbound webhook (HMAC-verified)
 │   │   ├── bask.js        Bask Health channel adapter — outbound stub
 │   │   └── sla-sweep.js   operator-triggered SLA sweep (not scheduled)
