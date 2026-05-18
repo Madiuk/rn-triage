@@ -354,7 +354,7 @@ body {
   position: absolute;
   top: 100%; left: 0;
   margin-top: 8px;
-  width: 380px;
+  width: 580px;
   background: white;
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -411,6 +411,8 @@ body {
   padding: 8px 4px;
   max-height: 360px;
   overflow-y: auto;
+  column-count: 2;
+  column-gap: 8px;
 }
 .pull-category-option {
   display: flex; align-items: center; gap: 10px;
@@ -418,6 +420,7 @@ body {
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: background 100ms ease;
+  break-inside: avoid;
 }
 .pull-category-option:hover:not(.disabled) { background: var(--bg-page); }
 .pull-category-option.disabled {

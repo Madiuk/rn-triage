@@ -2078,8 +2078,6 @@
     window.location.replace('/login.html?next=/');
   };
 
-  window.refreshQueue = refreshQueue;
-
   // ─────────────────────────────────────────────────────────────────
   // Event Log (super-user only)
   // ─────────────────────────────────────────────────────────────────
