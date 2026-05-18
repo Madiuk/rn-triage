@@ -142,8 +142,17 @@ async function insertWithIgnoreDuplicates(record) {
     body: JSON.stringify(record),
   });
   if (!r.ok) {
-    const body = await r.text().catch(() => '');
-    return { ok: false, status: r.status, body: body.slice(0, 300) };
+    const raw = await r.text().catch(() => '');
+    // PostgREST returns JSON like { code, details, hint, message }.
+    // We want `message` (which names the offending column) more than
+    // we want `details` (which dumps the whole row). Print both, but
+    // surface `message` first so it's not buried.
+    let msg = '';
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.message) msg = ' message=' + parsed.message;
+    } catch (e) { /* keep raw */ }
+    return { ok: false, status: r.status, body: msg + ' raw=' + raw.slice(0, 1500) };
   }
   const rows = await r.json();
   const row = (Array.isArray(rows) && rows[0]) ? rows[0] : null;
