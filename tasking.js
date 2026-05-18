@@ -29,7 +29,6 @@
   // ── Constants from data/defaults.js (loaded by tasking.html) ────────
   const DEFAULTS = (typeof RELAI_DEFAULTS !== 'undefined') ? RELAI_DEFAULTS : {};
   const SEVERITY_THRESHOLD = DEFAULTS.severityUrgencyThreshold || 7;
-  const REVIEW_THRESHOLD   = DEFAULTS.reviewConfidenceThreshold || 0.75;
   const ROUTING_HUB_NAME   = DEFAULTS.routingHubCategory || 'Routing Hub';
   const APP_TITLES         = DEFAULTS.appTitles || ['MD', 'NP', 'DO', 'PA'];
   const BASK_ADMIN_URL_TEMPLATE =
@@ -43,10 +42,9 @@
       && DEFAULTS.externalSystems.healthie.adminPatientUrlTemplate) || '';
 
   // ── Supabase config (same project as app.js / login.html) ───────────
-  // The anon key is public by design — Supabase RLS is the real
-  // boundary. Service-key writes happen only in Netlify Functions.
-  const SUPA_URL = 'https://aturbsnqpdtvhrnujrqb.supabase.co';
-  const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF0dXJic25xcGR0dmhybnVqcnFiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc4NDc5MTgsImV4cCI6MjA5MzQyMzkxOH0.l7LdmI8PfFiIXa1nIwwauiWh6KnzpwhlpK5uieATsic';
+  // Auth (session, token, refresh, authFetch) lives in
+  // data/auth-client.js, loaded before this script via index.html.
+  // The state object below carries SPA-specific UI state only.
 
   // ── State ───────────────────────────────────────────────────────────
   const state = {
@@ -58,8 +56,6 @@
     openTaskId: null,
     activeView: 'queue',  // 'queue' | 'detail' | 'events' | 'staff'
     staffList: [],        // /auth/staff response (super-user only)
-    isSigningOut: false,
-    refreshInFlight: null,
     // Local-session map of staged follow-ups per parent task id. The
     // server already knows about the rows (status='pending_parent');
     // this is just the chip counter the originator sees.
@@ -89,72 +85,23 @@
   }
 
   // ─────────────────────────────────────────────────────────────────
-  // Auth helpers (inline; mirror app.js's pattern)
+  // Auth helpers — thin aliases over data/auth-client.js. The shared
+  // module owns the session/refresh/401-retry flow; this SPA configures
+  // its toast hook and the post-redirect URL (?next= so we land back
+  // on the same page after re-auth).
   // ─────────────────────────────────────────────────────────────────
 
-  function getSession() {
-    try { return JSON.parse(localStorage.getItem('relai_session') || 'null'); }
-    catch (e) { return null; }
-  }
-  function getToken() {
-    const s = getSession();
-    return s ? s.access_token : null;
-  }
+  const getSession = window.RELAI_AUTH.getSession;
+  const getToken   = window.RELAI_AUTH.getToken;
+  const refreshSupabaseToken = window.RELAI_AUTH.refreshSupabaseToken;
+  const authFetch  = window.RELAI_AUTH.authFetch;
 
-  async function refreshSupabaseToken() {
-    if (state.isSigningOut) return false;
-    if (state.refreshInFlight) return state.refreshInFlight;
-    state.refreshInFlight = (async function () {
-      try {
-        const s = getSession();
-        if (!s || !s.refresh_token) return false;
-        const r = await fetch(SUPA_URL + '/auth/v1/token?grant_type=refresh_token', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'apikey': SUPA_KEY },
-          body: JSON.stringify({ refresh_token: s.refresh_token }),
-        });
-        if (!r.ok) return false;
-        const data = await r.json();
-        if (!data || !data.access_token) return false;
-        if (state.isSigningOut) return false;
-        localStorage.setItem('relai_session', JSON.stringify({
-          access_token: data.access_token,
-          refresh_token: data.refresh_token || s.refresh_token,
-          timestamp: Date.now(),
-        }));
-        return true;
-      } catch (e) {
-        console.error('refreshSupabaseToken:', e.message);
-        return false;
-      } finally {
-        state.refreshInFlight = null;
-      }
-    })();
-    return state.refreshInFlight;
-  }
-
-  // Bearer-token-attaching fetch with auto-refresh on 401.
-  async function authFetch(url, opts) {
-    opts = opts || {};
-    const baseHeaders = Object.assign({}, opts.headers || {});
-    const doFetch = (tok) => {
-      const h = Object.assign({}, baseHeaders);
-      if (tok) h['Authorization'] = 'Bearer ' + tok;
-      return fetch(url, Object.assign({}, opts, { headers: h }));
-    };
-    let r = await doFetch(getToken());
-    if (r.status !== 401) return r;
-    const refreshed = await refreshSupabaseToken();
-    if (refreshed) return await doFetch(getToken());
-    if (getSession()) {
-      toast('Session expired — redirecting to login...', 'warn');
-      setTimeout(() => {
-        localStorage.removeItem('relai_session');
-        window.location.href = '/login.html?next=' + encodeURIComponent(window.location.pathname);
-      }, 1500);
-    }
-    return r;
-  }
+  window.RELAI_AUTH.configure({
+    toast: function (m, k) { try { toast(m, k); } catch (e) {} },
+    loginUrl: function () {
+      return '/login.html?next=' + encodeURIComponent(window.location.pathname);
+    },
+  });
 
   // Single-attempt JSON helper. Throws on network failure (with
   // err.isNetworkError = true) or non-2xx HTTP. Used by api() below.
@@ -2094,7 +2041,7 @@
   };
 
   window.signOut = function () {
-    state.isSigningOut = true;
+    window.RELAI_AUTH.setSigningOut(true);
     localStorage.removeItem('relai_session');
     localStorage.removeItem('relai_profile_cache');
     fetch('/.netlify/functions/auth/signout', { method: 'POST' }).catch(() => {});

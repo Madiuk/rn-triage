@@ -57,137 +57,23 @@ let historyRowsById = {};
 // we snap to the last valid page rather than rendering blank.
 let historyCurrentPage = 1;
 
-function getSession(){
-  try{ return JSON.parse(localStorage.getItem('relai_session')||'null'); }catch(e){ return null; }
-}
-function getToken(){
-  var s = getSession();
-  return s ? s.access_token : null;
-}
+// Auth lives in data/auth-client.js (loaded before this script via
+// manual.html). These local aliases keep call sites unchanged while
+// routing through the shared module.
+const getSession        = window.RELAI_AUTH.getSession;
+const getToken          = window.RELAI_AUTH.getToken;
+const refreshSupabaseToken = window.RELAI_AUTH.refreshSupabaseToken;
+const authFetch         = window.RELAI_AUTH.authFetch;
 
-// Supabase public values, mirroring login.html. Both files need these
-// for the magic-link flow (login.html) and the silent token-refresh
-// flow (here). The anon key is intentionally exposed in client code
-// — that's how Supabase is designed.
-// If you ever rotate these, update BOTH login.html and this block.
-const SUPA_URL = 'https://aturbsnqpdtvhrnujrqb.supabase.co';
-const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF0dXJic25xcGR0dmhybnVqcnFiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc4NDc5MTgsImV4cCI6MjA5MzQyMzkxOH0.l7LdmI8PfFiIXa1nIwwauiWh6KnzpwhlpK5uieATsic';
-
-// In-flight refresh promise. Multiple parallel API calls that hit 401
-// simultaneously must share a single refresh attempt — otherwise they
-// each rotate the refresh_token, the writes race, and only the last
-// one ends up in localStorage. The dropped tokens would be invalid on
-// next use, kicking the user to the login page even though we just
-// fetched a new one.
-let refreshInFlight = null;
-
-// Sign-out latch (v0.4.1). When the user clicks Sign Out, this flag
-// flips to true and stays true for the lifetime of the page. Any
-// in-flight or future authFetch that gets a 401 will hit the refresh
-// path; that path is what writes a new session into localStorage. If
-// it runs AFTER signOut already cleared localStorage, it would
-// restore the session — and login.html's "redirect-if-logged-in"
-// block would bounce the user back to the app. We saw this in
-// production as "I have to click Sign Out twice." The latch makes
-// refreshSupabaseToken bail out the moment sign-out starts, even if
-// the network call is already in flight (it bails before the
-// localStorage.setItem at the end).
-let isSigningOut = false;
-
-// Use the stored refresh_token to mint a new access_token (and
-// rotated refresh_token) from Supabase, write both back to
-// localStorage. Returns true on success, false if no refresh_token,
-// the call failed, or Supabase returned an error.
-async function refreshSupabaseToken(){
-  // v0.4.1: don't refresh during sign-out. If the user clicked Sign
-  // Out, isSigningOut is true and the page is about to navigate to
-  // /login.html. Writing a fresh session into localStorage now would
-  // get bounced right back to the app by login.html's "already
-  // logged in" check. Bail out at both possible re-entry points:
-  // before the network call, AND right before the localStorage.set
-  // (in case the call was already in flight when sign-out started).
-  if (isSigningOut) return false;
-  if (refreshInFlight) return refreshInFlight;
-  refreshInFlight = (async function(){
-    try {
-      var session = getSession();
-      if (!session || !session.refresh_token) return false;
-      var r = await fetch(SUPA_URL + '/auth/v1/token?grant_type=refresh_token', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': SUPA_KEY,
-        },
-        body: JSON.stringify({ refresh_token: session.refresh_token }),
-      });
-      if (!r.ok) {
-        console.error('refreshSupabaseToken: status', r.status);
-        return false;
-      }
-      var data = await r.json();
-      if (!data || !data.access_token) return false;
-      // Second check — the network response just came back; if
-      // sign-out fired while we were awaiting, don't repopulate
-      // the cleared session.
-      if (isSigningOut) return false;
-      localStorage.setItem('relai_session', JSON.stringify({
-        access_token: data.access_token,
-        refresh_token: data.refresh_token || session.refresh_token,
-        timestamp: Date.now(),
-      }));
-      return true;
-    } catch (e) {
-      console.error('refreshSupabaseToken:', e.message);
-      return false;
-    } finally {
-      refreshInFlight = null;
-    }
-  })();
-  return refreshInFlight;
-}
-
-// Bearer-token-attaching fetch with automatic refresh-on-401-retry.
-// Every authenticated network call in the app should route through
-// this. The flow:
-//   1. Send the request with the current access_token.
-//   2. If response is 401, try to refresh the access_token using the
-//      stored refresh_token.
-//   3. If refresh succeeds, retry the request once with the new token.
-//   4. If refresh fails AND we had a session to begin with, the
-//      session is dead — show a toast and redirect to /login.html.
-//      (No infinite retry loop.)
-// Returns the Response object; the caller handles parsing.
-async function authFetch(url, opts){
-  opts = opts || {};
-  var baseHeaders = Object.assign({}, opts.headers || {});
-
-  var doFetch = function(tok){
-    var hdrs = Object.assign({}, baseHeaders);
-    if (tok) hdrs['Authorization'] = 'Bearer ' + tok;
-    return fetch(url, Object.assign({}, opts, { headers: hdrs }));
-  };
-
-  var r = await doFetch(getToken());
-  if (r.status !== 401) return r;
-
-  var refreshed = await refreshSupabaseToken();
-  if (refreshed) {
-    return await doFetch(getToken());
-  }
-
-  // Refresh failed. If we had a session at all, it's dead — surface
-  // it to the user briefly, then redirect. Don't redirect synchronously
-  // because the caller's catch block needs to run first.
-  if (getSession()) {
-    try { showToast('Session expired — redirecting to login...', 'warn'); } catch(e) {}
-    setTimeout(function(){
-      localStorage.removeItem('relai_session');
-      clearCachedProfile();
-      window.location.href = '/login.html';
-    }, 1500);
-  }
-  return r;
-}
+// One-time wiring: tell the shared client how this SPA wants to
+// handle the session-dead path. clearCachedProfile is defined later
+// in this file but the configure call runs immediately — the callback
+// only fires at authFetch-time, well after the function is in scope.
+window.RELAI_AUTH.configure({
+  toast: function (m, k) { try { showToast(m, k); } catch (e) {} },
+  onSessionDead: function () { try { clearCachedProfile(); } catch (e) {} },
+  // loginUrl defaults to '/login.html'; matches prior app.js behavior.
+});
 function getCompanyId(){
   // currentProfile.company_id comes straight from the `profiles`
   // table (see auth.js — its `select` includes company_id). The old
@@ -485,28 +371,6 @@ function openProfile(){
   document.getElementById('profileCompany').textContent = company;
   document.getElementById('profilePanel').classList.add('show');
   document.getElementById('profileOverlay').classList.add('show');
-  // Activity section removed in v0.4.1 pending a decision on what
-  // metrics are actually useful at-a-glance. loadProfileStats() and
-  // its /history/stats endpoint are kept for easy reinstatement.
-}
-
-async function loadProfileStats(){
-  var el = document.getElementById('profileStats');
-  if(!el) return;
-  try{
-    var s = await api('/history/stats');
-    if(s && typeof s === 'object' && (s.today != null || s.total != null)){
-      el.innerHTML =
-        '<div>Triages today: <strong>' + (s.today||0) + '</strong></div>' +
-        '<div>Last 7 days: <strong>' + (s.week||0) + '</strong></div>' +
-        '<div>All time: <strong>' + (s.total||0) + '</strong></div>';
-    } else {
-      el.textContent = 'Triage stats unavailable';
-    }
-  }catch(e){
-    console.error('loadProfileStats:', e.message);
-    el.textContent = 'Triage stats unavailable';
-  }
 }
 
 function closeProfile(){
@@ -532,7 +396,7 @@ function signOut(){
   // signout as a true fire-and-forget (no await, browser orphans it
   // on navigation), then navigate. The whole function returns
   // synchronously now.
-  isSigningOut = true;
+  window.RELAI_AUTH.setSigningOut(true);
   var token = getToken();
   localStorage.removeItem('relai_session');
   clearCachedProfile();

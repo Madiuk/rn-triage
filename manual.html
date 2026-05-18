@@ -28,10 +28,6 @@
   <div class="profile-body">
     <div class="profile-eyebrow">Workspace</div>
     <div id="profileCompany" class="profile-company"></div>
-    <!-- Activity section removed in v0.4.1. The /history/stats
-         endpoint and loadProfileStats() function in app.js are
-         intentionally kept so we can restore meaningful per-user
-         metrics later once we decide what's actually worth showing. -->
   </div>
   <div class="profile-foot">
     <button class="profile-action hidden" id="adminTabBtn" onclick="goToAdminFromProfile()">&#9881; Admin</button>
@@ -558,6 +554,8 @@
 
 <div class="save-toast" id="saveToast">Synced</div>
 
+<script src="data/supa-config.js"></script>
+<script src="data/auth-client.js"></script>
 <script src="data/defaults.js"></script>
 <script src="data/triage-lib.js"></script>
 <script src="data/base-prompt.js"></script>
