@@ -1,0 +1,53 @@
+-- 0037_query_history_drop_nurse_name_not_null.sql
+--
+-- Drops the NOT NULL constraint on query_history.nurse_name.
+--
+-- WHY:
+-- nurse_name was declared `text` (nullable) in 0001_baseline. At some
+-- point a NOT NULL constraint was added manually in the Supabase
+-- dashboard — no migration in this repo records that change, so the
+-- prod schema drifted away from what the repo describes.
+--
+-- The constraint stayed quietly behind the live handler's behavior
+-- (intercom.js wrote nurse_name = author name on every patient-side
+-- insert) until commit 1f0928a (2026-05-17 11:16 AM, "Tasking:
+-- capture patient name + email") deliberately stopped writing
+-- nurse_name on patient-side rows. The commit message captures the
+-- semantic correction:
+--
+--   "The legacy code that stuffed authorName into nurse_name on
+--   patient-side rows is removed — that column's correct semantics
+--   are 'who handled this from the staff side', not 'who is the
+--   patient'."
+--
+-- Patient identity moved to the new patient_name / patient_email
+-- columns from migration 0029. nurse_name was left for the staff-
+-- handler use case, where it's correctly nullable (most rows have
+-- no staff handler yet at insert time).
+--
+-- The NOT NULL constraint never got the memo, so every Intercom
+-- webhook since 11:16 AM 2026-05-17 has been hitting 23502 in
+-- production. This was masked by the parallel migration drift on
+-- columns 0028-0035 — once those were applied, this constraint
+-- became the next thing in the way.
+--
+-- This migration realigns the constraint with the code's intent:
+-- nurse_name is the staff-side handler's name, nullable, populated
+-- only on rows where a staff member actually interacts. patient_name
+-- is the patient's name, populated by intercom.js on insert.
+--
+-- BEHAVIORAL IMPACT on existing rows:
+--   * Existing rows retain their nurse_name values — no data change.
+--   * New inserts (from the live intercom.js handler) can pass
+--     nurse_name=null, which is what the post-1f0928a code does.
+--   * The replay script (scripts/replay-failed-intercom-inserts.js)
+--     sets a non-null nurse_name on the rows it inserts so the
+--     recovery works regardless of whether this migration has run
+--     yet; after this migration the value is a harmless duplicate
+--     of patient_name on those specific rows.
+--
+-- Idempotent — `drop not null` on an already-nullable column is a
+-- no-op. Safe to re-run.
+
+alter table public.query_history
+  alter column nurse_name drop not null;

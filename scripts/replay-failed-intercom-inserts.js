@@ -252,6 +252,15 @@ async function main() {
       conversation_id: msg.conversationId,
       patient_email: msg.authorEmail || null,
       patient_name: msg.authorName || null,
+      // nurse_name: legacy column the prod DB still has a NOT NULL
+      // constraint on (added manually in the Supabase dashboard, not
+      // tracked in the repo's migrations). The current intercom.js
+      // doesn't write this since commit 1f0928a — patient identity
+      // lives in patient_name / patient_email now. We set it here so
+      // the replay succeeds even before migration 0037 (which drops
+      // the NOT NULL) lands. After 0037, this value is a harmless
+      // duplicate of patient_name on these specific replayed rows.
+      nurse_name: msg.authorName || 'Intercom',
       status: 'pending',
       urgency_original: 'routine',
       non_clinical_flag: false,
