@@ -54,6 +54,37 @@ at cutover picks up the new SPA automatically.
 
 ---
 
+## Status — 2026-05-18
+
+**Cutover complete.** The `tasking.html` → `index.html` rename described in
+Week 4 shipped. File layout below; references to `tasking.html` in the
+week-by-week prose are now historical.
+
+| Path | File | Notes |
+|---|---|---|
+| `/` (default) | `index.html` + [tasking.js](tasking.js) + [tasking-styles.css](tasking-styles.css) | The Phase 3 tasking SPA — staff home page. |
+| `/manual.html` | [manual.html](manual.html) + [app.js](app.js) + [styles.css](styles.css) | Legacy paste-and-triage SPA. Super-user-only via profile-panel gate. |
+| `/login.html` | [login.html](login.html) | Email + password sign-in. Magic-link sign-in retired Phase 4. |
+| `/reset-password.html`, `/accept-invite.html` | dedicated pages | Recovery + invite landings. |
+
+**Worker scheduler live** ([netlify.toml:49-58](netlify.toml:49), `0 */4 * * *` cron on `worker-background`). The in-SPA "Fetch & triage" button was retired 2026-05-17; the second invocation path is now operator-triggered direct HTTP to the function URL.
+
+**Auth model changed.** From magic-link (Phase 4 retirement) → email + password. Recovery via `/auth/v1/recover` (lands at `/reset-password.html`); invites via `/accept-invite.html` (admin-only via `/auth/invite`). See [ARCHITECTURE.md](ARCHITECTURE.md) for the current picture.
+
+**Recent polish (queue UX, 2026-05-17/18):**
+- Loading state on queue refresh (no false-empty flash before tasks land)
+- Pull dropdown now 2 columns, 580px wide (Pull confirm always in viewport)
+- Manual Refresh button removed (auto-refresh handler open as a future discussion)
+- Init fetches parallelized (categories + queue concurrent after profile)
+- Intercom outage replay scripts shipped (`replay-intercom.js`, multiple fixes)
+
+**Open items for the cleanup pass before new adapters land:**
+- Three HIGH-rank findings still in [PLAN.md "Security backlog"](PLAN.md) — rate limiting on `/triage` and `/analyze`, `/triage` body validation, AI output semantic trust.
+- `maybeBootstrapFirstAdmin` (auto-super-user on first sign-in) must be replaced before tenant #2 lands.
+- `OUTBOUND_LIVE_MODE` kill-switch defaults to off (sandbox mode); flipping to live is a deliberate action when the first tenant goes outbound.
+
+---
+
 ## Status — 2026-05-16 (evening)
 
 **Week 1 substrate is functionally complete.** What's landed and
