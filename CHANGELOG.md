@@ -1,8 +1,121 @@
 # CHANGELOG
 
-Notable changes to Relai. The format follows [Keep a Changelog](https://keepachangelog.com/);
+Notable changes to Care Station (originally branded "Relai"; renamed
+2026-05-15). The format follows [Keep a Changelog](https://keepachangelog.com/);
 versioning follows [SemVer](https://semver.org/) (relaxed pre-1.0 — minor
 bumps cover meaningful capability additions, patch bumps cover fixes).
+
+---
+
+## Unreleased — 2026-05-18 (backfill since v0.4.2)
+
+> Batch backfill written 2026-05-18 covering commits 2026-05-13 → 2026-05-18.
+> Promote to a versioned release (e.g. v0.4.3) at the next release cut.
+
+### Brand: Relai → Care Station
+
+The product was renamed from Relai to Care Station (carestation.app,
+registered 2026-05-15). Many in-repo references — variable names
+(`RELAI_AUTH`, `relai_session`), the API key header (`X-Relai-Api-Key`),
+the response envelope key (`_relai`) — still use the old brand and are
+intentionally left as-is because they are part of the live API surface;
+renaming them is a separate, riskier code change deferred. Doc surfaces
+updated separately (see "Docs" below).
+
+### Added
+
+- **Intercom outage replay script** (`replay-intercom.js`). After an outbound
+  outage, surfaces missed inbound messages and re-inserts them into
+  `query_history` with proper idempotency. Several fixes shipped in close
+  succession to handle the long tail (on_conflict ignore-duplicates,
+  coalescing lookup correction, error-message surfacing, nurse_name NOT NULL
+  workaround via constraint drop).
+- **Healthie inbound adapter** ([netlify/functions/healthie.js](netlify/functions/healthie.js)).
+  Webhook signature verification, audit trail to `inbound_raw_event`,
+  GraphQL fetch of related context. The next channel beyond Intercom.
+- **Bask no-DELETE policy** ([netlify/functions/bask.js](netlify/functions/bask.js),
+  [tests/baskNoDeletePolicy.test.js](tests/baskNoDeletePolicy.test.js)).
+  A `safeBaskFetch` runtime guard refuses literal DELETE methods to back
+  up the header-comment policy. Clinical conversation records must persist;
+  Intercom's `DELETE /conversations/{id}` and Healthie's `deleteNote`
+  share the same prohibition.
+- **`_lib/mail.js` Resend transport** for app-sent notifications. From
+  `notifications@carestation.app`. Supabase Auth SMTP wired separately so
+  recovery / invite emails also flow through Resend.
+- **Super-user audit view + Conversations subtab** in Event Log. Reads
+  existing telemetry (`inbound_raw_event`, audit log shipped in migration
+  0024).
+- **Bask patient deep-link enrichment.** Inbound Intercom webhooks now
+  surface Bask order/master IDs from contact enrichment; admin pages
+  render deep-links to Bask for cross-system context. Intercom itself
+  carries demographics + order UUID only — MRN/Visit/Treatment require
+  direct Bask API access.
+- **`/queue/spawn-followup` idempotency keys.** Safe-to-retry on transient
+  failures.
+- **5-minute inbound coalescing window.** Multi-message bursts from the
+  same patient now land as a single queued row when they arrive within
+  5 minutes.
+- **Queue UX polish (2026-05-18).** Loading state ("Checking for tasks...")
+  replaces the empty-checkmark flash on refresh; pull dropdown laid out in
+  2 columns (580px wide) so the Pull button stays in viewport even with
+  12+ categories; init fetches parallelized (`/kb/categories` +
+  `/queue/mine` concurrent after profile).
+
+### Changed
+
+- **Worker is cron-only.** The in-SPA "Fetch & triage" button was retired
+  alongside the `worker.js` → `worker-background.js` rename (Netlify
+  background function — 202 Accepted immediately, runs up to 15 min — to
+  escape the 10s sync timeout that was killing manual batches). Second
+  invocation path is now operator-triggered direct HTTP to the function
+  URL.
+- **Manual queue Refresh button removed.** `refreshQueue()` still fires on
+  every appropriate trigger (init, after Pull, after task complete, on nav
+  back), so the button was redundant for normal workflow.
+- **Task page layout** rebalanced for column proportions and to tighten
+  reply focus; super-user nav (Event Log, Staff, Manual paste) moved into
+  the profile pop-out card.
+- **Queue sort fix.** `urgency_original` now takes precedence over
+  `urgency_score` when both are present; tasks routed via the Routing Hub
+  override no longer get visually downranked.
+- **Reassign category as a learning signal**, not a release event — staff
+  reassignments now feed the active-learning loop.
+- **Hide Intercom "CONVERSATION STARTED" placeholder** from the in-task
+  chat box; it was noise.
+- **Shared Supabase auth client extracted** to
+  [data/auth-client.js](data/auth-client.js). Two dead helpers dropped in
+  the same pass.
+- **`clinical_category` CHECK constraint dropped**
+  ([migrations/0031](migrations/0031_drop_clinical_category_check.sql)).
+  Was blocking CSR (non-clinical) categories on follow-up tasks.
+
+### Fixed
+
+- **`/queue/spawn-followup` 500** when legacy `nurse_name` column was
+  NOT NULL with no default. Migration dropped the constraint; the replay
+  script also populates the column for back-compat in case any drift
+  remains in prod.
+- **Deep-link to `#task/<id>`** no longer scrolls the page on render.
+
+### Docs
+
+- Retired magic-link references; documented email + password auth model
+  across README, code summaries, ARCHITECTURE, PLAN. Magic-link sign-in
+  was retired in Phase 4 ([login.html](login.html) rejects any inbound
+  magiclink/signup hash).
+- Dropped "Fetch & triage" button references (ARCHITECTURE, AGENTS);
+  updated `worker.js` → `worker-background.js` in file-tree diagrams.
+- Renamed `RELAI_INPUT_SURFACES.md` → [INPUT_SURFACES.md](INPUT_SURFACES.md)
+  and `RELAI_VALIDATION_AUDIT.md` → [VALIDATION_AUDIT.md](VALIDATION_AUDIT.md);
+  archived `RELAI_DB_INTEGRITY_AUDIT.md` to
+  [docs/archive/DB_INTEGRITY_AUDIT_2026-05-15.md](docs/archive/DB_INTEGRITY_AUDIT_2026-05-15.md)
+  as a frozen snapshot of migrations 0001-0010 (schema has shipped
+  through 0024+ since). Cross-refs in 4 Netlify functions, 2 test files,
+  PLAN/ROADMAP/CODEBASE_SUMMARY_TECHNICAL updated.
+- Added a "Status — 2026-05-18" section at the top of
+  [ROADMAP.md](ROADMAP.md) reflecting cutover-complete state.
+- [INTERCOM_SETUP.md](INTERCOM_SETUP.md) runbook (originally landed during
+  v0.4.x hardening pass) — kept for next-tenant onboarding.
 
 ---
 
