@@ -488,26 +488,36 @@ function buildBackfillRecords(intercomConv, companyId, skipPartId) {
   return records;
 }
 
-// Backfill historical conversation parts on first sight of a
-// conversation. Fire-and-forget — the webhook's primary job (insert
-// the current event) succeeds independently. Failures here are logged
-// and the audit row is updated with the outcome, but do NOT propagate
-// to Intercom.
+// Re-sync conversation parts from Intercom on every
+// conversation.user.replied webhook. Fire-and-forget — the webhook's
+// primary job (insert the current event) succeeds independently.
+// Failures here are logged and the audit row is updated with the
+// outcome, but do NOT propagate to Intercom.
 //
 // Triggered when:
 //   * INTERCOM_ACCESS_TOKEN is set (otherwise we have no API access)
 //   * The current event is conversation.user.replied (a fresh
 //     conversation.user.created can't have prior parts by definition)
-//   * No other rows exist for this conversation_id (other than the one
-//     we just inserted)
+//
+// Why every reply, not just first sight (changed 2026-05-18): admin-
+// authored parts (replies posted into Intercom by Bask, native
+// Intercom, or any future channel) do not reliably fire
+// conversation.admin.replied webhooks to our endpoint — observed
+// Bask integration writes that landed in the Intercom conversation
+// but produced zero admin webhooks in inbound_raw_event. Re-syncing
+// on every patient reply guarantees admin parts that landed between
+// turns get persisted into query_history so they appear in the
+// chat-log render. Cost: one extra GET /conversations/<id> call per
+// inbound user reply (negligible at single-tenant volumes).
 //
 // Best-effort idempotency: each insert uses
 // `Prefer: resolution=ignore-duplicates` so a concurrent webhook
 // inserting the same part doesn't 409 us; the unique
 // (company_id, external_id) partial index from migration 0001 is the
-// conflict target.
+// conflict target. With re-sync on every reply, the
+// ignore-duplicates path is the common case, not the exception.
 async function backfillIntercomThread(h, ctx) {
-  const { topic, conversationId, currentPartId, companyId, currentTriageId } = ctx;
+  const { topic, conversationId, currentPartId, companyId } = ctx;
   if (!INTERCOM_ACCESS_TOKEN) {
     logError('intercom.backfill.skipped', null, {
       reason: 'INTERCOM_ACCESS_TOKEN not set',
@@ -518,29 +528,6 @@ async function backfillIntercomThread(h, ctx) {
   if (topic === 'conversation.user.created') {
     // Brand-new conversation; no prior parts to fetch.
     return;
-  }
-
-  // Are there other rows for this conversation already? If yes,
-  // we've ingested some history before — skip the (expensive)
-  // Intercom API call. The id != currentTriageId guard means we
-  // count rows other than the one we just inserted.
-  try {
-    const checkUrl = `${SUPABASE_URL}/rest/v1/query_history`
-      + `?company_id=eq.${encodeURIComponent(companyId)}`
-      + `&conversation_id=eq.${encodeURIComponent(conversationId)}`
-      + `&id=neq.${encodeURIComponent(currentTriageId)}`
-      + `&select=id&limit=1`;
-    const checkRes = await fetch(checkUrl, { headers: h });
-    if (checkRes.ok) {
-      const rows = await checkRes.json();
-      if (Array.isArray(rows) && rows.length > 0) {
-        // We've seen this conversation before; nothing to backfill.
-        return;
-      }
-    }
-  } catch (e) {
-    logError('intercom.backfill.checkExisting', e, { conversation_id: conversationId });
-    // Continue with the fetch anyway; the idempotent inserts are safe.
   }
 
   // Fetch the full conversation from Intercom.
@@ -922,17 +909,19 @@ exports.handler = async function (event) {
       triage_id: result[0].id,
     });
 
-    // Fire-and-forget backfill of historical conversation parts.
-    // Only fires on conversation.user.replied (not on .created, which
-    // is by definition the first message) and only when this is the
-    // first row we have for the conversation. INTERCOM_ACCESS_TOKEN
-    // must be set; if not, the helper logs the skip and returns.
+    // Fire-and-forget re-sync of conversation parts from Intercom.
+    // Fires on every conversation.user.replied (not on .created,
+    // which is by definition the first message). Catches admin parts
+    // that landed since the prior sync — including replies posted
+    // through Intercom by Bask or other channels whose admin webhooks
+    // don't reach us. INTERCOM_ACCESS_TOKEN must be set; if not, the
+    // helper logs the skip and returns. Idempotent via the unique
+    // (company_id, external_id) partial index.
     backfillIntercomThread(h, {
       topic: topic,
       conversationId: msg.conversationId,
       currentPartId: msg.partId,
       companyId: companyId,
-      currentTriageId: result[0].id,
     }).catch(e => logError('intercom.backfill.unhandled', e));
 
     // Fire-and-forget enrichment of Bask Master ID. Only fire for
