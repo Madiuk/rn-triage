@@ -84,6 +84,7 @@ const TASK_FIELDS = [
   'id', 'company_id', 'source_channel', 'external_id', 'status',
   'conversation_id',
   'patient_message', 'patient_email', 'patient_name',
+  'bask_patient_id',
   'draft_response',
   'clinical_category', 'urgency_score', 'urgency_original',
   'urgency_override',

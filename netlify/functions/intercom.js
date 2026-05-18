@@ -172,6 +172,27 @@ function stripHtml(html) {
     .trim();
 }
 
+// Extract the Bask patient identifier from an Intercom webhook payload.
+// Bask creates Intercom contacts with the patient's Bask ID written
+// into the contact-level external_id field (Intercom's name for it,
+// not ours — see migration 0034 for the naming rationale). Every
+// webhook ships this at data.item.contacts.contacts[0].external_id;
+// we pull it once at insert time and persist as bask_patient_id on
+// query_history so the SPA can render an admin link without an API
+// round-trip.
+//
+// Returns null when the field is absent (e.g., a non-Bask Intercom
+// conversation, or an older payload before Bask was wired in).
+function extractBaskPatientId(payload) {
+  if (!payload) return null;
+  const item = payload.data && payload.data.item;
+  if (!item) return null;
+  const contacts = item.contacts && item.contacts.contacts;
+  if (!Array.isArray(contacts) || !contacts[0]) return null;
+  const ext = contacts[0].external_id;
+  return (typeof ext === 'string' && ext.trim()) ? ext.trim() : null;
+}
+
 // Pull the new user message + ids out of an Intercom webhook payload.
 // Returns null for unsupported topics or payloads that don't carry a
 // new user message. The handler treats null as "ignore quietly with
@@ -182,6 +203,7 @@ function extractMessage(payload) {
   const item = payload.data && payload.data.item;
   if (!item) return null;
   const conversationId = item.id;
+  const baskPatientId = extractBaskPatientId(payload);
 
   if (topic === 'conversation.user.created') {
     const source = item.source || {};
@@ -191,6 +213,7 @@ function extractMessage(payload) {
       messageHtml: source.body || '',
       authorEmail: (source.author && source.author.email) || null,
       authorName: (source.author && source.author.name) || null,
+      baskPatientId,
     };
   }
 
@@ -214,6 +237,7 @@ function extractMessage(payload) {
       messageHtml: lastUserPart.body || '',
       authorEmail: (lastUserPart.author && lastUserPart.author.email) || null,
       authorName: (lastUserPart.author && lastUserPart.author.name) || null,
+      baskPatientId,
     };
   }
 
@@ -761,6 +785,7 @@ exports.handler = async function (event) {
     fin_participated: finFlag,
     primary_task_id: coalescing.primary_task_id,
     surface_at: coalescing.surface_at,
+    bask_patient_id: msg.baskPatientId || null,
   };
 
   try {
@@ -847,6 +872,7 @@ exports.extractMessage = extractMessage;
 exports.isAiAgentParticipated = isAiAgentParticipated;
 exports.isSystemPlaceholder = isSystemPlaceholder;
 exports.extractConversationIdFromExternalId = extractConversationIdFromExternalId;
+exports.extractBaskPatientId = extractBaskPatientId;
 exports.buildBackfillRecords = buildBackfillRecords;
 exports.buildCoalescingFields = buildCoalescingFields;
 exports.INTERCOM_SYSTEM_PLACEHOLDERS = INTERCOM_SYSTEM_PLACEHOLDERS;

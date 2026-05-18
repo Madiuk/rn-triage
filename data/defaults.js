@@ -53,6 +53,19 @@ const RELAI_DEFAULTS = {
   // Phase 4 when title taxonomy becomes vertical-specific.
   appTitles: ['MD', 'NP', 'DO', 'PA'],
 
+  // External-system deep-link templates. `{patient_id}` is substituted
+  // by the SPA at render time with the value of query_history.bask_patient_id
+  // (Bask's identifier for the patient, captured from the Intercom webhook
+  // contact's external_id field — see migration 0034). When the column is
+  // NULL on a row, no link is rendered. Per-tenant override expected in
+  // Phase 4: a non-Bask tenant would either point this at their own EHR's
+  // patient-detail URL or set it to null to hide the link.
+  externalSystems: {
+    bask: {
+      adminPatientUrlTemplate: 'https://big-easy-weight-loss.mybaskhealth.com/admin/patients/{patient_id}',
+    },
+  },
+
   // KB section render order + labels. Single source of truth used by
   // both app.js's getFullKB() (browser, what the live triage call
   // sends) and eval/run.js's buildKBString (the eval harness). Keeping

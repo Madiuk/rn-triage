@@ -719,6 +719,22 @@ body {
   text-transform: none;
 }
 
+/* Bask deep-link chip. Rendered when the row carries a bask_patient_id
+   and the tenant has a URL template configured. Visually distinct from
+   the read-only chips around it — it's interactive. */
+.detail-header-bask {
+  text-decoration: none;
+  font-weight: 600;
+  color: var(--brand);
+  padding: 3px 8px;
+  border: 1px solid var(--brand);
+  border-radius: var(--radius-sm);
+  transition: background 120ms ease;
+}
+.detail-header-bask:hover {
+  background: var(--brand-l, rgba(37, 99, 235, 0.08));
+}
+
 .detail-edit-cat-btn {
   width: 26px;
   height: 26px;

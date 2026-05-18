@@ -32,6 +32,9 @@
   const REVIEW_THRESHOLD   = DEFAULTS.reviewConfidenceThreshold || 0.75;
   const ROUTING_HUB_NAME   = DEFAULTS.routingHubCategory || 'Routing Hub';
   const APP_TITLES         = DEFAULTS.appTitles || ['MD', 'NP', 'DO', 'PA'];
+  const BASK_ADMIN_URL_TEMPLATE =
+    (DEFAULTS.externalSystems && DEFAULTS.externalSystems.bask
+      && DEFAULTS.externalSystems.bask.adminPatientUrlTemplate) || '';
 
   // ── Supabase config (same project as app.js / login.html) ───────────
   // The anon key is public by design — Supabase RLS is the real
@@ -1213,6 +1216,22 @@
     const channelKey = channel.toLowerCase();
     const channelDisplay = channelLabels[channelKey]
       || (channel.charAt(0).toUpperCase() + channel.slice(1));
+    // Bask deep-link chip. Rendered only when both the row has a
+    // bask_patient_id (migration 0034) AND the tenant has a URL
+    // template configured (RELAI_DEFAULTS.externalSystems.bask).
+    // encodeURIComponent on the id defends against URL-breaking
+    // characters if Bask ever changes the format.
+    const baskHref = (t.bask_patient_id && BASK_ADMIN_URL_TEMPLATE)
+      ? BASK_ADMIN_URL_TEMPLATE.replace('{patient_id}', encodeURIComponent(t.bask_patient_id))
+      : '';
+    const baskChip = baskHref
+      ? '<a class="detail-header-chip detail-header-bask" '
+        + 'href="' + escapeHtml(baskHref) + '" '
+        + 'target="_blank" rel="noopener noreferrer" '
+        + 'title="Open this patient in Bask admin">'
+        + 'Bask record &rarr;'
+        + '</a>'
+      : '';
     document.getElementById('detailHeaderInfo').innerHTML =
         '<div class="detail-header-row">'
       +   '<span class="detail-header-title">' + escapeHtml(patientLabel) + '</span>'
@@ -1220,6 +1239,7 @@
             ? '<span class="detail-header-chip detail-header-email" title="' + escapeHtml(patientEmail) + '">'
               + escapeHtml(patientEmail) + '</span>'
             : '')
+      +   baskChip
       +   '<span class="detail-header-chip">' + renderStatusBadge(t) + '</span>'
       +   '<span class="detail-header-chip detail-header-time" title="' + escapeHtml(formatDateTime(t.created_at)) + '">' + escapeHtml(formatTime(t.created_at)) + '</span>'
       +   '<span class="detail-header-spacer"></span>'
