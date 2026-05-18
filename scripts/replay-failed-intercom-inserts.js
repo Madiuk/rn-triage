@@ -104,20 +104,24 @@ async function fetchPendingReplays() {
   return r.json();
 }
 
-// Coalescing lookup mirrors intercom.js:823-829 exactly. If an open
-// primary already exists for the conversation, this row attaches as a
-// follow-on; otherwise this row IS the primary.
+// Coalescing lookup mirrors intercom.js:823-829. The status values
+// are safe identifiers (no special chars) so they don't need the
+// quote-and-escape treatment the live handler does — unquoted form
+// dodges any URL-encoding ambiguity around the inline `"` characters.
+// If an open primary already exists for the conversation, this row
+// attaches as a follow-on; otherwise this row IS the primary.
 async function findOpenPrimaryId(conversationId) {
   const url = SUPABASE_URL + '/rest/v1/query_history'
     + '?company_id=eq.' + encodeURIComponent(INTERCOM_TENANT_COMPANY_ID)
     + '&conversation_id=eq.' + encodeURIComponent(conversationId)
     + '&primary_task_id=is.null'
-    + '&status=in.("pending","triaged","reviewed","patient_replied")'
+    + '&status=in.(pending,triaged,reviewed,patient_replied)'
     + '&select=id'
     + '&order=created_at.asc&limit=1';
   const r = await fetch(url, { headers: dbHeaders });
   if (!r.ok) {
-    console.warn('  primary-lookup failed (' + r.status + ') — treating as no open primary');
+    const body = await r.text().catch(() => '');
+    console.warn('  primary-lookup failed (' + r.status + '): ' + body.slice(0, 200));
     return null;
   }
   const rows = await r.json();
