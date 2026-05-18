@@ -360,12 +360,23 @@ function parseSpawnFollowupBody(body) {
   // patient_facing defaults to true (per the design choice 2026-05-17).
   // Accept explicit false; coerce anything else to true.
   const patientFacing = body.patient_facing === false ? false : true;
+  // Optional client-supplied UUID. When present, the server treats a
+  // second insert with the same (company_id, idempotency_key) as a
+  // no-op confirmation of the first — so the client can safely retry
+  // a "Failed to fetch" without creating duplicate follow-ups.
+  // Length-capped to keep bad input cheap; not strictly UUID-validated
+  // because anything unique within a tenant works.
+  const idempotencyKeyRaw = typeof body.idempotency_key === 'string' ? body.idempotency_key.trim() : '';
+  const idempotencyKey = idempotencyKeyRaw || null;
   if (!parentId) return { ok: false, error: 'Missing or invalid `parent_id`.' };
   if (!targetCategory) return { ok: false, error: 'Missing or invalid `target_category`.' };
   if (!note) return { ok: false, error: 'Missing or empty `note`. The receiving staffer needs to know what to do.' };
   if (note.length > 4000) return { ok: false, error: 'note exceeds 4000 char cap.' };
   if (draftResponse.length > 50000) return { ok: false, error: 'draft_response exceeds 50000 char cap.' };
-  return { ok: true, parentId, targetCategory, note, draftResponse, patientFacing };
+  if (idempotencyKey && idempotencyKey.length > 100) {
+    return { ok: false, error: 'idempotency_key exceeds 100 char cap.' };
+  }
+  return { ok: true, parentId, targetCategory, note, draftResponse, patientFacing, idempotencyKey };
 }
 
 // POST /queue/send body shape. `maxTextLen` is injected so tests
@@ -1218,7 +1229,7 @@ async function handleSpawnFollowup(event) {
 
   const parsed = parseSpawnFollowupBody(parseBody(event));
   if (!parsed.ok) return json(400, { error: parsed.error });
-  const { parentId, targetCategory, note, draftResponse, patientFacing } = parsed;
+  const { parentId, targetCategory, note, draftResponse, patientFacing, idempotencyKey } = parsed;
 
   const h = writeHeaders();
 
@@ -1265,6 +1276,7 @@ async function handleSpawnFollowup(event) {
   // the parent.
   const insertUrl = `${SUPABASE_URL}/rest/v1/query_history`;
   let inserted;
+  let deduped = false;
   try {
     const r = await fetch(insertUrl, {
       method: 'POST',
@@ -1283,41 +1295,77 @@ async function handleSpawnFollowup(event) {
         // who-made-this label; the eventual handler is tracked via the
         // newer claimed_by column when they pull from the queue.
         nurse_name: originatorLabel,
+        // Client-supplied retry key (NULL when absent). Unique partial
+        // index in mig 0032 enforces (company_id, idempotency_key)
+        // uniqueness; a retry of the same submission collides and is
+        // handled below as a dedupe (return the original row).
+        idempotency_key: idempotencyKey,
         // No AI triage on follow-ups — these are staff-authored.
         // urgency_score / urgency_original / ai_confidence stay null.
       }),
     });
-    if (!r.ok) {
+    if (r.ok) {
+      const rows = await r.json();
+      inserted = Array.isArray(rows) && rows[0] ? rows[0] : null;
+    } else if (r.status === 409 && idempotencyKey) {
+      // Unique-violation on idempotency_key — a retry of an earlier
+      // request that already succeeded. Look up the original row and
+      // return it as success. Skip the audit_log write below; the
+      // original call already produced one.
+      const lookupUrl = `${SUPABASE_URL}/rest/v1/query_history`
+        + `?company_id=eq.${encodeURIComponent(profile.company_id)}`
+        + `&idempotency_key=eq.${encodeURIComponent(idempotencyKey)}`
+        + `&select=id`
+        + `&limit=1`;
+      try {
+        const lr = await fetch(lookupUrl, { headers: h });
+        if (lr.ok) {
+          const rows = await lr.json();
+          if (Array.isArray(rows) && rows[0]) {
+            inserted = rows[0];
+            deduped = true;
+          }
+        }
+      } catch (e) {
+        console.error('queue.spawnFollowup.dedupeLookup:', e.message);
+      }
+      if (!inserted) {
+        const txt = await r.text();
+        console.error('queue.spawnFollowup.insert.conflict:', r.status, txt.slice(0, 200));
+        return json(500, { error: 'Follow-up create failed.' });
+      }
+    } else {
       const txt = await r.text();
       console.error('queue.spawnFollowup.insert:', r.status, txt.slice(0, 200));
       return json(500, { error: 'Follow-up create failed.' });
     }
-    const rows = await r.json();
-    inserted = Array.isArray(rows) && rows[0] ? rows[0] : null;
   } catch (e) {
     console.error('queue.spawnFollowup.insert:', e.message);
     return json(500, { error: 'Internal error.' });
   }
 
-  auditLog(h, {
-    company_id: profile.company_id,
-    actor_id: profile.id,
-    event_type: 'queue.spawn_followup',
-    entity_type: 'query_history',
-    entity_id: inserted ? inserted.id : null,
-    payload: {
-      parent_id: parentId,
-      target_category: targetCategory,
-      patient_facing: patientFacing,
-      note_length: note.length,
-      has_draft: !!draftResponse,
-    },
-  });
+  if (!deduped) {
+    auditLog(h, {
+      company_id: profile.company_id,
+      actor_id: profile.id,
+      event_type: 'queue.spawn_followup',
+      entity_type: 'query_history',
+      entity_id: inserted ? inserted.id : null,
+      payload: {
+        parent_id: parentId,
+        target_category: targetCategory,
+        patient_facing: patientFacing,
+        note_length: note.length,
+        has_draft: !!draftResponse,
+      },
+    });
+  }
 
   return json(200, {
     ok: true,
     followup_id: inserted ? inserted.id : null,
     target_category: targetCategory,
+    deduped: deduped,
   });
 }
 

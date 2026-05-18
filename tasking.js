@@ -147,9 +147,23 @@
     return r;
   }
 
-  // Convenience: JSON request helper that throws on non-2xx.
-  async function api(url, opts) {
-    const r = await authFetch(url, opts);
+  // Single-attempt JSON helper. Throws on network failure (with
+  // err.isNetworkError = true) or non-2xx HTTP. Used by api() below.
+  async function apiOnce(url, opts) {
+    let r;
+    try {
+      r = await authFetch(url, opts);
+    } catch (e) {
+      // fetch() rejected before any response arrived — TypeError
+      // "Failed to fetch", CORS rejection, DNS failure, timeout, etc.
+      // Surface as a labeled error so the wrapper can decide whether
+      // to retry, and so call sites can show a friendly message
+      // instead of the raw browser string.
+      const wrapped = new Error('Network issue — please try again.');
+      wrapped.isNetworkError = true;
+      wrapped.cause = e;
+      throw wrapped;
+    }
     let body = null;
     try { body = await r.json(); } catch (e) { /* allow text responses */ }
     if (!r.ok) {
@@ -159,6 +173,45 @@
       throw err;
     }
     return body;
+  }
+
+  // Retry-safe request helper. Auto-retries once on a transient
+  // network failure when the request is safe to repeat:
+  //   * GET / HEAD — idempotent by HTTP semantics
+  //   * POST / PATCH / DELETE that includes an idempotency_key in
+  //     the JSON body — server dedupes on (company_id, key)
+  // Anything else (POST without a key) gets the friendly error but
+  // no auto-retry, to avoid silently creating duplicates.
+  async function api(url, opts) {
+    try {
+      return await apiOnce(url, opts);
+    } catch (e) {
+      if (e && e.isNetworkError && canRetryRequest(opts)) {
+        await new Promise(r => setTimeout(r, 250));
+        return await apiOnce(url, opts);
+      }
+      throw e;
+    }
+  }
+
+  function canRetryRequest(opts) {
+    const method = (opts && opts.method && opts.method.toUpperCase()) || 'GET';
+    if (method === 'GET' || method === 'HEAD') return true;
+    const body = opts && opts.body;
+    return typeof body === 'string' && body.indexOf('"idempotency_key"') !== -1;
+  }
+
+  // Module-scoped UUID for the in-flight spawn-followup submission.
+  // Generated lazily on the first confirmSpawnFollowup attempt; reused
+  // across retries of the same submission; cleared on success or when
+  // the modal is reopened for a new submission. Pairs with the
+  // idempotency_key column added in migration 0032.
+  let pendingFollowupKey = null;
+  function makeIdempotencyKey() {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+      return crypto.randomUUID();
+    }
+    return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
   }
 
   // ─────────────────────────────────────────────────────────────────
@@ -1678,6 +1731,9 @@
     if (note) note.value = '';
     if (draft) draft.value = '';
     if (pf) pf.checked = true;
+    // Fresh submission — drop any key left over from a prior modal
+    // (e.g., one the user closed without retrying after a failure).
+    pendingFollowupKey = null;
     document.getElementById('spawnFollowupModal').classList.add('active');
     document.getElementById('spawnFollowupOverlay').classList.add('active');
     document.getElementById('spawnFollowupModal').setAttribute('aria-hidden', 'false');
@@ -1709,7 +1765,13 @@
       if (noteEl) noteEl.focus();
       return;
     }
-    closeSpawnFollowup();
+    // Generate the idempotency key on the first attempt and keep it
+    // across retries of the same submission. The server dedupes on
+    // (company_id, idempotency_key) — see migration 0032 — so a
+    // retry after a "Failed to fetch" produces zero duplicates.
+    if (!pendingFollowupKey) {
+      pendingFollowupKey = makeIdempotencyKey();
+    }
     return withButtonLock('spawnFollowupBtn', 'Saving…', async () => {
       try {
         await api('/queue/spawn-followup', {
@@ -1721,13 +1783,23 @@
             note: note,
             draft_response: draftResponse || undefined,
             patient_facing: patientFacing,
+            idempotency_key: pendingFollowupKey,
           }),
         });
         if (!state.followupsStagedByParent[tid]) state.followupsStagedByParent[tid] = 0;
         state.followupsStagedByParent[tid] += 1;
         refreshFollowupChip();
+        // Close the modal only after a confirmed success — failures
+        // leave it open so the user can retry without retyping. The
+        // key is cleared here so the next submission gets a fresh one.
+        pendingFollowupKey = null;
+        closeSpawnFollowup();
         toast('Follow-up staged. It will fire when you Send or Close this task.', 'success');
       } catch (e) {
+        // Keep the modal open and the key in place. If this was a
+        // transient network failure that already created the row on
+        // the server, the next attempt with the same key returns the
+        // original row instead of inserting a duplicate.
         toast('Follow-up create failed: ' + e.message, 'error');
       }
     });
