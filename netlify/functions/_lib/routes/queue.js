@@ -27,7 +27,10 @@
 //   POST /queue/pull     — fill caller's pending queue (≤5 tasks)
 //   GET  /queue/mine     — caller's current pending queue
 //   POST /queue/retask   — release a claim back to the pool
-//   POST /queue/reassign — change category + release
+//   POST /queue/reassign — log a category correction (learning signal).
+//                          Updates clinical_category + writes a
+//                          task_reassignments row. Does NOT release
+//                          ownership; caller keeps the task.
 //   POST /queue/send     — staff reply, transition to 'sent'
 //
 // See ROADMAP.md "Week 1 — Substrate" §1.2 for contracts and
@@ -747,7 +750,10 @@ async function handleReassign(event) {
 
   const fromCategory = current.clinical_category || null;
 
-  // Apply: change category, release ownership.
+  // Apply: change category only. Ownership stays with the caller —
+  // reassignment is a learning signal (recorded in task_reassignments
+  // below), not a hand-off. Staff who want to release should use
+  // /queue/retask.
   const patchUrl = `${SUPABASE_URL}/rest/v1/query_history`
     + `?id=eq.${encodeURIComponent(triageId)}`
     + `&company_id=eq.${encodeURIComponent(profile.company_id)}`
@@ -758,8 +764,6 @@ async function handleReassign(event) {
       headers: { ...h, Prefer: 'return=minimal' },
       body: JSON.stringify({
         clinical_category: newCategory,
-        claimed_by: null,
-        claimed_at: null,
       }),
     });
     if (!r.ok) {

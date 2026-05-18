@@ -305,8 +305,8 @@
 </div>
 
 <!-- Release-to-queue confirmation modal. The "release" action used to
-     be called "re-task" — clearer name + an explicit warning that
-     reassignment is usually the better first step. -->
+     be called "re-task" — clearer name + the confirmation step keeps
+     accidental clicks from losing the staffer's place. -->
 <div class="modal-overlay" id="releaseOverlay" onclick="closeReleaseConfirm()"></div>
 <div class="release-modal" id="releaseModal" aria-hidden="true">
   <div class="release-head">
@@ -318,12 +318,6 @@
       This drops the task back into the general pool. Anyone in the right
       category with capacity can pull it next.
     </p>
-    <p class="release-body-hint">
-      <strong>If the AI got the category wrong</strong>, use <em>Reassign
-      category</em> (the pencil icon next to the category) first — that
-      sends the task to the correct pool directly instead of waiting for
-      someone to re-pull and reclassify.
-    </p>
   </div>
   <div class="release-foot">
     <button class="release-cancel" onclick="closeReleaseConfirm()">Cancel — keep working</button>
@@ -334,22 +328,27 @@
 <!-- Toast for transient feedback -->
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<!-- Reassign category modal -->
+<!-- Correct category modal. Records the correction to task_reassignments
+     as a learning signal — the task stays with the caller; nothing is
+     released. -->
 <div class="modal-overlay" id="reassignOverlay" onclick="closeReassign()"></div>
 <div class="reassign-modal" id="reassignModal" aria-hidden="true">
   <div class="reassign-head">
-    <div class="reassign-title">Reassign category</div>
+    <div class="reassign-title">Correct category</div>
     <button class="reassign-close" onclick="closeReassign()">&times;</button>
   </div>
   <div class="reassign-body">
-    <label class="reassign-label">New category</label>
+    <p class="reassign-helper">
+      Logs your correction so the AI learns. The task stays with you.
+    </p>
+    <label class="reassign-label">Correct category</label>
     <select id="reassignSelect" class="reassign-select"></select>
     <label class="reassign-label" style="margin-top:12px">Optional note (max 1000 chars)</label>
     <textarea id="reassignNote" class="reassign-note" maxlength="1000" placeholder="Why this category fits better"></textarea>
   </div>
   <div class="reassign-foot">
     <button class="reassign-cancel" onclick="closeReassign()">Cancel</button>
-    <button class="reassign-confirm" onclick="confirmReassign()">Reassign</button>
+    <button class="reassign-confirm" onclick="confirmReassign()">Save correction</button>
   </div>
 </div>
 

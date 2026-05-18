@@ -1249,9 +1249,9 @@
       +   '<div class="detail-ai-box">'
       +     '<div class="detail-ai-line">'
       +       '<span class="ai-key">Category</span>'
-      +       '<span class="ai-val ai-val-category">'
+      +       '<span class="ai-val ai-val-category" id="detailCategoryVal">'
       +         renderCategoryTag(t.clinical_category)
-      +         '<button class="detail-edit-cat-btn" onclick="openReassign()" title="Reassign category" aria-label="Edit category">'
+      +         '<button class="detail-edit-cat-btn" onclick="openReassign()" title="Correct category (logs as a learning signal)" aria-label="Correct category">'
       +           '<span class="pencil-icon">&#9998;</span>'
       +         '</button>'
       +       '</span>'
@@ -1568,9 +1568,7 @@
 
   // "Release to queue" (formerly "re-task") — drops the task back
   // into the general pool. Wrapped in a confirmation modal so an
-  // accidental click doesn't lose the staffer's place. The modal
-  // also nudges the user toward Reassign-first when the underlying
-  // problem is wrong category.
+  // accidental click doesn't lose the staffer's place.
   window.releaseTask = function () {
     if (!state.openTaskId) return;
     document.getElementById('releaseModal').classList.add('active');
@@ -1868,13 +1866,24 @@
           note: note || undefined,
         }),
       });
-      toast('Reassigned: ' + (resp.from_category || '—') + ' → ' + resp.to_category, 'success');
+      // Server logs the correction to task_reassignments (learning
+      // signal) and updates clinical_category, but leaves ownership
+      // with the caller. Update local state + the category chip in
+      // place so staff stays on the task and keeps working.
+      const t = state.queue.find(x => x.id === tid);
+      if (t) t.clinical_category = resp.to_category || newCat;
+      const chip = document.getElementById('detailCategoryVal');
+      if (chip) {
+        chip.innerHTML =
+            renderCategoryTag(resp.to_category || newCat)
+          + '<button class="detail-edit-cat-btn" onclick="openReassign()" title="Correct category (logs as a learning signal)" aria-label="Correct category">'
+          +   '<span class="pencil-icon">&#9998;</span>'
+          + '</button>';
+      }
+      toast('Category corrected: ' + (resp.from_category || '—') + ' → ' + (resp.to_category || newCat) + '. Logged for training.', 'success');
       closeReassign();
-      // Reassign releases ownership server-side, so the task is no
-      // longer in the caller's queue. Pop back to the queue view.
-      window.location.hash = '#queue';
     } catch (e) {
-      toast('Reassign failed: ' + e.message, 'error');
+      toast('Correction failed: ' + e.message, 'error');
     }
   };
 

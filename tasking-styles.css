@@ -1192,11 +1192,10 @@ body {
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }
 
-/* Send sits alone in the right column action bar — right-align so it
-   aligns with the textarea's right edge and reads as the primary
-   commit action for what's been typed. */
+/* Send sits alone in the right column action bar, left-aligned inside
+   the card so it doesn't feel pushed off to the edge. */
 .detail-action-bar-send {
-  justify-content: flex-end;
+  justify-content: flex-start;
 }
 
 /* Patient-facing toggle row in the spawn-followup modal. Renders as
@@ -1304,6 +1303,15 @@ body {
   border-radius: var(--radius-sm);
 }
 .reassign-body { padding: 18px 22px; }
+.reassign-helper {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  background: var(--bg-page);
+  border-left: 3px solid var(--brand);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  color: var(--text-primary);
+}
 .reassign-label {
   display: block;
   font-size: 11px;
