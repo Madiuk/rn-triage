@@ -1240,10 +1240,11 @@ async function handleSpawnFollowup(event) {
 
   // Build the breadcrumb. The receiving staffer sees this verbatim
   // so it needs to be self-explanatory.
+  const originatorLabel = profile.full_name || profile.email || profile.id;
   const intentLabel = patientFacing ? 'patient-facing reply expected' : 'internal handoff only — no patient reply needed';
   const breadcrumb =
     'FOLLOW-UP TASK spawned from ' + parentId +
-    ' by ' + (profile.full_name || profile.email || profile.id) +
+    ' by ' + originatorLabel +
     ' at ' + new Date().toISOString() + '.\n' +
     'Originator intent: ' + intentLabel + '.\n' +
     'Note: ' + note;
@@ -1278,6 +1279,10 @@ async function handleSpawnFollowup(event) {
         draft_response: draftResponse || null,
         clinical_category: targetCategory,
         internal_note: breadcrumb,
+        // Legacy NOT NULL column. Stamp the originator so the row has a
+        // who-made-this label; the eventual handler is tracked via the
+        // newer claimed_by column when they pull from the queue.
+        nurse_name: originatorLabel,
         // No AI triage on follow-ups — these are staff-authored.
         // urgency_score / urgency_original / ai_confidence stay null.
       }),
