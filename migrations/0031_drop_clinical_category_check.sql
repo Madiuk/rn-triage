@@ -1,0 +1,48 @@
+-- 0031_drop_clinical_category_check.sql
+--
+-- Drop the hardcoded clinical_category CHECK constraint added in
+-- migration 0018. The constraint hardcoded the 6 original clinical
+-- categories ('Injection/Dosing', 'Side Effects', 'Severe Side
+-- Effects', 'Medication Management', 'Stall/Lack of Results',
+-- 'General Inquiry') as the only allowed values. That allowlist was
+-- correct when the AI was the only writer; it's wrong now.
+--
+-- Why drop it now:
+--
+--   1. Tenants now define their own categories via category_metadata
+--      (per-tenant rows, an is_clinical flag). The Big Easy tenant
+--      currently has 11 active categories: the original 6 plus 5
+--      non-clinical/CSR ones — Account/Subscription, Billing/Payment,
+--      Complaint/Concern, Refund Request, Shipment/Tracking.
+--
+--   2. Staff need to be able to reassign a task into, or spawn a
+--      follow-up tasked to, those non-clinical categories. Both
+--      flows write `clinical_category = <chosen category>` to
+--      query_history. Under the old CHECK, those writes failed with
+--      a constraint violation and the user saw "API 500".
+--
+--   3. The server-side validation (fetchCategoriesMeta in
+--      netlify/functions/_lib/routes/queue.js) already rejects
+--      category names that aren't in the tenant's category_metadata
+--      before the write hits Postgres. Dropping the DB-level
+--      allowlist removes a stale duplicate; it does NOT remove the
+--      real validation.
+--
+--   4. Migration 0018 itself flagged that its strict allowlist
+--      contradicted the upstream design intent — normalizeTriageOutput
+--      in data/triage-lib.js preserves unknown AI output values
+--      "trimmed rather than coercing them, so staff can see what the
+--      AI actually returned and correct it." The CHECK was the only
+--      thing stopping that drift signal from being saved. Dropping
+--      it restores the original intent for AI rows too.
+--
+-- Reversibility: full. The constraint can be re-added (e.g., with a
+-- broader allowlist or a FOREIGN KEY to category_metadata) in a
+-- later migration. No data is altered by this migration.
+--
+-- Companion test: tests/queryHistoryClinicalCategoryCheck.test.js
+-- pinned the CHECK to canonicalCategories. It's deleted in the same
+-- change since the contract it guarded no longer exists.
+
+alter table public.query_history
+  drop constraint if exists query_history_clinical_category_check;
