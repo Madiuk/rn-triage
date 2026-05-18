@@ -38,6 +38,9 @@
   const BASK_ORDER_URL_TEMPLATE =
     (DEFAULTS.externalSystems && DEFAULTS.externalSystems.bask
       && DEFAULTS.externalSystems.bask.adminOrderUrlTemplate) || '';
+  const HEALTHIE_PATIENT_URL_TEMPLATE =
+    (DEFAULTS.externalSystems && DEFAULTS.externalSystems.healthie
+      && DEFAULTS.externalSystems.healthie.adminPatientUrlTemplate) || '';
 
   // ── Supabase config (same project as app.js / login.html) ───────────
   // The anon key is public by design — Supabase RLS is the real
@@ -1278,6 +1281,17 @@
         + 'Order page &rarr;'
         + '</a>'
       : '';
+    const healthieHref = (t.healthie_patient_id && HEALTHIE_PATIENT_URL_TEMPLATE)
+      ? HEALTHIE_PATIENT_URL_TEMPLATE.replace('{patient_id}', encodeURIComponent(t.healthie_patient_id))
+      : '';
+    const healthieChip = healthieHref
+      ? '<a class="detail-header-chip detail-header-bask" '
+        + 'href="' + escapeHtml(healthieHref) + '" '
+        + 'target="_blank" rel="noopener noreferrer" '
+        + 'title="Open this patient in Healthie">'
+        + 'Healthie patient &rarr;'
+        + '</a>'
+      : '';
     document.getElementById('detailHeaderInfo').innerHTML =
         '<div class="detail-header-row">'
       +   '<span class="detail-header-title">' + escapeHtml(patientLabel) + '</span>'
@@ -1288,6 +1302,7 @@
       +   auditChip
       +   baskPatientChip
       +   baskOrderChip
+      +   healthieChip
       +   '<span class="detail-header-chip">' + renderStatusBadge(t) + '</span>'
       +   '<span class="detail-header-chip detail-header-time" title="' + escapeHtml(formatDateTime(t.created_at)) + '">' + escapeHtml(formatTime(t.created_at)) + '</span>'
       +   '<span class="detail-header-spacer"></span>'

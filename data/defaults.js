@@ -68,6 +68,15 @@ const RELAI_DEFAULTS = {
       // via the contact's custom_attributes["order id"] field.
       adminOrderUrlTemplate: 'https://big-easy-weight-loss.mybaskhealth.com/admin/orders/{master_id}',
     },
+    // Healthie deep-link template (mig 0036). Driven by
+    // query_history.healthie_patient_id, captured by the GraphQL Note
+    // fetch in netlify/functions/healthie.js. Healthie's provider
+    // portal URL pattern: secure subdomain + /users/<id>. The exact
+    // subdomain may vary per Healthie deployment — confirm against
+    // Big Easy's Healthie URL before relying.
+    healthie: {
+      adminPatientUrlTemplate: 'https://secure.gethealthie.com/users/{patient_id}',
+    },
   },
 
   // KB section render order + labels. Single source of truth used by
