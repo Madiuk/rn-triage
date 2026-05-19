@@ -489,10 +489,10 @@ function buildBackfillRecords(intercomConv, companyId, skipPartId) {
 }
 
 // Re-sync conversation parts from Intercom on every
-// conversation.user.replied webhook. Fire-and-forget — the webhook's
-// primary job (insert the current event) succeeds independently.
-// Failures here are logged and the audit row is updated with the
-// outcome, but do NOT propagate to Intercom.
+// conversation.user.replied webhook. AWAITED by the handler — see
+// note below. Failures here are logged but DO NOT propagate as 5xx
+// (we still want the patient row's insert + audit to commit), so the
+// handler swallows any exception via try/catch at the call site.
 //
 // Triggered when:
 //   * INTERCOM_ACCESS_TOKEN is set (otherwise we have no API access)
@@ -509,6 +509,17 @@ function buildBackfillRecords(intercomConv, companyId, skipPartId) {
 // turns get persisted into query_history so they appear in the
 // chat-log render. Cost: one extra GET /conversations/<id> call per
 // inbound user reply (negligible at single-tenant volumes).
+//
+// Why awaited (changed 2026-05-19): fire-and-forget against an
+// external API doesn't work reliably under Netlify Functions —
+// once the handler returns 200 to the webhook caller, the serverless
+// runtime can freeze or terminate the Node process before in-flight
+// fetches complete. Production evidence: backfill produced zero
+// rows from 2026-05-17 launch through 2026-05-19, despite many
+// conversation.user.replied events that should have triggered it.
+// Awaiting adds ~1-2s to webhook ack latency, which is well within
+// Intercom's retry tolerance (they retry on 5xx or 30s+ timeout,
+// not on a slow 200).
 //
 // Best-effort idempotency: each insert uses
 // `Prefer: resolution=ignore-duplicates` so a concurrent webhook
@@ -909,20 +920,31 @@ exports.handler = async function (event) {
       triage_id: result[0].id,
     });
 
-    // Fire-and-forget re-sync of conversation parts from Intercom.
-    // Fires on every conversation.user.replied (not on .created,
-    // which is by definition the first message). Catches admin parts
-    // that landed since the prior sync — including replies posted
-    // through Intercom by Bask or other channels whose admin webhooks
-    // don't reach us. INTERCOM_ACCESS_TOKEN must be set; if not, the
-    // helper logs the skip and returns. Idempotent via the unique
+    // Awaited re-sync of conversation parts from Intercom. Fires on
+    // every conversation.user.replied (not on .created, which is by
+    // definition the first message). Catches admin parts that landed
+    // since the prior sync — including replies posted through
+    // Intercom by Bask or other channels whose admin webhooks don't
+    // reach us. INTERCOM_ACCESS_TOKEN must be set; if not, the helper
+    // logs the skip and returns. Idempotent via the unique
     // (company_id, external_id) partial index.
-    backfillIntercomThread(h, {
-      topic: topic,
-      conversationId: msg.conversationId,
-      currentPartId: msg.partId,
-      companyId: companyId,
-    }).catch(e => logError('intercom.backfill.unhandled', e));
+    //
+    // Awaited (not fire-and-forget) because Netlify can freeze the
+    // function process after the handler returns, cutting off
+    // in-flight fetches. Errors are caught and logged but do NOT
+    // propagate — the patient row's insert + audit have already
+    // committed, and we want the webhook to ack 200 regardless of
+    // whether the re-sync succeeded.
+    try {
+      await backfillIntercomThread(h, {
+        topic: topic,
+        conversationId: msg.conversationId,
+        currentPartId: msg.partId,
+        companyId: companyId,
+      });
+    } catch (e) {
+      logError('intercom.backfill.unhandled', e);
+    }
 
     // Fire-and-forget enrichment of Bask Master ID. Only fire for
     // primary rows — follow-ons share the conversation's master id
