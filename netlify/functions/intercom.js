@@ -590,7 +590,7 @@ async function backfillIntercomThread(h, ctx) {
   }
 }
 
-// Fire-and-forget enrichment: fetch the Intercom contact for a freshly
+// Awaited enrichment: fetch the Intercom contact for a freshly
 // inserted query_history row and persist Bask's Master ID
 // (custom_attributes["order id"]) on the row. Skipped silently when
 // INTERCOM_ACCESS_TOKEN is unset or the contact id is missing — the
@@ -600,6 +600,17 @@ async function backfillIntercomThread(h, ctx) {
 // Per-conversation scope: only enrich primary rows (follow-on rows
 // already share the conversation's master id via the primary record).
 // Called from the handler after a successful insert.
+//
+// Why awaited (changed 2026-05-19, same fix as backfillIntercomThread):
+// fire-and-forget against an external API doesn't work reliably under
+// Netlify Functions — once the handler returns 200, the serverless
+// runtime can freeze or terminate the Node process before in-flight
+// fetches complete. Production evidence: bask_master_id was populated
+// on only 10 of ~30 inbound primary rows (~33% success rate),
+// consistent with the process being torn down before the Intercom GET
+// + Supabase PATCH could finish. Awaiting fixes that. Errors are
+// caught at the call site so the webhook ack stays 200; this
+// enrichment is non-critical (deep-link convenience, not safety).
 async function enrichBaskMasterId(h, ctx) {
   const { contactId, triageId, conversationId } = ctx;
   if (!INTERCOM_ACCESS_TOKEN) {
@@ -946,18 +957,27 @@ exports.handler = async function (event) {
       logError('intercom.backfill.unhandled', e);
     }
 
-    // Fire-and-forget enrichment of Bask Master ID. Only fire for
-    // primary rows — follow-ons share the conversation's master id
-    // via the primary they attach to (queue + detail view read the
-    // primary's columns, not the follow-on's). Failures are logged
-    // but don't propagate; the row's classification and the
-    // patient-link UI both work without this enrichment.
+    // Awaited enrichment of Bask Master ID. Only fire for primary
+    // rows — follow-ons share the conversation's master id via the
+    // primary they attach to (queue + detail view read the primary's
+    // columns, not the follow-on's). Failures are logged but don't
+    // propagate; the row's classification and the patient-link UI
+    // both work without this enrichment.
+    //
+    // Awaited (not fire-and-forget) for the same reason as the
+    // backfill above — Netlify can freeze the process after the
+    // handler returns. Errors caught and swallowed so the webhook
+    // ack stays 200.
     if (!coalescing.primary_task_id) {
-      enrichBaskMasterId(h, {
-        contactId: msg.intercomContactId,
-        triageId: result[0].id,
-        conversationId: msg.conversationId,
-      }).catch(e => logError('intercom.enrich.unhandled', e));
+      try {
+        await enrichBaskMasterId(h, {
+          contactId: msg.intercomContactId,
+          triageId: result[0].id,
+          conversationId: msg.conversationId,
+        });
+      } catch (e) {
+        logError('intercom.enrich.unhandled', e);
+      }
     }
 
     return {
